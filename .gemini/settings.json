@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "svelte": {
+      "httpUrl": "https://mcp.svelte.dev/mcp"
+    },
+    "shadcn-svelte": {
+      "httpUrl": "https://shadcn-svelte.mastra.cloud/api/mcp/shadcn/mcp"
+    }
+  }
+}
