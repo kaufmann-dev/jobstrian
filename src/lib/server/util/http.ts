@@ -1,0 +1,42 @@
+export const USER_AGENT =
+	'JobstrianBot/0.1 (personal job-search assistant; contact: david@kaufmann.dev)';
+
+export interface FetchOpts {
+	timeoutMs?: number;
+	headers?: Record<string, string>;
+	signal?: AbortSignal;
+}
+
+/** fetch with a default timeout and polite User-Agent. */
+export async function politeFetch(url: string, opts: FetchOpts = {}): Promise<Response> {
+	const ctrl = new AbortController();
+	const timeout = setTimeout(() => ctrl.abort(), opts.timeoutMs ?? 15_000);
+	if (opts.signal) {
+		opts.signal.addEventListener('abort', () => ctrl.abort(), { once: true });
+	}
+	try {
+		return await fetch(url, {
+			headers: { 'user-agent': USER_AGENT, ...opts.headers },
+			signal: ctrl.signal
+		});
+	} finally {
+		clearTimeout(timeout);
+	}
+}
+
+export async function fetchText(url: string, opts: FetchOpts = {}): Promise<string> {
+	const res = await politeFetch(url, opts);
+	if (!res.ok) throw new Error(`GET ${url} -> ${res.status}`);
+	return res.text();
+}
+
+export async function fetchJson<T>(url: string, opts: FetchOpts = {}): Promise<T> {
+	const res = await politeFetch(url, {
+		...opts,
+		headers: { accept: 'application/json', ...opts.headers }
+	});
+	if (!res.ok) throw new Error(`GET ${url} -> ${res.status}`);
+	return res.json() as Promise<T>;
+}
+
+export const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
