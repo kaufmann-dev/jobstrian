@@ -5,7 +5,18 @@ import { svelteKitHandler } from 'better-auth/svelte-kit';
 import { getTextDirection } from '$lib/paraglide/runtime';
 import { paraglideMiddleware } from '$lib/paraglide/server';
 import { auth } from '$lib/server/auth';
+import { runMigrations } from '$lib/server/db/migrate';
 import { hasAnyUser } from '$lib/server/users';
+
+/** Apply pending database migrations once, before the server handles requests. */
+export async function init() {
+	try {
+		await runMigrations();
+	} catch (error) {
+		console.error('Database migration failed during startup', error);
+		throw error;
+	}
+}
 
 const handleParaglide: Handle = ({ event, resolve }) =>
 	paraglideMiddleware(event.request, ({ request, locale }) => {

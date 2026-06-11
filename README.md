@@ -86,16 +86,19 @@ pnpm build      # production build
 pnpm lint       # Prettier + ESLint
 ```
 
-Always run migrations via Drizzle Kit: `pnpm drizzle-kit generate` /
-`pnpm drizzle-kit migrate`.
+Generate migration files with `pnpm drizzle-kit generate` after schema changes.
+Pending migrations are applied automatically when the server starts (both `pnpm dev`
+and production); `pnpm drizzle-kit migrate` remains available to apply them manually.
 
 ## Coolify Deployment
 
-| Setting                 | Value             |
-| ----------------------- | ----------------- |
-| Build Pack              | Nixpacks          |
-| Base Directory          | `/`               |
-| Post-Deployment Command | `pnpm db:migrate` |
+| Setting        | Value    |
+| -------------- | -------- |
+| Build Pack     | Nixpacks |
+| Base Directory | `/`      |
+
+Pending migrations are applied automatically at server startup, so no
+post-deployment migration command is needed.
 
 ### Environment Variables
 
