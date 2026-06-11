@@ -25,14 +25,14 @@ user-configured OpenAI-compatible LLM.
 
 ## Tech Stack
 
-| Area           | Tools |
-| -------------- | ----- |
-| Framework      | SvelteKit, `@sveltejs/adapter-node` |
-| UI             | Tailwind CSS, shadcn-svelte, `@lucide/svelte`, mode-watcher |
-| Data & Auth    | PostgreSQL, Drizzle ORM, Better Auth |
-| Forms          | Superforms, Zod |
-| Scraping       | `cheerio` (HTML), Playwright (browser adapter), OSM Overpass / Nominatim |
-| i18n / Tests   | Paraglide, Vitest |
+| Area         | Tools                                                                    |
+| ------------ | ------------------------------------------------------------------------ |
+| Framework    | SvelteKit, `@sveltejs/adapter-node`                                      |
+| UI           | Tailwind CSS, shadcn-svelte, `@lucide/svelte`, mode-watcher              |
+| Data & Auth  | PostgreSQL, Drizzle ORM, Better Auth                                     |
+| Forms        | Superforms, Zod                                                          |
+| Scraping     | `cheerio` (HTML), Playwright (browser adapter), OSM Overpass / Nominatim |
+| i18n / Tests | Paraglide, Vitest                                                        |
 
 ## Setup
 
@@ -92,54 +92,32 @@ pnpm lint       # Prettier + ESLint
 Always run migrations via Drizzle Kit: `pnpm drizzle-kit generate` /
 `pnpm drizzle-kit migrate`.
 
-## Deployment (Coolify)
+## Coolify Deployment
 
-### 1. Prerequisites
+| Setting                 | Value             |
+| ----------------------- | ----------------- |
+| Build Pack              | Nixpacks          |
+| Base Directory          | `/`               |
+| Post-Deployment Command | `pnpm db:migrate` |
 
-- A running [Coolify](https://coolify.io) instance.
-- A Git repository containing this project.
+### Environment Variables
 
-### 2. Create a PostgreSQL database
+#### Required
 
-In Coolify:
-1. Go to **Databases → New** and choose **PostgreSQL**.
-2. Pick a version (e.g. `18-alpine`) and save.
-3. Copy the generated **Internal Connection String** (or external URL if the app
-   runs outside Coolify) – you will need it for `DATABASE_URL`.
+| Variable             | Purpose                                                                |
+| -------------------- | ---------------------------------------------------------------------- |
+| `DATABASE_URL`       | PostgreSQL connection string.                                          |
+| `BETTER_AUTH_SECRET` | Auth secret — generate with `openssl rand -hex 32`.                    |
+| `ORIGIN`             | Public URL of the deployed app (e.g. `https://jobstrian.example.com`). |
+| `BOOTSTRAP_EMAIL`    | E-mail for the first user (created via `POST /api/bootstrap`).         |
+| `BOOTSTRAP_PASSWORD` | Password for the first user (**min. 8 characters**).                   |
 
-### 3. Create the SvelteKit service
+#### Optional
 
-1. In Coolify go to **Projects → Add Resource → Application**.
-2. Connect your Git repository and select the branch you want to deploy.
-
-The included `nixpacks.toml` automatically configures the build (`pnpm build`),
-runs database migrations before each deploy, and starts the app (`node build`).
-No manual build-pack settings are needed.
-
-### 4. Environment variables
-
-Add the following variables in the Coolify UI under **Environment**:
-
-| Variable              | Example / note                                                               |
-| --------------------- | ---------------------------------------------------------------------------- |
-| `DATABASE_URL`        | Connection string from the PostgreSQL database created above.                |
-| `BETTER_AUTH_SECRET`  | `openssl rand -hex 32`                                                       |
-| `ORIGIN`              | Public URL of the deployed app, e.g. `https://jobstrian.example.com`.        |
-| `BOOTSTRAP_EMAIL`     | E-mail address of the first user (created on first start).                   |
-| `BOOTSTRAP_PASSWORD`  | Password for the first user (**min. 8 characters**).                         |
-| `BOOTSTRAP_NAME`      | Display name of the first user.                                              |
-| `RESEND_API_KEY`      | *(optional)* Only required if you want to send e-mails via Resend.           |
-
-### 5. Bootstrap the first user
-
-After the first successful deployment, create the initial admin account with an
-HTTP request (replace the origin with your public URL):
-
-```bash
-curl -X POST https://jobstrian.example.com/api/bootstrap
-```
-
-The bootstrap endpoint disables itself as soon as at least one user exists.
+| Variable         | Default | Purpose                                    |
+| ---------------- | ------- | ------------------------------------------ |
+| `BOOTSTRAP_NAME` | `Admin` | Display name of the first user.            |
+| `RESEND_API_KEY` | —       | Only needed if sending e-mails via Resend. |
 
 ## Notes
 

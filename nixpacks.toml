@@ -1,8 +1,2 @@
-[phases.build]
-cmds = ["pnpm build"]
-
-[phases.deploy]
-predeploy = ["pnpm db:migrate"]
-
 [start]
 cmd = "node build"
