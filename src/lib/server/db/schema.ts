@@ -11,6 +11,7 @@ import {
 	uniqueIndex,
 	index
 } from 'drizzle-orm/pg-core';
+import { sql } from 'drizzle-orm';
 
 /** PostgreSQL bytea, surfaced as a Node Buffer. */
 const bytea = customType<{ data: Buffer; default: false }>({
@@ -24,18 +25,22 @@ const bytea = customType<{ data: Buffer; default: false }>({
 // Drizzle schema; generated shape, do not hand-extend without the CLI.
 // ---------------------------------------------------------------------------
 
-export const user = pgTable('user', {
-	id: text('id').primaryKey(),
-	name: text('name').notNull(),
-	email: text('email').notNull().unique(),
-	emailVerified: boolean('email_verified').default(false).notNull(),
-	image: text('image'),
-	createdAt: timestamp('created_at').defaultNow().notNull(),
-	updatedAt: timestamp('updated_at')
-		.defaultNow()
-		.$onUpdate(() => new Date())
-		.notNull()
-});
+export const user = pgTable(
+	'user',
+	{
+		id: text('id').primaryKey(),
+		name: text('name').notNull(),
+		email: text('email').notNull().unique(),
+		emailVerified: boolean('email_verified').default(false).notNull(),
+		image: text('image'),
+		createdAt: timestamp('created_at').defaultNow().notNull(),
+		updatedAt: timestamp('updated_at')
+			.defaultNow()
+			.$onUpdate(() => new Date())
+			.notNull()
+	},
+	() => [uniqueIndex('user_singleton_idx').on(sql`(true)`)]
+);
 
 export const session = pgTable(
 	'session',

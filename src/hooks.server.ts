@@ -5,6 +5,7 @@ import { svelteKitHandler } from 'better-auth/svelte-kit';
 import { getTextDirection } from '$lib/paraglide/runtime';
 import { paraglideMiddleware } from '$lib/paraglide/server';
 import { auth } from '$lib/server/auth';
+import { hasAnyUser } from '$lib/server/users';
 
 const handleParaglide: Handle = ({ event, resolve }) =>
 	paraglideMiddleware(event.request, ({ request, locale }) => {
@@ -25,8 +26,15 @@ const handleAuth: Handle = async ({ event, resolve }) => {
 	event.locals.user = session?.user ?? null;
 
 	const { pathname } = event.url;
-	const isPublic =
-		pathname === '/login' || pathname.startsWith('/api/auth') || pathname === '/api/bootstrap';
+	const hasUser = await hasAnyUser();
+	const isAuthApi = pathname.startsWith('/api/auth');
+	const isPublic = pathname === '/login' || pathname === '/setup' || isAuthApi;
+	if (!hasUser && pathname !== '/setup' && !isAuthApi) {
+		redirect(302, '/setup');
+	}
+	if (hasUser && pathname === '/setup') {
+		redirect(302, event.locals.user ? '/' : '/login');
+	}
 	if (!event.locals.user && !isPublic) {
 		redirect(302, '/login');
 	}

@@ -52,9 +52,6 @@ POSTGRES_DB="jobstrian"
 DATABASE_URL="postgres://postgres:postgres@localhost:5432/jobstrian"
 ORIGIN="http://localhost:5173"
 BETTER_AUTH_SECRET="…"                   # openssl rand -hex 32
-BOOTSTRAP_EMAIL="you@example.com"        # one-time first user
-BOOTSTRAP_PASSWORD="min-8-chars"
-BOOTSTRAP_NAME="Your Name"
 ```
 
 ### 3. Database (Podman)
@@ -72,10 +69,10 @@ pnpm drizzle-kit migrate
 
 ```bash
 pnpm dev
-# create the first user once (self-deactivates as soon as a user exists):
-curl -X POST http://localhost:5173/api/bootstrap
 ```
 
+Open `http://localhost:5173` and create the first user on the setup screen.
+The setup screen disables itself permanently once that single user exists.
 Afterwards log in at `/login`, enter your address, search terms and the
 OpenAI-compatible LLM (base URL including `/v1`, model, API key) in **Settings**,
 and click **Update** on the dashboard.
@@ -109,14 +106,11 @@ Always run migrations via Drizzle Kit: `pnpm drizzle-kit generate` /
 | `DATABASE_URL`       | PostgreSQL connection string.                                          |
 | `BETTER_AUTH_SECRET` | Auth secret — generate with `openssl rand -hex 32`.                    |
 | `ORIGIN`             | Public URL of the deployed app (e.g. `https://jobstrian.example.com`). |
-| `BOOTSTRAP_EMAIL`    | E-mail for the first user (created via `POST /api/bootstrap`).         |
-| `BOOTSTRAP_PASSWORD` | Password for the first user (**min. 8 characters**).                   |
 
 #### Optional
 
 | Variable         | Default | Purpose                                    |
 | ---------------- | ------- | ------------------------------------------ |
-| `BOOTSTRAP_NAME` | `Admin` | Display name of the first user.            |
 | `RESEND_API_KEY` | —       | Only needed if sending e-mails via Resend. |
 
 ## Notes
