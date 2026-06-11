@@ -72,7 +72,7 @@ async function markLeadsWithPostings(): Promise<void> {
 	await db.execute(sql`
 		update ${lead} l set has_active_posting = exists (
 			select 1 from ${listing} j
-			where j.status = 'active' and j.company is not null
+			where j.status = 'active' and length(trim(j.company)) > 0
 			and (lower(j.company) like '%' || lower(l.name) || '%'
 			     or lower(l.name) like '%' || lower(j.company) || '%')
 		)
@@ -218,13 +218,18 @@ async function rankAll(runId: number, settings: Settings, counts: Counts): Promi
 export async function startRefresh(): Promise<number | null> {
 	if (running) return null;
 	running = true;
-	const [run] = await db
-		.insert(scrapeRun)
-		.values({ status: 'running', phase: 'starting' })
-		.returning({ id: scrapeRun.id });
-	// Fire and forget — UI polls scrape_run for progress.
-	runRefresh(run.id).finally(() => {
+	try {
+		const [run] = await db
+			.insert(scrapeRun)
+			.values({ status: 'running', phase: 'starting' })
+			.returning({ id: scrapeRun.id });
+		// Fire and forget — UI polls scrape_run for progress.
+		runRefresh(run.id).finally(() => {
+			running = false;
+		});
+		return run.id;
+	} catch (err) {
 		running = false;
-	});
-	return run.id;
+		throw err;
+	}
 }
