@@ -23,6 +23,11 @@ export class ServerListController<T> {
 		return this.nextCursor !== null;
 	}
 
+	/** Update items in place without refetching (e.g. optimistic updates). */
+	patch(match: (item: T) => boolean, update: (item: T) => T): void {
+		this.items = this.items.map((item) => (match(item) ? update(item) : item));
+	}
+
 	private apply(page: CursorPage<T>, append = false): void {
 		this.items = append ? [...this.items, ...page.items] : page.items;
 		this.nextCursor = page.nextCursor;

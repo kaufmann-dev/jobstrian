@@ -121,7 +121,13 @@
 		{itemLabel} geladen · {controller.total.toLocaleString('de-AT')} insgesamt
 	</p>
 
-	<div class="overflow-hidden rounded-md border [&_[data-slot=table-container]]:overflow-x-hidden">
+	<div
+		class={[
+			'overflow-hidden rounded-md border transition-opacity [&_[data-slot=table-container]]:overflow-x-hidden',
+			controller.loading && controller.items.length > 0 && 'pointer-events-none opacity-50'
+		]}
+		aria-busy={controller.loading}
+	>
 		<Table.Root class="table-fixed">
 			<Table.Header class="sticky top-0 z-10 bg-background">
 				{#each table.getHeaderGroups() as headerGroup (headerGroup.id)}
@@ -156,7 +162,9 @@
 							colspan={columns.length}
 							class="py-8 text-center whitespace-normal text-muted-foreground"
 						>
-							{emptyText}
+							{controller.total > 0
+								? 'Keine Treffer für die aktuelle Suche oder Filter.'
+								: emptyText}
 						</Table.Cell>
 					</Table.Row>
 				{/each}
@@ -172,7 +180,7 @@
 		{#if controller.hasMore}
 			<Button variant="outline" onclick={() => controller.loadMore()} disabled={controller.loading}>
 				{#if controller.loading}<Spinner class="size-4" />{/if}
-				Mehr laden
+				Mehr laden ({(controller.matchingTotal - controller.items.length).toLocaleString('de-AT')} weitere)
 			</Button>
 		{:else if controller.loading}
 			<Spinner class="size-5" aria-label="Ergebnisse werden geladen" />

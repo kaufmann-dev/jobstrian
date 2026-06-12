@@ -42,12 +42,12 @@
 	);
 
 	const statCards = $derived([
-		{ label: 'Aktive Stellen', value: stats.activeListings },
-		{ label: 'Davon bewertet', value: stats.rankedListings },
-		{ label: 'Geschlossen', value: stats.closedListings },
-		{ label: 'Betriebe in der Nähe', value: stats.totalLeads },
-		{ label: 'Mit E-Mail', value: stats.leadsWithEmail },
-		{ label: 'Ohne Ausschreibung', value: stats.openLeads }
+		{ label: 'Aktive Stellen', value: stats.activeListings, href: resolve('/jobs') },
+		{ label: 'Davon bewertet', value: stats.rankedListings, href: resolve('/jobs') },
+		{ label: 'Geschlossen', value: stats.closedListings, href: resolve('/jobs') },
+		{ label: 'Betriebe in der Nähe', value: stats.totalLeads, href: resolve('/leads') },
+		{ label: 'Mit E-Mail', value: stats.leadsWithEmail, href: resolve('/leads') },
+		{ label: 'Ohne Ausschreibung', value: stats.openLeads, href: resolve('/leads') }
 	]);
 
 	type StartRunResponse =
@@ -451,12 +451,19 @@
 
 	<div class="grid grid-cols-2 gap-4 sm:grid-cols-3">
 		{#each statCards as card (card.label)}
-			<Card.Root>
-				<Card.Header>
-					<Card.Description>{card.label}</Card.Description>
-					<Card.Title class="text-3xl">{card.value}</Card.Title>
-				</Card.Header>
-			</Card.Root>
+			<a
+				href={card.href}
+				class="rounded-xl outline-none focus-visible:ring-2 focus-visible:ring-ring"
+			>
+				<Card.Root class="h-full transition-colors hover:bg-accent/50">
+					<Card.Header>
+						<Card.Description>{card.label}</Card.Description>
+						<Card.Title class="text-3xl tabular-nums"
+							>{card.value.toLocaleString('de-AT')}</Card.Title
+						>
+					</Card.Header>
+				</Card.Root>
+			</a>
 		{/each}
 	</div>
 </div>

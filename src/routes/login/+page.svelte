@@ -50,7 +50,7 @@
 					/>
 				</div>
 				{#if error}
-					<p class="text-sm text-destructive">{error}</p>
+					<p class="text-sm text-destructive" role="alert">{error}</p>
 				{/if}
 			</Card.Content>
 			<Card.Footer class="mt-6">

@@ -43,16 +43,25 @@
 	}
 
 	async function toggleStar(job: Listing): Promise<void> {
+		const starred = !job.starred;
+		controller.patch(
+			(item) => item.id === job.id,
+			(item) => ({ ...item, starred })
+		);
+		if (selected?.id === job.id) selected = { ...selected, starred };
 		const response = await fetch(`/api/listings/${job.id}/star`, {
 			method: 'PATCH',
 			headers: { 'content-type': 'application/json' },
-			body: JSON.stringify({ starred: !job.starred })
+			body: JSON.stringify({ starred })
 		});
 		if (!response.ok) {
+			controller.patch(
+				(item) => item.id === job.id,
+				(item) => ({ ...item, starred: !starred })
+			);
+			if (selected?.id === job.id) selected = { ...selected, starred: !starred };
 			toast.error('Markierung konnte nicht gespeichert werden.');
-			return;
 		}
-		await controller.reset();
 	}
 
 	function verdictVariant(v: string | null): 'default' | 'secondary' | 'outline' {
@@ -61,7 +70,20 @@
 
 	function fmtDate(d: Date | string | null): string {
 		if (!d) return '—';
-		return new Date(d).toLocaleDateString('de-AT', { day: '2-digit', month: '2-digit' });
+		const date = new Date(d);
+		const sameYear = date.getFullYear() === new Date().getFullYear();
+		return date.toLocaleDateString('de-AT', {
+			day: '2-digit',
+			month: '2-digit',
+			...(sameYear ? {} : { year: '2-digit' })
+		});
+	}
+
+	/** Normalize scraped locations like "Wien,Innere Stadt, Wien" → "Wien, Innere Stadt". */
+	function fmtLocation(location: string | null): string {
+		if (!location) return '—';
+		const parts = location.split(',').map((part) => part.trim());
+		return [...new Set(parts)].filter(Boolean).join(', ');
 	}
 
 	const columns: ColumnDef<Listing>[] = [
@@ -142,15 +164,15 @@
 {/snippet}
 
 {#snippet companyCell({ job }: { job: Listing })}
-	<div class="hidden max-w-64 whitespace-normal md:block">{job.company ?? '—'}</div>
+	<div class="max-w-64 whitespace-normal">{job.company ?? '—'}</div>
 {/snippet}
 
 {#snippet locationCell({ job }: { job: Listing })}
-	<div class="hidden lg:block">{job.location ?? '—'}</div>
+	<div class="truncate" title={fmtLocation(job.location)}>{fmtLocation(job.location)}</div>
 {/snippet}
 
 {#snippet sourceCell({ job }: { job: Listing })}
-	<div class="hidden xl:block">{SOURCE_LABELS[job.source] ?? job.source}</div>
+	<div class="truncate">{SOURCE_LABELS[job.source] ?? job.source}</div>
 {/snippet}
 
 {#snippet actionCell({ job }: { job: Listing })}
@@ -248,7 +270,9 @@
 			<Sheet.Header>
 				<Sheet.Title>{selected.title}</Sheet.Title>
 				<Sheet.Description>
-					{selected.company ?? 'Unbekanntes Unternehmen'} · {selected.location ?? 'Wien'}
+					{selected.company ?? 'Unbekanntes Unternehmen'} · {fmtLocation(
+						selected.location ?? 'Wien'
+					)}
 				</Sheet.Description>
 			</Sheet.Header>
 			<div class="space-y-4 px-4 pb-4">
@@ -257,6 +281,7 @@
 						<Badge variant={verdictVariant(selected.rankVerdict)}>Score {selected.rankScore}</Badge>
 					{/if}
 					<Badge variant="outline">{SOURCE_LABELS[selected.source] ?? selected.source}</Badge>
+					{#if selected.postedAt}<Badge variant="outline">{fmtDate(selected.postedAt)}</Badge>{/if}
 					{#if selected.salary}<Badge variant="outline">{selected.salary}</Badge>{/if}
 					{#if selected.status === 'closed'}<Badge variant="destructive">geschlossen</Badge>{/if}
 				</div>

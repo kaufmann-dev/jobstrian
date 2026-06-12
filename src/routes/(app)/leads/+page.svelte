@@ -61,10 +61,42 @@
 	}
 
 	function mailtoHref(item: Lead): string {
-		const params = new URLSearchParams();
-		if (item.draftSubject) params.set('subject', item.draftSubject);
-		if (item.draftBody) params.set('body', item.draftBody);
-		return `mailto:${item.email}${params.size ? '?' + params : ''}`;
+		// encodeURIComponent instead of URLSearchParams: mail clients do not
+		// decode "+" as space in mailto URLs.
+		const params: string[] = [];
+		if (item.draftSubject) params.push(`subject=${encodeURIComponent(item.draftSubject)}`);
+		if (item.draftBody) params.push(`body=${encodeURIComponent(item.draftBody)}`);
+		return `mailto:${item.email}${params.length ? '?' + params.join('&') : ''}`;
+	}
+
+	function fmtDistance(meters: number): string {
+		if (meters < 1000) return `${meters} m`;
+		return `${(meters / 1000).toLocaleString('de-AT', { maximumFractionDigits: 1 })} km`;
+	}
+
+	const STATUS_LABELS: Record<Lead['status'], string> = {
+		new: 'neu',
+		contacted: 'kontaktiert',
+		ignored: 'ignoriert'
+	};
+
+	const CATEGORY_LABELS: Record<string, string> = {
+		restaurant: 'Restaurant',
+		cafe: 'Café',
+		bar: 'Bar',
+		pub: 'Pub',
+		fast_food: 'Imbiss / Fast Food',
+		ice_cream: 'Eissalon',
+		biergarten: 'Biergarten',
+		food_court: 'Food Court',
+		bakery: 'Bäckerei',
+		confectionery: 'Konditorei',
+		canteen: 'Kantine'
+	};
+
+	function fmtCategory(category: string | null): string {
+		if (!category) return 'Betrieb';
+		return CATEGORY_LABELS[category] ?? category.replaceAll('_', ' ');
 	}
 
 	const columns: ColumnDef<Lead>[] = [
@@ -83,7 +115,7 @@
 		{
 			id: 'distance',
 			header: 'Entfernung',
-			cell: ({ row }) => `${row.original.distanceMeters} m`,
+			cell: ({ row }) => fmtDistance(row.original.distanceMeters),
 			meta: { class: 'w-24' }
 		},
 		{
@@ -116,12 +148,12 @@
 {#snippet businessCell({ item }: { item: Lead })}
 	<div class="max-w-md whitespace-normal">
 		<p class="font-medium">{item.name}</p>
-		<p class="text-xs text-muted-foreground">{item.category ?? 'Betrieb'}</p>
+		<p class="text-xs text-muted-foreground">{fmtCategory(item.category)}</p>
 	</div>
 {/snippet}
 
 {#snippet contactCell({ item }: { item: Lead })}
-	<div class="hidden gap-1 md:flex">
+	<div class="flex flex-wrap gap-1">
 		<Badge variant={item.email ? 'default' : 'outline'}
 			>{item.email ? 'E-Mail' : 'keine E-Mail'}</Badge
 		>
@@ -130,7 +162,7 @@
 {/snippet}
 
 {#snippet statusCell({ item }: { item: Lead })}
-	<div class="hidden flex-wrap gap-1 lg:flex">
+	<div class="flex flex-wrap gap-1">
 		{#if item.hasActivePosting}<Badge variant="secondary">hat Ausschreibung</Badge>{/if}
 		{#if item.status === 'contacted'}<Badge>kontaktiert</Badge>{/if}
 		{#if item.status === 'ignored'}<Badge variant="destructive">ignoriert</Badge>{/if}
@@ -212,14 +244,16 @@
 			<Sheet.Header>
 				<Sheet.Title>{selected.name}</Sheet.Title>
 				<Sheet.Description
-					>{selected.category ?? 'Betrieb'} · {selected.distanceMeters} m</Sheet.Description
+					>{fmtCategory(selected.category)} · {fmtDistance(
+						selected.distanceMeters
+					)}</Sheet.Description
 				>
 			</Sheet.Header>
 			<div class="space-y-5 px-4 pb-4">
 				<div class="flex flex-wrap gap-2">
 					{#if selected.rankScore != null}<Badge>Score {selected.rankScore}</Badge>{/if}
 					{#if selected.hasActivePosting}<Badge variant="secondary">hat Ausschreibung</Badge>{/if}
-					<Badge variant="outline">{selected.status}</Badge>
+					<Badge variant="outline">{STATUS_LABELS[selected.status] ?? selected.status}</Badge>
 				</div>
 				{#if selected.rankReason}<p class="text-sm text-muted-foreground">
 						{selected.rankReason}

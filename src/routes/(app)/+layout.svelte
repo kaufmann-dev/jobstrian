@@ -39,9 +39,14 @@
 				<Briefcase class="size-5" />
 				Jobstrian
 			</a>
-			<nav class="flex items-center gap-1">
+			<nav class="flex items-center gap-1" aria-label="Hauptnavigation">
 				{#each navItems as item (item.href)}
-					<Button href={item.href} variant={isActive(item.href) ? 'secondary' : 'ghost'} size="sm">
+					<Button
+						href={item.href}
+						variant={isActive(item.href) ? 'secondary' : 'ghost'}
+						size="sm"
+						aria-current={isActive(item.href) ? 'page' : undefined}
+					>
 						<item.icon class="size-4" />
 						<span class="hidden sm:inline">{item.label}</span>
 					</Button>
