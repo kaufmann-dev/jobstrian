@@ -1,4 +1,6 @@
 export interface LlmLimiterMetrics {
+	requestsPerMinute: number;
+	maxConcurrent: number;
 	queued: number;
 	inFlight: number;
 	completed: number;
@@ -55,6 +57,8 @@ export class LlmLimiter {
 	metrics(): LlmLimiterMetrics {
 		this.pruneStarts();
 		return {
+			requestsPerMinute: this.requestsPerMinute,
+			maxConcurrent: this.maxConcurrent,
 			queued: this.queue.length,
 			inFlight: this.inFlight,
 			completed: this.completed,
@@ -154,8 +158,3 @@ export class LlmLimiter {
 		}
 	}
 }
-
-export const llmLimiter = new LlmLimiter({
-	requestsPerMinute: 300,
-	maxConcurrent: 50
-});

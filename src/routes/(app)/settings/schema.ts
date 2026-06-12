@@ -19,6 +19,8 @@ export const settingsSchema = z.object({
 	sourceAms: z.boolean().default(false),
 	llmBaseUrl: z.string().max(500).default(''),
 	llmModel: z.string().max(200).default(''),
+	llmRequestsPerMinute: z.number().int().min(1).max(10000).default(300),
+	llmMaxConcurrent: z.number().int().min(1).max(200).default(50),
 	// Left blank on load; only overwrites the stored key when non-empty.
 	llmApiKey: z.string().max(500).default('')
 });

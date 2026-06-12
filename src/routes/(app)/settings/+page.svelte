@@ -273,6 +273,42 @@
 				</Form.Control>
 				<Form.FieldErrors />
 			</Form.Field>
+			<div class="grid gap-4 sm:grid-cols-2">
+				<Form.Field {form} name="llmRequestsPerMinute">
+					<Form.Control>
+						{#snippet children({ props })}
+							<Form.Label>Anfragen pro Minute</Form.Label>
+							<Input
+								{...props}
+								type="number"
+								min="1"
+								max="10000"
+								bind:value={$formData.llmRequestsPerMinute}
+							/>
+						{/snippet}
+					</Form.Control>
+					<Form.FieldErrors />
+				</Form.Field>
+				<Form.Field {form} name="llmMaxConcurrent">
+					<Form.Control>
+						{#snippet children({ props })}
+							<Form.Label>Maximal gleichzeitig aktiv</Form.Label>
+							<Input
+								{...props}
+								type="number"
+								min="1"
+								max="200"
+								bind:value={$formData.llmMaxConcurrent}
+							/>
+						{/snippet}
+					</Form.Control>
+					<Form.FieldErrors />
+				</Form.Field>
+			</div>
+			<p class="text-sm text-muted-foreground">
+				Die Limits schützen den KI-Anbieter vor zu vielen Anfragen. Änderungen gelten ab der
+				nächsten Aktualisierung.
+			</p>
 			<Form.Field {form} name="llmApiKey">
 				<Form.Control>
 					{#snippet children({ props })}

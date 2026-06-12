@@ -1,6 +1,7 @@
 import type { Settings, Lead } from '../db/schema';
 import { chatJson, type LlmConfig } from './client';
 import { profileBlock } from './rank';
+import type { LlmLimiter } from './limiter';
 
 export const DRAFT_PROMPT_VERSION = 'draft-cold-email-v1';
 
@@ -19,6 +20,7 @@ export async function draftColdEmail(
 	cfg: LlmConfig,
 	settings: Settings,
 	lead: Lead,
+	limiter: LlmLimiter,
 	signal?: AbortSignal
 ): Promise<EmailDraft> {
 	const user = `BEWERBERPROFIL:
@@ -38,7 +40,7 @@ Schreibe eine passende Initiativbewerbung per E-Mail an diesen Betrieb. Der Lebe
 			{ role: 'system', content: SYSTEM },
 			{ role: 'user', content: user }
 		],
-		{ temperature: 0.6, signal }
+		{ temperature: 0.6, limiter, signal }
 	);
 	return {
 		subject: (raw.subject ?? 'Initiativbewerbung').toString().slice(0, 200),

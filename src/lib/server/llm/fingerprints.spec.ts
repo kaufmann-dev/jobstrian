@@ -31,6 +31,8 @@ function settings(patch: Partial<Settings> = {}): Settings {
 		llmBaseUrl: 'https://llm.example.test/v1',
 		llmApiKey: 'secret',
 		llmModel: 'model-a',
+		llmRequestsPerMinute: 300,
+		llmMaxConcurrent: 50,
 		updatedAt: new Date('2026-01-01T00:00:00Z'),
 		...patch
 	};
@@ -64,6 +66,7 @@ function listingRow(patch: Partial<Listing> = {}): Listing {
 		rankedAt: new Date('2026-01-02T00:00:00Z'),
 		rankContentHash: null,
 		rankContextHash: null,
+		starred: false,
 		...patch
 	};
 }

@@ -25,7 +25,7 @@ import {
 	shouldRankLead,
 	shouldRankListing
 } from '../llm/fingerprints';
-import { llmLimiter, isAbortError } from '../llm/limiter';
+import { isAbortError, LlmLimiter } from '../llm/limiter';
 import { rankListing, rankLead } from '../llm/rank';
 import { draftColdEmail } from '../llm/draft-email';
 import { mapLimit } from '../util/concurrency';
@@ -33,7 +33,6 @@ import { closeBrowser } from './browser';
 import { getEnabledAdapters, BROWSER_ADAPTERS } from './registry';
 import type { ProfileQuery, RawListing } from './types';
 
-const AI_CONCURRENCY = 50;
 const PROGRESS_FLUSH_INTERVAL_MS = 1000;
 
 type Counts = { added: number; closed: number; ranked: number; leads: number };
@@ -58,7 +57,6 @@ function createProgress(headline = 'Aktualisierung startet'): RunProgress {
 		version: 1,
 		headline,
 		detail: '',
-		overall: { current: 0, total: 1, percent: 0 },
 		phases: {
 			setup: emptyPhase(),
 			scrape: emptyPhase(),
@@ -69,6 +67,8 @@ function createProgress(headline = 'Aktualisierung startet'): RunProgress {
 			finalize: emptyPhase()
 		},
 		llm: {
+			requestsPerMinute: 300,
+			maxConcurrent: 50,
 			queued: 0,
 			inFlight: 0,
 			completed: 0,
@@ -76,20 +76,6 @@ function createProgress(headline = 'Aktualisierung startet'): RunProgress {
 			skipped: 0,
 			lastMinuteStarted: 0
 		}
-	};
-}
-
-function recalcOverall(progress: RunProgress): void {
-	const phases = Object.values(progress.phases);
-	const total = phases.reduce((sum, phase) => sum + Math.max(phase.total, 0), 0);
-	const current = phases.reduce(
-		(sum, phase) => sum + Math.min(Math.max(phase.current, 0), Math.max(phase.total, 0)),
-		0
-	);
-	progress.overall = {
-		current,
-		total: Math.max(total, 1),
-		percent: total > 0 ? Math.round((current / total) * 100) : 0
 	};
 }
 
@@ -107,6 +93,7 @@ function isAbortLike(err: unknown): boolean {
 
 class ProgressWriter {
 	private lastFlush = 0;
+	private limiter: LlmLimiter | null = null;
 
 	constructor(
 		private readonly runId: number,
@@ -118,11 +105,15 @@ class ProgressWriter {
 		this.progress.phases[id] = { ...this.progress.phases[id], ...patch };
 		if (headline) this.progress.headline = headline;
 		if (patch.detail != null) this.progress.detail = patch.detail;
-		recalcOverall(this.progress);
+	}
+
+	setLimiter(limiter: LlmLimiter): void {
+		this.limiter = limiter;
+		this.llm();
 	}
 
 	llm(): void {
-		this.progress.llm = llmLimiter.metrics();
+		if (this.limiter) this.progress.llm = this.limiter.metrics();
 	}
 
 	cancelRunning(): void {
@@ -220,6 +211,11 @@ export async function runRefresh(
 
 	try {
 		let settings = await getSettings();
+		const limiter = new LlmLimiter({
+			requestsPerMinute: settings.llmRequestsPerMinute,
+			maxConcurrent: settings.llmMaxConcurrent
+		});
+		writer.setLimiter(limiter);
 		const profile: ProfileQuery = {
 			keywords: settings.roleKeywords.length ? settings.roleKeywords : ['Barista', 'Kellner'],
 			location: 'Wien'
@@ -291,7 +287,7 @@ export async function runRefresh(
 			state: 'done',
 			current: 1,
 			total: 1,
-			detail: `Geschlossen: ${counts.closed}`
+			detail: `${counts.closed} nicht mehr verfügbare Stellen erkannt`
 		});
 		await writer.flush(true);
 
@@ -311,7 +307,7 @@ export async function runRefresh(
 					state: 'done',
 					current: 1,
 					total: 1,
-					detail: `Betriebe gefunden: ${leadResult.total}`
+					detail: `${leadResult.total} Betriebe gefunden`
 				});
 			} catch (err) {
 				if (isAbortLike(err)) throw err;
@@ -337,7 +333,7 @@ export async function runRefresh(
 		}
 		await writer.flush(true);
 
-		await rankAll(settings, counts, writer, signal);
+		await rankAll(settings, limiter, counts, writer, signal);
 
 		writer.phase(
 			'finalize',
@@ -406,13 +402,14 @@ export async function runRefresh(
 
 async function rankAll(
 	settings: Settings,
+	limiter: LlmLimiter,
 	counts: Counts,
 	writer: ProgressWriter,
 	signal: AbortSignal
 ): Promise<void> {
 	let cfg: LlmConfig;
 	try {
-		cfg = await getLlmConfig();
+		cfg = await getLlmConfig(settings);
 	} catch (err) {
 		if (err instanceof LlmNotConfiguredError) {
 			writer.phase(
@@ -441,13 +438,14 @@ async function rankAll(
 
 	const rankContext = rankingContextHash(settings, cfg);
 	const draftContext = draftContextHash(settings, cfg);
-	await rankListings(settings, cfg, rankContext, counts, writer, signal);
-	await rankLeads(settings, cfg, rankContext, draftContext, writer, signal);
+	await rankListings(settings, cfg, limiter, rankContext, counts, writer, signal);
+	await rankLeads(settings, cfg, limiter, rankContext, draftContext, writer, signal);
 }
 
 async function rankListings(
 	settings: Settings,
 	cfg: LlmConfig,
+	limiter: LlmLimiter,
 	contextHash: string,
 	counts: Counts,
 	writer: ProgressWriter,
@@ -477,11 +475,11 @@ async function rankListings(
 
 	await mapLimit(
 		work,
-		AI_CONCURRENCY,
+		settings.llmMaxConcurrent,
 		async ({ row, contentHash }) => {
 			throwIfAborted(signal);
 			try {
-				const result = await rankListing(cfg, settings, row, signal);
+				const result = await rankListing(cfg, settings, row, limiter, signal);
 				await db
 					.update(listing)
 					.set({
@@ -516,7 +514,7 @@ async function rankListings(
 	);
 
 	writer.phase('rank-listings', {
-		state: failed > 0 ? 'error' : 'done',
+		state: failed > 0 ? 'warning' : 'done',
 		current: rows.length,
 		total: rows.length,
 		detail: `Stellen bewertet: ${completed} / ${rows.length}, übersprungen: ${skipped}, fehlgeschlagen: ${failed}`,
@@ -529,6 +527,7 @@ async function rankListings(
 async function rankLeads(
 	settings: Settings,
 	cfg: LlmConfig,
+	limiter: LlmLimiter,
 	rankContext: string,
 	draftContext: string,
 	writer: ProgressWriter,
@@ -565,7 +564,7 @@ async function rankLeads(
 
 	await mapLimit(
 		work,
-		AI_CONCURRENCY,
+		settings.llmMaxConcurrent,
 		async ({ row, contentHash, rank, draft }) => {
 			throwIfAborted(signal);
 			try {
@@ -573,14 +572,14 @@ async function rankLeads(
 					contentHash
 				};
 				if (rank) {
-					const result = await rankLead(cfg, settings, row, signal);
+					const result = await rankLead(cfg, settings, row, limiter, signal);
 					update.rankScore = result.score;
 					update.rankReason = result.reason;
 					update.rankContentHash = contentHash;
 					update.rankContextHash = rankContext;
 				}
 				if (draft) {
-					const result = await draftColdEmail(cfg, settings, row, signal);
+					const result = await draftColdEmail(cfg, settings, row, limiter, signal);
 					update.draftSubject = result.subject;
 					update.draftBody = result.body;
 					update.draftContentHash = contentHash;
@@ -608,7 +607,7 @@ async function rankLeads(
 	);
 
 	writer.phase('rank-leads', {
-		state: failed > 0 ? 'error' : 'done',
+		state: failed > 0 ? 'warning' : 'done',
 		current: rows.length,
 		total: rows.length,
 		detail: `Betriebe bewertet: ${completed} / ${rows.length}, übersprungen: ${skipped}, fehlgeschlagen: ${failed}`,

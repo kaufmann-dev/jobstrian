@@ -35,6 +35,8 @@ function settingsFormData(s: Settings) {
 		sourceAms: enabled.has('ams'),
 		llmBaseUrl: s.llmBaseUrl,
 		llmModel: s.llmModel,
+		llmRequestsPerMinute: s.llmRequestsPerMinute,
+		llmMaxConcurrent: s.llmMaxConcurrent,
 		llmApiKey: ''
 	};
 }
@@ -80,6 +82,8 @@ export const actions: Actions = {
 			enabledSources,
 			llmBaseUrl: data.llmBaseUrl,
 			llmModel: data.llmModel,
+			llmRequestsPerMinute: data.llmRequestsPerMinute,
+			llmMaxConcurrent: data.llmMaxConcurrent,
 			// Only overwrite the key when a new value was entered.
 			...(data.llmApiKey ? { llmApiKey: data.llmApiKey } : {}),
 			// Re-geocode on next run if the address changed.

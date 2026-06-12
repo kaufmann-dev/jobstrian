@@ -131,6 +131,8 @@ export const settings = pgTable('settings', {
 	llmBaseUrl: text('llm_base_url').notNull().default(''),
 	llmApiKey: text('llm_api_key').notNull().default(''),
 	llmModel: text('llm_model').notNull().default(''),
+	llmRequestsPerMinute: integer('llm_requests_per_minute').notNull().default(300),
+	llmMaxConcurrent: integer('llm_max_concurrent').notNull().default(50),
 	updatedAt: timestamp('updated_at')
 		.defaultNow()
 		.$onUpdate(() => new Date())
@@ -194,12 +196,19 @@ export const listing = pgTable(
 		rankReason: text('rank_reason'),
 		rankedAt: timestamp('ranked_at'),
 		rankContentHash: text('rank_content_hash'),
-		rankContextHash: text('rank_context_hash')
+		rankContextHash: text('rank_context_hash'),
+		starred: boolean('starred').notNull().default(false)
 	},
 	(table) => [
 		uniqueIndex('listing_source_external_id_idx').on(table.source, table.externalId),
 		index('listing_status_idx').on(table.status),
-		index('listing_rank_score_idx').on(table.rankScore)
+		index('listing_rank_score_idx').on(table.rankScore),
+		index('listing_order_idx').on(
+			table.starred.desc(),
+			table.rankScore.desc().nullsLast(),
+			table.firstSeenAt.desc(),
+			table.id.desc()
+		)
 	]
 );
 
@@ -237,7 +246,12 @@ export const lead = pgTable(
 	},
 	(table) => [
 		uniqueIndex('lead_osm_id_idx').on(table.osmId),
-		index('lead_distance_idx').on(table.distanceMeters)
+		index('lead_distance_idx').on(table.distanceMeters),
+		index('lead_order_idx').on(
+			table.rankScore.desc().nullsLast(),
+			table.distanceMeters.asc(),
+			table.id.asc()
+		)
 	]
 );
 
@@ -256,7 +270,14 @@ export type RunPhaseId =
 	| 'rank-listings'
 	| 'rank-leads'
 	| 'finalize';
-export type RunPhaseState = 'pending' | 'running' | 'done' | 'skipped' | 'error' | 'canceled';
+export type RunPhaseState =
+	| 'pending'
+	| 'running'
+	| 'done'
+	| 'warning'
+	| 'skipped'
+	| 'error'
+	| 'canceled';
 export interface RunPhaseProgress {
 	state: RunPhaseState;
 	current: number;
@@ -266,6 +287,8 @@ export interface RunPhaseProgress {
 	failed: number;
 }
 export interface RunLlmProgress {
+	requestsPerMinute: number;
+	maxConcurrent: number;
 	queued: number;
 	inFlight: number;
 	completed: number;
@@ -277,7 +300,6 @@ export interface RunProgress {
 	version: 1;
 	headline: string;
 	detail: string;
-	overall: { current: number; total: number; percent: number };
 	phases: Record<RunPhaseId, RunPhaseProgress>;
 	llm: RunLlmProgress;
 }

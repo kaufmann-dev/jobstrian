@@ -1,5 +1,6 @@
 import type { Settings, Listing, Lead } from '../db/schema';
 import { chatJson, type LlmConfig } from './client';
+import type { LlmLimiter } from './limiter';
 
 export const RANK_PROMPT_VERSION = 'rank-v1';
 
@@ -52,6 +53,7 @@ export async function rankListing(
 	cfg: LlmConfig,
 	settings: Settings,
 	listing: Listing,
+	limiter: LlmLimiter,
 	signal?: AbortSignal
 ): Promise<RankResult> {
 	const user = `BEWERBER:\n${profileBlock(settings)}\n\nSTELLE:
@@ -66,7 +68,7 @@ Beschreibung: ${(listing.description ?? '').slice(0, 2000)}`;
 			{ role: 'system', content: SYSTEM },
 			{ role: 'user', content: user }
 		],
-		{ signal }
+		{ limiter, signal }
 	);
 	return clampResult(raw);
 }
@@ -75,6 +77,7 @@ export async function rankLead(
 	cfg: LlmConfig,
 	settings: Settings,
 	lead: Lead,
+	limiter: LlmLimiter,
 	signal?: AbortSignal
 ): Promise<RankResult> {
 	const user = `BEWERBER:\n${profileBlock(settings)}\n\nBETRIEB (potenzielle Initiativbewerbung):
@@ -89,7 +92,7 @@ Bewerte, wie gut eine Initiativbewerbung als Service-/Barista-Kraft hier passt.`
 			{ role: 'system', content: SYSTEM },
 			{ role: 'user', content: user }
 		],
-		{ signal }
+		{ limiter, signal }
 	);
 	return clampResult(raw);
 }

@@ -41,6 +41,11 @@ describe('LlmLimiter', () => {
 		expect(active).toBe(0);
 	});
 
+	it('reports its configured runtime limits', () => {
+		const limiter = new LlmLimiter({ requestsPerMinute: 321, maxConcurrent: 17 });
+		expect(limiter.metrics()).toMatchObject({ requestsPerMinute: 321, maxConcurrent: 17 });
+	});
+
 	it('paces starts by the configured per-minute budget', async () => {
 		expect.hasAssertions();
 		vi.useFakeTimers();

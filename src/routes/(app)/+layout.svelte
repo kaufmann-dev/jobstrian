@@ -34,7 +34,7 @@
 
 <div class="flex min-h-svh flex-col">
 	<header class="border-b">
-		<div class="mx-auto flex h-14 w-full max-w-6xl items-center gap-4 px-4">
+		<div class="mx-auto flex h-14 w-full max-w-[90rem] items-center gap-4 px-4">
 			<a href={resolve('/')} class="flex items-center gap-2 font-semibold">
 				<Briefcase class="size-5" />
 				Jobstrian
@@ -58,7 +58,7 @@
 			</div>
 		</div>
 	</header>
-	<main class="mx-auto w-full max-w-6xl flex-1 px-4 py-6">
+	<main class="mx-auto w-full max-w-[90rem] flex-1 px-4 py-6">
 		{@render children()}
 	</main>
 </div>
