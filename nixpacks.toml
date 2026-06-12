@@ -1,2 +1,2 @@
 [start]
-cmd = "node build"
+cmd = "BODY_SIZE_LIMIT=${BODY_SIZE_LIMIT:-10M} node build"

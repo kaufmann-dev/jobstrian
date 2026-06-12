@@ -52,6 +52,7 @@ POSTGRES_DB="jobstrian"
 DATABASE_URL="postgres://postgres:postgres@localhost:5432/jobstrian"
 ORIGIN="http://localhost:5173"
 BETTER_AUTH_SECRET="…"                   # openssl rand -hex 32
+BODY_SIZE_LIMIT="10M"                    # allows CV uploads up to the app's 10 MB limit
 ```
 
 ### 3. Database (Podman)
@@ -109,6 +110,7 @@ post-deployment migration command is needed.
 | `DATABASE_URL`       | PostgreSQL connection string.                                          |
 | `BETTER_AUTH_SECRET` | Auth secret — generate with `openssl rand -hex 32`.                    |
 | `ORIGIN`             | Public URL of the deployed app (e.g. `https://jobstrian.example.com`). |
+| `BODY_SIZE_LIMIT`    | Request body limit for CV uploads. Use `10M` or higher.                |
 
 #### Optional
 
