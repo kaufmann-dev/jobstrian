@@ -2,6 +2,7 @@
 	import { superForm } from 'sveltekit-superforms';
 	import { zod4Client } from 'sveltekit-superforms/adapters';
 	import { invalidateAll } from '$app/navigation';
+	import { untrack } from 'svelte';
 	import { toast } from 'svelte-sonner';
 	import { settingsSchema } from './schema';
 	import * as Form from '$lib/components/ui/form/index.js';
@@ -18,13 +19,19 @@
 	import Upload from '@lucide/svelte/icons/upload';
 
 	let { data } = $props();
+	const hasApiKey = $derived(data.hasApiKey);
 
-	const form = superForm(data.form, {
-		validators: zod4Client(settingsSchema),
-		onUpdated: ({ form: f }) => {
-			if (f.valid) toast.success('Einstellungen gespeichert');
+	const form = superForm(
+		untrack(() => data.form),
+		{
+			validators: zod4Client(settingsSchema),
+			resetForm: false,
+			invalidateAll: 'pessimistic',
+			onUpdated: ({ form: f }) => {
+				if (f.valid) toast.success('Einstellungen gespeichert');
+			}
 		}
-	});
+	);
 	const { form: formData, enhance, submitting } = form;
 
 	const sources = [
@@ -149,7 +156,11 @@
 					<Form.Control>
 						{#snippet children({ props })}
 							<Form.Label>Verfügbarkeit</Form.Label>
-							<Input {...props} bind:value={$formData.availability} placeholder="Vollzeit, ab sofort" />
+							<Input
+								{...props}
+								bind:value={$formData.availability}
+								placeholder="Vollzeit, ab sofort"
+							/>
 						{/snippet}
 					</Form.Control>
 					<Form.FieldErrors />
@@ -172,7 +183,8 @@
 				<Form.Control>
 					{#snippet children({ props })}
 						<Checkbox {...props} bind:checked={$formData.workPermit} />
-						<Form.Label class="font-normal">Arbeitsberechtigung für Österreich vorhanden</Form.Label>
+						<Form.Label class="font-normal">Arbeitsberechtigung für Österreich vorhanden</Form.Label
+						>
 					{/snippet}
 				</Form.Control>
 			</Form.Field>
@@ -190,7 +202,11 @@
 					<Form.Control>
 						{#snippet children({ props })}
 							<Form.Label>Adresse</Form.Label>
-							<Input {...props} bind:value={$formData.homeAddress} placeholder="Straße Hausnr, PLZ Ort" />
+							<Input
+								{...props}
+								bind:value={$formData.homeAddress}
+								placeholder="Straße Hausnr, PLZ Ort"
+							/>
 						{/snippet}
 					</Form.Control>
 					<Form.FieldErrors />
@@ -239,7 +255,11 @@
 				<Form.Control>
 					{#snippet children({ props })}
 						<Form.Label>Base URL</Form.Label>
-						<Input {...props} bind:value={$formData.llmBaseUrl} placeholder="https://api.openai.com/v1" />
+						<Input
+							{...props}
+							bind:value={$formData.llmBaseUrl}
+							placeholder="https://api.openai.com/v1"
+						/>
 					{/snippet}
 				</Form.Control>
 				<Form.FieldErrors />
@@ -261,13 +281,18 @@
 							{...props}
 							type="password"
 							bind:value={$formData.llmApiKey}
-							placeholder={data.hasApiKey
-								? '•••••••• (gespeichert — leer lassen zum Behalten)'
-								: 'sk-…'}
+							placeholder={hasApiKey ? '•••••••• (gespeichert — leer lassen zum Behalten)' : 'sk-…'}
 						/>
 					{/snippet}
 				</Form.Control>
 				<Form.FieldErrors />
+				<p class="text-sm text-muted-foreground">
+					{#if hasApiKey}
+						API-Key ist gespeichert. Das Feld bleibt leer, damit der Schlüssel nicht angezeigt wird.
+					{:else}
+						Noch kein API-Key gespeichert.
+					{/if}
+				</p>
 			</Form.Field>
 			<Form.Field {form} name="rankingNotes">
 				<Form.Control>
@@ -304,10 +329,10 @@
 		<Card.Content class="space-y-4">
 			{#if data.cv}
 				<div class="flex items-center gap-3 rounded-md border p-3">
-					<FileText class="text-muted-foreground size-8 shrink-0" />
+					<FileText class="size-8 shrink-0 text-muted-foreground" />
 					<div class="min-w-0 flex-1">
 						<p class="truncate font-medium">{data.cv.filename}</p>
-						<p class="text-muted-foreground text-sm">
+						<p class="text-sm text-muted-foreground">
 							{fmtSize(data.cv.size)} · hochgeladen
 							{new Date(data.cv.uploadedAt).toLocaleDateString('de-AT')}
 						</p>
@@ -320,7 +345,7 @@
 					</Button>
 				</div>
 			{:else}
-				<p class="text-muted-foreground text-sm">Noch kein Lebenslauf hinterlegt.</p>
+				<p class="text-sm text-muted-foreground">Noch kein Lebenslauf hinterlegt.</p>
 			{/if}
 
 			<input

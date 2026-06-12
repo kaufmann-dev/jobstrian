@@ -4,6 +4,7 @@ import { fail } from '@sveltejs/kit';
 import { getSettings, updateSettings, ALL_SOURCES } from '$lib/server/settings';
 import { getCvMeta } from '$lib/server/cv';
 import { settingsSchema } from './schema';
+import type { Settings } from '$lib/server/db/schema';
 import type { Actions, PageServerLoad } from './$types';
 
 function splitList(value: string): string[] {
@@ -13,32 +14,38 @@ function splitList(value: string): string[] {
 		.filter(Boolean);
 }
 
+function settingsFormData(s: Settings) {
+	const enabled = new Set(s.enabledSources);
+
+	return {
+		profileText: s.profileText,
+		roleKeywords: s.roleKeywords.join(', '),
+		languages: s.languages.join(', '),
+		germanLevel: s.germanLevel,
+		experienceYears: s.experienceYears,
+		educationStatus: s.educationStatus,
+		workPermit: s.workPermit,
+		availability: s.availability,
+		rankingNotes: s.rankingNotes,
+		homeAddress: s.homeAddress,
+		radiusMeters: s.radiusMeters,
+		sourceHokify: enabled.has('hokify'),
+		sourceWillhaben: enabled.has('willhaben'),
+		sourceKarriere: enabled.has('karriere'),
+		sourceAms: enabled.has('ams'),
+		llmBaseUrl: s.llmBaseUrl,
+		llmModel: s.llmModel,
+		llmApiKey: ''
+	};
+}
+
+async function settingsForm(s: Settings) {
+	return superValidate(settingsFormData(s), zod4(settingsSchema));
+}
+
 export const load: PageServerLoad = async () => {
 	const s = await getSettings();
-	const enabled = new Set(s.enabledSources);
-	const form = await superValidate(
-		{
-			profileText: s.profileText,
-			roleKeywords: s.roleKeywords.join(', '),
-			languages: s.languages.join(', '),
-			germanLevel: s.germanLevel,
-			experienceYears: s.experienceYears,
-			educationStatus: s.educationStatus,
-			workPermit: s.workPermit,
-			availability: s.availability,
-			rankingNotes: s.rankingNotes,
-			homeAddress: s.homeAddress,
-			radiusMeters: s.radiusMeters,
-			sourceHokify: enabled.has('hokify'),
-			sourceWillhaben: enabled.has('willhaben'),
-			sourceKarriere: enabled.has('karriere'),
-			sourceAms: enabled.has('ams'),
-			llmBaseUrl: s.llmBaseUrl,
-			llmModel: s.llmModel,
-			llmApiKey: '' // never echo the stored key
-		},
-		zod4(settingsSchema)
-	);
+	const form = await settingsForm(s);
 	return { form, hasApiKey: Boolean(s.llmApiKey), cv: await getCvMeta() };
 };
 
@@ -58,7 +65,7 @@ export const actions: Actions = {
 
 		const addressChanged = data.homeAddress.trim() !== current.homeAddress.trim();
 
-		await updateSettings({
+		const updated = await updateSettings({
 			profileText: data.profileText,
 			roleKeywords: splitList(data.roleKeywords),
 			languages: splitList(data.languages),
@@ -79,6 +86,9 @@ export const actions: Actions = {
 			...(addressChanged ? { homeLat: null, homeLon: null } : {})
 		});
 
-		return { form };
+		return {
+			form: await settingsForm(updated),
+			hasApiKey: Boolean(updated.llmApiKey)
+		};
 	}
 };

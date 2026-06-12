@@ -6,6 +6,6 @@ export const load: LayoutServerLoad = async ({ locals }) => {
 	return {
 		user: locals.user,
 		configured: Boolean(settings.llmBaseUrl && settings.llmModel),
-		hasHome: settings.homeLat != null && settings.homeLon != null
+		hasHome: Boolean(settings.homeAddress.trim())
 	};
 };
