@@ -99,6 +99,14 @@
 		return CATEGORY_LABELS[category] ?? category.replaceAll('_', ' ');
 	}
 
+	function scoreClass(score: number): string {
+		if (score >= 80)
+			return 'border-transparent bg-emerald-600/15 text-emerald-700 dark:bg-emerald-400/15 dark:text-emerald-300';
+		if (score >= 60)
+			return 'border-transparent bg-amber-500/15 text-amber-700 dark:bg-amber-400/15 dark:text-amber-300';
+		return 'border-transparent bg-muted text-muted-foreground';
+	}
+
 	const columns: ColumnDef<Lead>[] = [
 		{
 			id: 'score',
@@ -140,9 +148,11 @@
 </script>
 
 {#snippet scoreCell({ item }: { item: Lead })}
-	{#if item.rankScore != null}<Badge>{item.rankScore}</Badge>{:else}<span
-			class="text-muted-foreground">—</span
-		>{/if}
+	{#if item.rankScore != null}
+		<Badge class={['tabular-nums', scoreClass(item.rankScore)]}>{item.rankScore}</Badge>
+	{:else}
+		<span class="text-muted-foreground">—</span>
+	{/if}
 {/snippet}
 
 {#snippet businessCell({ item }: { item: Lead })}
@@ -153,11 +163,16 @@
 {/snippet}
 
 {#snippet contactCell({ item }: { item: Lead })}
-	<div class="flex flex-wrap gap-1">
-		<Badge variant={item.email ? 'default' : 'outline'}
-			>{item.email ? 'E-Mail' : 'keine E-Mail'}</Badge
-		>
-		{#if item.phone}<Badge variant="outline">Telefon</Badge>{/if}
+	<div class="flex flex-wrap items-center gap-1">
+		{#if item.email}
+			<Badge><Mail class="size-3" /> E-Mail</Badge>
+		{/if}
+		{#if item.phone}
+			<Badge variant="outline"><Phone class="size-3" /> Telefon</Badge>
+		{/if}
+		{#if !item.email && !item.phone}
+			<span class="text-xs text-muted-foreground">—</span>
+		{/if}
 	</div>
 {/snippet}
 
@@ -171,15 +186,15 @@
 {/snippet}
 
 {#snippet actionCell({ item }: { item: Lead })}
-	<Button variant="outline" size="sm" onclick={() => (selected = item)}>
+	<Button variant="ghost" size="sm" class="text-muted-foreground" onclick={() => (selected = item)}>
 		<Eye class="size-4" />
 		<span class="sr-only sm:not-sr-only">Details</span>
 	</Button>
 {/snippet}
 
-<div class="space-y-4">
+<div class="space-y-5">
 	<div>
-		<h1 class="text-2xl font-semibold">Betriebe in der Nähe</h1>
+		<h1 class="text-2xl font-semibold tracking-tight">Betriebe in der Nähe</h1>
 		<p class="text-sm text-muted-foreground">
 			Gastronomie im Umkreis deines Wohnorts · ideal für Initiativbewerbungen.
 		</p>
@@ -225,6 +240,7 @@
 		{controller}
 		{columns}
 		{filters}
+		onRowClick={(item) => (selected = item)}
 		onResetFilters={resetFilters}
 		searchPlaceholder="Betrieb, Kategorie, Adresse oder E-Mail suchen"
 		sortOptions={[

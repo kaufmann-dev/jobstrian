@@ -15,6 +15,12 @@
 	import TriangleAlert from '@lucide/svelte/icons/triangle-alert';
 	import ChevronDown from '@lucide/svelte/icons/chevron-down';
 	import ChevronUp from '@lucide/svelte/icons/chevron-up';
+	import Briefcase from '@lucide/svelte/icons/briefcase';
+	import Sparkles from '@lucide/svelte/icons/sparkles';
+	import Archive from '@lucide/svelte/icons/archive';
+	import MapPin from '@lucide/svelte/icons/map-pin';
+	import Mail from '@lucide/svelte/icons/mail';
+	import DoorOpen from '@lucide/svelte/icons/door-open';
 	import type { RunPhaseId, RunPhaseProgress, RunProgress, ScrapeRun } from '$lib/server/db/schema';
 
 	let { data } = $props();
@@ -41,13 +47,38 @@
 			phaseRows.findLast((phase) => phase.state === 'done')
 	);
 
-	const statCards = $derived([
-		{ label: 'Aktive Stellen', value: stats.activeListings, href: resolve('/jobs') },
-		{ label: 'Davon bewertet', value: stats.rankedListings, href: resolve('/jobs') },
-		{ label: 'Geschlossen', value: stats.closedListings, href: resolve('/jobs') },
-		{ label: 'Betriebe in der Nähe', value: stats.totalLeads, href: resolve('/leads') },
-		{ label: 'Mit E-Mail', value: stats.leadsWithEmail, href: resolve('/leads') },
-		{ label: 'Ohne Ausschreibung', value: stats.openLeads, href: resolve('/leads') }
+	const statGroups = $derived([
+		{
+			title: 'Stellen',
+			cards: [
+				{
+					label: 'Aktive Stellen',
+					value: stats.activeListings,
+					href: resolve('/jobs'),
+					icon: Briefcase
+				},
+				{
+					label: 'Davon bewertet',
+					value: stats.rankedListings,
+					href: resolve('/jobs'),
+					icon: Sparkles
+				},
+				{ label: 'Geschlossen', value: stats.closedListings, href: resolve('/jobs'), icon: Archive }
+			]
+		},
+		{
+			title: 'Betriebe',
+			cards: [
+				{ label: 'In der Nähe', value: stats.totalLeads, href: resolve('/leads'), icon: MapPin },
+				{ label: 'Mit E-Mail', value: stats.leadsWithEmail, href: resolve('/leads'), icon: Mail },
+				{
+					label: 'Ohne Ausschreibung',
+					value: stats.openLeads,
+					href: resolve('/leads'),
+					icon: DoorOpen
+				}
+			]
+		}
 	]);
 
 	type StartRunResponse =
@@ -311,7 +342,7 @@
 <div class="space-y-6">
 	<div class="flex flex-wrap items-center justify-between gap-4">
 		<div>
-			<h1 class="text-2xl font-semibold">Übersicht</h1>
+			<h1 class="text-2xl font-semibold tracking-tight">Übersicht</h1>
 			<p class="text-sm text-muted-foreground">Deine automatisierte Jobsuche in Wien.</p>
 		</div>
 		<Button onclick={update} disabled={isRunning} size="lg">
@@ -400,7 +431,7 @@
 							{#each phaseRows as phase (phase.id)}
 								<div
 									class={[
-										'space-y-1.5 rounded-md border border-l-2 bg-card p-3',
+										'space-y-1.5 rounded-lg border border-l-2 bg-muted/40 p-3',
 										phaseAccent(phase.state)
 									]}
 								>
@@ -449,21 +480,37 @@
 		</Card.Root>
 	{/if}
 
-	<div class="grid grid-cols-2 gap-4 sm:grid-cols-3">
-		{#each statCards as card (card.label)}
-			<a
-				href={card.href}
-				class="rounded-xl outline-none focus-visible:ring-2 focus-visible:ring-ring"
-			>
-				<Card.Root class="h-full transition-colors hover:bg-accent/50">
-					<Card.Header>
-						<Card.Description>{card.label}</Card.Description>
-						<Card.Title class="text-3xl tabular-nums"
-							>{card.value.toLocaleString('de-AT')}</Card.Title
+	<div class="grid gap-6 lg:grid-cols-2">
+		{#each statGroups as group (group.title)}
+			<section class="space-y-3">
+				<h2 class="text-sm font-medium tracking-wide text-muted-foreground uppercase">
+					{group.title}
+				</h2>
+				<div class="grid grid-cols-3 gap-3">
+					{#each group.cards as card (card.label)}
+						<a
+							href={card.href}
+							class="rounded-xl outline-none focus-visible:ring-2 focus-visible:ring-ring"
 						>
-					</Card.Header>
-				</Card.Root>
-			</a>
+							<Card.Root
+								class="h-full gap-3 py-5 transition-all hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-md"
+							>
+								<Card.Header class="gap-2">
+									<span
+										class="flex size-8 items-center justify-center rounded-lg bg-primary/10 text-primary"
+									>
+										<card.icon class="size-4" />
+									</span>
+									<Card.Title class="text-2xl tabular-nums sm:text-3xl">
+										{card.value.toLocaleString('de-AT')}
+									</Card.Title>
+									<Card.Description>{card.label}</Card.Description>
+								</Card.Header>
+							</Card.Root>
+						</a>
+					{/each}
+				</div>
+			</section>
 		{/each}
 	</div>
 </div>

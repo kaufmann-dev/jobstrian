@@ -8,23 +8,33 @@
 	import { Input } from '$lib/components/ui/input/index.js';
 	import { Spinner } from '$lib/components/ui/spinner/index.js';
 	import UserPlus from '@lucide/svelte/icons/user-plus';
+	import Briefcase from '@lucide/svelte/icons/briefcase';
 	import { untrack } from 'svelte';
 
 	let { data } = $props();
 
-	const form = superForm(untrack(() => data.form), {
-		validators: zod4Client(setupSchema)
-	});
+	const form = superForm(
+		untrack(() => data.form),
+		{
+			validators: zod4Client(setupSchema)
+		}
+	);
 	const { form: formData, enhance, message, submitting } = form;
 </script>
 
-<div class="flex min-h-svh items-center justify-center p-4">
-	<Card.Root class="w-full max-w-sm">
+<div class="flex min-h-svh flex-col items-center justify-center gap-6 p-4">
+	<div class="flex items-center gap-3">
+		<span
+			class="flex size-11 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-md"
+		>
+			<Briefcase class="size-5.5" />
+		</span>
+		<span class="text-2xl font-semibold tracking-tight">Jobstrian</span>
+	</div>
+	<Card.Root class="w-full max-w-sm shadow-lg">
 		<Card.Header>
-			<Card.Title class="text-2xl">Jobstrian einrichten</Card.Title>
-			<Card.Description>
-				Lege den einzigen Benutzer für diese Installation an.
-			</Card.Description>
+			<Card.Title>Einrichten</Card.Title>
+			<Card.Description>Lege den einzigen Benutzer für diese Installation an.</Card.Description>
 		</Card.Header>
 		<form method="POST" use:enhance>
 			<Card.Content class="space-y-4">

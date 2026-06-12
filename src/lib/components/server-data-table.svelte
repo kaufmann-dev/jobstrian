@@ -25,6 +25,7 @@
 		defaultSort: string;
 		filters?: Snippet;
 		onResetFilters?: () => void;
+		onRowClick?: (row: TData) => void;
 	}
 
 	let {
@@ -36,7 +37,8 @@
 		sortOptions,
 		defaultSort,
 		filters,
-		onResetFilters
+		onResetFilters,
+		onRowClick
 	}: Props = $props();
 
 	let search = $state('');
@@ -81,7 +83,7 @@
 </script>
 
 <div class="space-y-3">
-	<div class="flex flex-col gap-3 rounded-md border bg-card p-3 lg:flex-row lg:items-end">
+	<div class="flex flex-col gap-3 rounded-xl border bg-card p-4 shadow-sm lg:flex-row lg:items-end">
 		<div class="relative min-w-0 flex-1">
 			<Search class="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
 			<Input
@@ -89,7 +91,7 @@
 				oninput={(event) => updateSearch(event.currentTarget.value)}
 				placeholder={searchPlaceholder}
 				aria-label={searchPlaceholder}
-				class="pl-9"
+				class="bg-background pl-9"
 			/>
 		</div>
 		<div class="flex flex-wrap items-end gap-3">
@@ -123,20 +125,22 @@
 
 	<div
 		class={[
-			'overflow-hidden rounded-md border transition-opacity [&_[data-slot=table-container]]:overflow-x-hidden',
+			'overflow-hidden rounded-xl border bg-card shadow-sm transition-opacity [&_[data-slot=table-container]]:overflow-x-hidden',
 			controller.loading && controller.items.length > 0 && 'pointer-events-none opacity-50'
 		]}
 		aria-busy={controller.loading}
 	>
 		<Table.Root class="table-fixed">
-			<Table.Header class="sticky top-0 z-10 bg-background">
+			<Table.Header class="sticky top-0 z-10 bg-muted/60 backdrop-blur">
 				{#each table.getHeaderGroups() as headerGroup (headerGroup.id)}
-					<Table.Row>
+					<Table.Row class="hover:bg-transparent">
 						{#each headerGroup.headers as header (header.id)}
 							<Table.Head
 								colspan={header.colSpan}
-								class={meta(header.column.columnDef).headerClass ??
-									meta(header.column.columnDef).class}
+								class={[
+									'text-xs font-medium tracking-wide text-muted-foreground uppercase',
+									meta(header.column.columnDef).headerClass ?? meta(header.column.columnDef).class
+								]}
 							>
 								<FlexRender
 									content={header.column.columnDef.header}
@@ -149,7 +153,10 @@
 			</Table.Header>
 			<Table.Body>
 				{#each table.getRowModel().rows as row (row.id)}
-					<Table.Row class="h-11">
+					<Table.Row
+						class={['h-11', onRowClick && 'cursor-pointer']}
+						onclick={onRowClick ? () => onRowClick(row.original) : undefined}
+					>
 						{#each row.getVisibleCells() as cell (cell.id)}
 							<Table.Cell class={meta(cell.column.columnDef).class}>
 								<FlexRender content={cell.column.columnDef.cell} context={cell.getContext()} />

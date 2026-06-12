@@ -87,7 +87,10 @@
 </script>
 
 <form method="POST" use:enhance class="mx-auto max-w-2xl space-y-6">
-	<h1 class="text-2xl font-semibold">Einstellungen</h1>
+	<div>
+		<h1 class="text-2xl font-semibold tracking-tight">Einstellungen</h1>
+		<p class="text-sm text-muted-foreground">Profil, Standort, Portale und KI-Konfiguration.</p>
+	</div>
 
 	<Card.Root>
 		<Card.Header>

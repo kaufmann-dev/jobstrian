@@ -33,18 +33,30 @@
 </script>
 
 <div class="flex min-h-svh flex-col">
-	<header class="border-b">
-		<div class="mx-auto flex h-14 w-full max-w-[90rem] items-center gap-4 px-4">
-			<a href={resolve('/')} class="flex items-center gap-2 font-semibold">
-				<Briefcase class="size-5" />
-				Jobstrian
+	<header
+		class="sticky top-0 z-40 border-b border-border/60 bg-background/80 backdrop-blur supports-[backdrop-filter]:bg-background/60"
+	>
+		<div class="mx-auto flex h-14 w-full max-w-[90rem] items-center gap-4 px-4 sm:gap-6">
+			<a
+				href={resolve('/')}
+				class="flex shrink-0 items-center gap-2.5 font-semibold tracking-tight"
+			>
+				<span
+					class="flex size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground shadow-sm"
+				>
+					<Briefcase class="size-4.5" />
+				</span>
+				<span class="hidden md:inline">Jobstrian</span>
 			</a>
 			<nav class="flex items-center gap-1" aria-label="Hauptnavigation">
 				{#each navItems as item (item.href)}
 					<Button
 						href={item.href}
-						variant={isActive(item.href) ? 'secondary' : 'ghost'}
+						variant="ghost"
 						size="sm"
+						class={isActive(item.href)
+							? 'bg-primary/10 text-primary hover:bg-primary/15 hover:text-primary dark:bg-primary/15 dark:hover:bg-primary/20'
+							: 'text-muted-foreground hover:text-foreground'}
 						aria-current={isActive(item.href) ? 'page' : undefined}
 					>
 						<item.icon class="size-4" />
@@ -63,7 +75,7 @@
 			</div>
 		</div>
 	</header>
-	<main class="mx-auto w-full max-w-[90rem] flex-1 px-4 py-6">
+	<main class="mx-auto w-full max-w-[90rem] flex-1 px-4 py-8">
 		{@render children()}
 	</main>
 </div>

@@ -64,8 +64,12 @@
 		}
 	}
 
-	function verdictVariant(v: string | null): 'default' | 'secondary' | 'outline' {
-		return v === 'strong' ? 'default' : v === 'maybe' ? 'secondary' : 'outline';
+	function verdictClass(v: string | null): string {
+		if (v === 'strong')
+			return 'border-transparent bg-emerald-600/15 text-emerald-700 dark:bg-emerald-400/15 dark:text-emerald-300';
+		if (v === 'maybe')
+			return 'border-transparent bg-amber-500/15 text-amber-700 dark:bg-amber-400/15 dark:text-amber-300';
+		return 'border-transparent bg-muted text-muted-foreground';
 	}
 
 	function fmtDate(d: Date | string | null): string {
@@ -143,7 +147,10 @@
 		variant="ghost"
 		size="icon-sm"
 		aria-label={job.starred ? 'Markierung entfernen' : 'Stelle markieren'}
-		onclick={() => toggleStar(job)}
+		onclick={(event) => {
+			event.stopPropagation();
+			toggleStar(job);
+		}}
 	>
 		<Star class={['size-4', job.starred && 'fill-amber-400 text-amber-500']} />
 	</Button>
@@ -151,7 +158,7 @@
 
 {#snippet scoreCell({ job }: { job: Listing })}
 	{#if job.rankScore != null}
-		<Badge variant={verdictVariant(job.rankVerdict)}>{job.rankScore}</Badge>
+		<Badge class={['tabular-nums', verdictClass(job.rankVerdict)]}>{job.rankScore}</Badge>
 	{:else}
 		<span class="text-muted-foreground">—</span>
 	{/if}
@@ -176,14 +183,19 @@
 {/snippet}
 
 {#snippet actionCell({ job }: { job: Listing })}
-	<Button variant="outline" size="sm" onclick={() => (selected = job)}>
+	<Button variant="ghost" size="sm" class="text-muted-foreground" onclick={() => (selected = job)}>
 		<Eye class="size-4" />
 		<span class="sr-only sm:not-sr-only">Details</span>
 	</Button>
 {/snippet}
 
-<div class="space-y-4">
-	<h1 class="text-2xl font-semibold">Stellen</h1>
+<div class="space-y-5">
+	<div>
+		<h1 class="text-2xl font-semibold tracking-tight">Stellen</h1>
+		<p class="text-sm text-muted-foreground">
+			Automatisch gesammelte Inserate, von der KI nach deinem Profil bewertet.
+		</p>
+	</div>
 
 	{#snippet filters()}
 		<div class="space-y-1">
@@ -251,6 +263,7 @@
 		{controller}
 		{columns}
 		{filters}
+		onRowClick={(job) => (selected = job)}
 		onResetFilters={resetFilters}
 		searchPlaceholder="Stelle, Unternehmen oder Ort suchen"
 		sortOptions={[
@@ -278,7 +291,7 @@
 			<div class="space-y-4 px-4 pb-4">
 				<div class="flex flex-wrap items-center gap-2">
 					{#if selected.rankScore != null}
-						<Badge variant={verdictVariant(selected.rankVerdict)}>Score {selected.rankScore}</Badge>
+						<Badge class={verdictClass(selected.rankVerdict)}>Score {selected.rankScore}</Badge>
 					{/if}
 					<Badge variant="outline">{SOURCE_LABELS[selected.source] ?? selected.source}</Badge>
 					{#if selected.postedAt}<Badge variant="outline">{fmtDate(selected.postedAt)}</Badge>{/if}

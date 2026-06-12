@@ -7,6 +7,7 @@
 	import { Button } from '$lib/components/ui/button/index.js';
 	import { Spinner } from '$lib/components/ui/spinner/index.js';
 	import LogIn from '@lucide/svelte/icons/log-in';
+	import Briefcase from '@lucide/svelte/icons/briefcase';
 
 	let email = $state('');
 	let password = $state('');
@@ -27,10 +28,18 @@
 	}
 </script>
 
-<div class="flex min-h-svh items-center justify-center p-4">
-	<Card.Root class="w-full max-w-sm">
+<div class="flex min-h-svh flex-col items-center justify-center gap-6 p-4">
+	<div class="flex items-center gap-3">
+		<span
+			class="flex size-11 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-md"
+		>
+			<Briefcase class="size-5.5" />
+		</span>
+		<span class="text-2xl font-semibold tracking-tight">Jobstrian</span>
+	</div>
+	<Card.Root class="w-full max-w-sm shadow-lg">
 		<Card.Header>
-			<Card.Title class="text-2xl">Jobstrian</Card.Title>
+			<Card.Title>Anmelden</Card.Title>
 			<Card.Description>Melde dich an, um deine Jobsuche zu verwalten.</Card.Description>
 		</Card.Header>
 		<form {onsubmit}>
