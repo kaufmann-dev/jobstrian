@@ -43,7 +43,19 @@ describe('listing cursors', () => {
 			const cursor = decodeListingCursor(encodeListingCursor(listing, sort));
 			const query = dialect.sqlToQuery(listingAfter(cursor, sort)!);
 			expect(query.sql).not.toMatch(/"listing"\."starred"\s*</);
-			expect(query.sql).toContain('not "listing"."starred"');
+			expect(query.sql).toMatch(/"listing"\."starred" = \$\d/);
+			expect(query.params).toContain(false);
+			expect(query.params).toContain(true);
+		}
+	);
+
+	it.each(['recommended', 'newest'] as const)(
+		'serializes timestamp parameters through the column encoder for %s',
+		(sort) => {
+			const cursor = decodeListingCursor(encodeListingCursor(listing, sort));
+			const query = dialect.sqlToQuery(listingAfter(cursor, sort)!);
+			expect(query.params.some((param) => param instanceof Date)).toBe(false);
+			expect(query.params).toContain(listing.firstSeenAt.toISOString());
 		}
 	);
 
@@ -53,7 +65,9 @@ describe('listing cursors', () => {
 		);
 		const query = dialect.sqlToQuery(listingAfter(cursor, 'recommended')!);
 		expect(query.sql).toContain('"listing"."rank_score" is null');
-		expect(query.sql).toContain('not "listing"."starred"');
+		expect(query.sql).toMatch(/"listing"\."starred" = \$\d/);
+		expect(query.params).toContain(false);
+		expect(query.params).not.toContain(true);
 	});
 });
 

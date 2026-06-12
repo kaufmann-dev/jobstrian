@@ -1,4 +1,17 @@
-import { and, asc, desc, eq, ilike, isNotNull, ne, or, sql, type SQL } from 'drizzle-orm';
+import {
+	and,
+	asc,
+	desc,
+	eq,
+	ilike,
+	isNotNull,
+	isNull,
+	lt,
+	ne,
+	or,
+	sql,
+	type SQL
+} from 'drizzle-orm';
 import { z } from 'zod';
 import {
 	DEFAULT_LEAD_FILTERS,
@@ -149,8 +162,8 @@ function listingWhere(filters: ListingFilters): SQL | undefined {
 
 function afterStarred(cursorStarred: boolean, withinStarred: SQL): SQL {
 	return cursorStarred
-		? sql`((not ${listing.starred}) or (${listing.starred} and ${withinStarred}))`
-		: sql`((not ${listing.starred}) and ${withinStarred})`;
+		? or(eq(listing.starred, false), and(eq(listing.starred, true), withinStarred))!
+		: and(eq(listing.starred, false), withinStarred)!;
 }
 
 export function listingAfter(
@@ -162,21 +175,36 @@ export function listingAfter(
 		const seenAt = new Date(cursor.firstSeenAt);
 		return afterStarred(
 			cursor.starred,
-			sql`(${listing.firstSeenAt} < ${seenAt} or (${listing.firstSeenAt} = ${seenAt} and ${listing.id} < ${cursor.id}))`
+			or(
+				lt(listing.firstSeenAt, seenAt),
+				and(eq(listing.firstSeenAt, seenAt), lt(listing.id, cursor.id))
+			)!
 		);
 	}
 	if (cursor.sort === 'score') {
 		const within =
 			cursor.score === null
-				? sql`${listing.rankScore} is null and ${listing.id} < ${cursor.id}`
-				: sql`(${listing.rankScore} < ${cursor.score} or ${listing.rankScore} is null or (${listing.rankScore} = ${cursor.score} and ${listing.id} < ${cursor.id}))`;
+				? and(isNull(listing.rankScore), lt(listing.id, cursor.id))!
+				: or(
+						lt(listing.rankScore, cursor.score),
+						isNull(listing.rankScore),
+						and(eq(listing.rankScore, cursor.score), lt(listing.id, cursor.id))
+					)!;
 		return afterStarred(cursor.starred, within);
 	}
 	const seenAt = new Date(cursor.firstSeenAt);
+	const laterWithinSeenAt = or(
+		lt(listing.firstSeenAt, seenAt),
+		and(eq(listing.firstSeenAt, seenAt), lt(listing.id, cursor.id))
+	)!;
 	const laterWithinScore =
 		cursor.score === null
-			? sql`${listing.rankScore} is null and (${listing.firstSeenAt} < ${seenAt} or (${listing.firstSeenAt} = ${seenAt} and ${listing.id} < ${cursor.id}))`
-			: sql`(${listing.rankScore} < ${cursor.score} or ${listing.rankScore} is null or (${listing.rankScore} = ${cursor.score} and (${listing.firstSeenAt} < ${seenAt} or (${listing.firstSeenAt} = ${seenAt} and ${listing.id} < ${cursor.id}))))`;
+			? and(isNull(listing.rankScore), laterWithinSeenAt)!
+			: or(
+					lt(listing.rankScore, cursor.score),
+					isNull(listing.rankScore),
+					and(eq(listing.rankScore, cursor.score), laterWithinSeenAt)
+				)!;
 	return afterStarred(cursor.starred, laterWithinScore);
 }
 
