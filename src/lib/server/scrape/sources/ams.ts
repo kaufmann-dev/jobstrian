@@ -48,7 +48,7 @@ function toListing(r: AmsResult): RawListing | null {
 	};
 }
 
-async function searchKeyword(keyword: string): Promise<RawListing[]> {
+async function searchKeyword(keyword: string, signal?: AbortSignal): Promise<RawListing[]> {
 	return withPage(async (page) => {
 		const captured: AmsResult[] = [];
 		page.on('response', async (res) => {
@@ -82,17 +82,18 @@ async function searchKeyword(keyword: string): Promise<RawListing[]> {
 			if (listing) byId.set(listing.externalId, listing);
 		}
 		return [...byId.values()];
-	});
+	}, signal);
 }
 
 export const ams: SourceAdapter = {
 	id: 'ams',
 	label: 'AMS eJob-Room',
-	async search(profile: ProfileQuery): Promise<RawListing[]> {
+	async search(profile: ProfileQuery, signal?: AbortSignal): Promise<RawListing[]> {
 		const byId = new Map<string, RawListing>();
 		for (const keyword of profile.keywords) {
+			if (signal?.aborted) throw signal.reason;
 			try {
-				for (const listing of await searchKeyword(keyword)) {
+				for (const listing of await searchKeyword(keyword, signal)) {
 					byId.set(listing.externalId, listing);
 				}
 			} catch (err) {

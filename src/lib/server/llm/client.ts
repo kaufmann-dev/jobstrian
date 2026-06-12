@@ -1,4 +1,5 @@
 import { getSettings } from '../settings';
+import { llmLimiter } from './limiter';
 
 export interface LlmConfig {
 	baseUrl: string;
@@ -39,20 +40,24 @@ export async function chatJson<T>(
 	messages: { role: 'system' | 'user'; content: string }[],
 	opts: { temperature?: number; signal?: AbortSignal } = {}
 ): Promise<T> {
-	const res = await fetch(endpoint(cfg.baseUrl), {
-		method: 'POST',
-		headers: {
-			'content-type': 'application/json',
-			...(cfg.apiKey ? { authorization: `Bearer ${cfg.apiKey}` } : {})
-		},
-		body: JSON.stringify({
-			model: cfg.model,
-			temperature: opts.temperature ?? 0.2,
-			response_format: { type: 'json_object' },
-			messages
-		}),
-		signal: opts.signal
-	});
+	const res = await llmLimiter.run(
+		(signal) =>
+			fetch(endpoint(cfg.baseUrl), {
+				method: 'POST',
+				headers: {
+					'content-type': 'application/json',
+					...(cfg.apiKey ? { authorization: `Bearer ${cfg.apiKey}` } : {})
+				},
+				body: JSON.stringify({
+					model: cfg.model,
+					temperature: opts.temperature ?? 0.2,
+					response_format: { type: 'json_object' },
+					messages
+				}),
+				signal
+			}),
+		opts.signal
+	);
 
 	if (!res.ok) {
 		const body = await res.text().catch(() => '');

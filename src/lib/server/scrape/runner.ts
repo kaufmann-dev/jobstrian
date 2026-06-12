@@ -1,11 +1,31 @@
 import { and, eq, inArray, isNull, ne, or, sql } from 'drizzle-orm';
 import { db } from '../db';
-import { listing, lead, scrapeRun, type Settings } from '../db/schema';
+import {
+	listing,
+	lead,
+	scrapeRun,
+	type Lead,
+	type RunPhaseId,
+	type RunPhaseProgress,
+	type RunProgress,
+	type Settings
+} from '../db/schema';
 import { getSettings, updateSettings } from '../settings';
 import { geocode } from '../geo/nominatim';
 import { syncLeads } from '../geo/leads';
 import { OverpassUnavailableError } from '../geo/overpass';
-import { getLlmConfig, LlmNotConfiguredError } from '../llm/client';
+import { getLlmConfig, LlmNotConfiguredError, type LlmConfig } from '../llm/client';
+import {
+	draftContextHash,
+	leadContentHash,
+	listingContentHash,
+	rankingContextHash,
+	rawListingContentHash,
+	shouldDraftLead,
+	shouldRankLead,
+	shouldRankListing
+} from '../llm/fingerprints';
+import { llmLimiter, isAbortError } from '../llm/limiter';
 import { rankListing, rankLead } from '../llm/rank';
 import { draftColdEmail } from '../llm/draft-email';
 import { mapLimit } from '../util/concurrency';
@@ -13,20 +33,124 @@ import { closeBrowser } from './browser';
 import { getEnabledAdapters, BROWSER_ADAPTERS } from './registry';
 import type { ProfileQuery, RawListing } from './types';
 
-let running = false;
-
-export function isRunning(): boolean {
-	return running;
-}
+const AI_CONCURRENCY = 50;
+const PROGRESS_FLUSH_INTERVAL_MS = 1000;
 
 type Counts = { added: number; closed: number; ranked: number; leads: number };
+type ActiveRun = { runId: number; controller: AbortController; startedAt: Date };
 
-async function setProgress(runId: number, phase: string, counts: Counts): Promise<void> {
-	await db.update(scrapeRun).set({ phase, counts }).where(eq(scrapeRun.id, runId));
+let activeRun: ActiveRun | null = null;
+
+export function isRunning(): boolean {
+	return activeRun !== null;
+}
+
+export function hasActiveRun(runId?: number): boolean {
+	return activeRun !== null && (runId == null || activeRun.runId === runId);
+}
+
+function emptyPhase(): RunPhaseProgress {
+	return { state: 'pending', current: 0, total: 0, detail: '', skipped: 0, failed: 0 };
+}
+
+function createProgress(headline = 'Aktualisierung startet'): RunProgress {
+	return {
+		version: 1,
+		headline,
+		detail: '',
+		overall: { current: 0, total: 1, percent: 0 },
+		phases: {
+			setup: emptyPhase(),
+			scrape: emptyPhase(),
+			reconcile: emptyPhase(),
+			leads: emptyPhase(),
+			'rank-listings': emptyPhase(),
+			'rank-leads': emptyPhase(),
+			finalize: emptyPhase()
+		},
+		llm: {
+			queued: 0,
+			inFlight: 0,
+			completed: 0,
+			failed: 0,
+			skipped: 0,
+			lastMinuteStarted: 0
+		}
+	};
+}
+
+function recalcOverall(progress: RunProgress): void {
+	const phases = Object.values(progress.phases);
+	const total = phases.reduce((sum, phase) => sum + Math.max(phase.total, 0), 0);
+	const current = phases.reduce(
+		(sum, phase) => sum + Math.min(Math.max(phase.current, 0), Math.max(phase.total, 0)),
+		0
+	);
+	progress.overall = {
+		current,
+		total: Math.max(total, 1),
+		percent: total > 0 ? Math.round((current / total) * 100) : 0
+	};
+}
+
+function abortReason(signal: AbortSignal): unknown {
+	return signal.reason ?? new DOMException('The operation was aborted.', 'AbortError');
+}
+
+function throwIfAborted(signal: AbortSignal): void {
+	if (signal.aborted) throw abortReason(signal);
+}
+
+function isAbortLike(err: unknown): boolean {
+	return isAbortError(err) || (err instanceof Error && /aborted|abort/i.test(err.message));
+}
+
+class ProgressWriter {
+	private lastFlush = 0;
+
+	constructor(
+		private readonly runId: number,
+		private readonly counts: Counts,
+		readonly progress: RunProgress
+	) {}
+
+	phase(id: RunPhaseId, patch: Partial<RunPhaseProgress>, headline?: string): void {
+		this.progress.phases[id] = { ...this.progress.phases[id], ...patch };
+		if (headline) this.progress.headline = headline;
+		if (patch.detail != null) this.progress.detail = patch.detail;
+		recalcOverall(this.progress);
+	}
+
+	llm(): void {
+		this.progress.llm = llmLimiter.metrics();
+	}
+
+	cancelRunning(): void {
+		for (const id of Object.keys(this.progress.phases) as RunPhaseId[]) {
+			const phase = this.progress.phases[id];
+			if (phase.state === 'running') {
+				this.phase(id, { state: 'canceled', detail: 'Abgebrochen' });
+			}
+		}
+		this.progress.headline = 'Aktualisierung abgebrochen';
+		this.progress.detail = 'Der Lauf wurde abgebrochen.';
+	}
+
+	async flush(force = false): Promise<void> {
+		const now = Date.now();
+		if (!force && now - this.lastFlush < PROGRESS_FLUSH_INTERVAL_MS) return;
+		this.lastFlush = now;
+		this.llm();
+		await db
+			.update(scrapeRun)
+			.set({ phase: this.progress.headline, counts: this.counts, progress: this.progress })
+			.where(eq(scrapeRun.id, this.runId));
+	}
 }
 
 /** Upsert a scraped listing; returns true if newly inserted. */
 async function upsertListing(source: string, r: RawListing, runId: number): Promise<boolean> {
+	const contentHash = rawListingContentHash(source, r);
 	const res = await db
 		.insert(listing)
 		.values({
@@ -40,7 +164,8 @@ async function upsertListing(source: string, r: RawListing, runId: number): Prom
 			salary: r.salary,
 			postedAt: r.postedAt,
 			status: 'active',
-			lastSeenRunId: runId
+			lastSeenRunId: runId,
+			contentHash
 		})
 		.onConflictDoUpdate({
 			target: [listing.source, listing.externalId],
@@ -53,17 +178,20 @@ async function upsertListing(source: string, r: RawListing, runId: number): Prom
 				salary: r.salary,
 				postedAt: r.postedAt,
 				status: 'active',
-				lastSeenRunId: runId
+				lastSeenRunId: runId,
+				contentHash
 			}
 		})
 		.returning({ inserted: sql<boolean>`(xmax = 0)` });
 	return res[0]?.inserted === true;
 }
 
-async function ensureHomeCoords(settings: Settings): Promise<Settings> {
+async function ensureHomeCoords(settings: Settings, signal: AbortSignal): Promise<Settings> {
 	if (settings.homeLat != null && settings.homeLon != null) return settings;
 	if (!settings.homeAddress) return settings;
+	throwIfAborted(signal);
 	const point = await geocode(settings.homeAddress);
+	throwIfAborted(signal);
 	if (!point) return settings;
 	return updateSettings({ homeLat: point.lat, homeLon: point.lon });
 }
@@ -80,30 +208,70 @@ async function markLeadsWithPostings(): Promise<void> {
 	`);
 }
 
-export async function runRefresh(runId: number): Promise<void> {
+export async function runRefresh(
+	runId: number,
+	signal: AbortSignal,
+	progress = createProgress()
+): Promise<void> {
 	const counts: Counts = { added: 0, closed: 0, ranked: 0, leads: 0 };
+	const writer = new ProgressWriter(runId, counts, progress);
 	let usesBrowser = false;
-	let finalPhase = 'fertig';
+	let finalDetail = '';
+
 	try {
 		let settings = await getSettings();
 		const profile: ProfileQuery = {
 			keywords: settings.roleKeywords.length ? settings.roleKeywords : ['Barista', 'Kellner'],
 			location: 'Wien'
 		};
+		throwIfAborted(signal);
 
-		// --- Scrape each enabled source ---
+		writer.phase('setup', { state: 'done', current: 1, total: 1, detail: 'Einstellungen geladen' });
+		await writer.flush(true);
+
 		const adapters = getEnabledAdapters(settings.enabledSources);
-		for (const adapter of adapters) {
+		writer.phase(
+			'scrape',
+			{
+				state: adapters.length > 0 ? 'running' : 'skipped',
+				current: 0,
+				total: adapters.length,
+				detail: adapters.length > 0 ? 'Quellen werden abgefragt' : 'Keine Quellen aktiviert'
+			},
+			'Stellen werden gesucht'
+		);
+		await writer.flush(true);
+
+		for (const [index, adapter] of adapters.entries()) {
+			throwIfAborted(signal);
 			if (BROWSER_ADAPTERS.has(adapter.id)) usesBrowser = true;
-			await setProgress(runId, `Suche: ${adapter.label}`, counts);
-			const listings = await adapter.search(profile);
+			const detail = `${adapter.label}: ${index + 1} / ${adapters.length} Quellen`;
+			writer.phase('scrape', { state: 'running', current: index, total: adapters.length, detail });
+			await writer.flush(true);
+
+			const listings = await adapter.search(profile, signal);
 			for (const raw of listings) {
+				throwIfAborted(signal);
 				if (await upsertListing(adapter.id, raw, runId)) counts.added++;
 			}
-			await setProgress(runId, `Suche: ${adapter.label}`, counts);
+			writer.phase('scrape', { current: index + 1, detail });
+			await writer.flush(true);
+		}
+		if (adapters.length > 0) {
+			writer.phase('scrape', {
+				state: 'done',
+				current: adapters.length,
+				total: adapters.length,
+				detail: `${adapters.length} Quellen abgefragt`
+			});
 		}
 
-		// --- Close listings that vanished this run ---
+		writer.phase(
+			'reconcile',
+			{ state: 'running', current: 0, total: 1, detail: 'Geschlossene Stellen werden erkannt' },
+			'Stellen werden abgeglichen'
+		);
+		await writer.flush(true);
 		if (adapters.length > 0) {
 			const enabledIds = adapters.map((a) => a.id);
 			const closed = await db
@@ -119,33 +287,107 @@ export async function runRefresh(runId: number): Promise<void> {
 				.returning({ id: listing.id });
 			counts.closed = closed.length;
 		}
+		writer.phase('reconcile', {
+			state: 'done',
+			current: 1,
+			total: 1,
+			detail: `Geschlossen: ${counts.closed}`
+		});
+		await writer.flush(true);
 
-		// --- Nearby businesses (leads) ---
-		await setProgress(runId, 'Betriebe in der Nähe', counts);
-		settings = await ensureHomeCoords(settings);
+		writer.phase(
+			'leads',
+			{ state: 'running', current: 0, total: 1, detail: 'Betriebe in der Nähe werden gesucht' },
+			'Betriebe werden gesucht'
+		);
+		await writer.flush(true);
+		settings = await ensureHomeCoords(settings, signal);
 		if (settings.homeLat != null && settings.homeLon != null) {
 			try {
-				const leadResult = await syncLeads(settings, runId);
+				const leadResult = await syncLeads(settings, runId, signal);
 				counts.leads = leadResult.total;
 				await markLeadsWithPostings();
-				await setProgress(runId, 'Betriebe in der Nähe', counts);
+				writer.phase('leads', {
+					state: 'done',
+					current: 1,
+					total: 1,
+					detail: `Betriebe gefunden: ${leadResult.total}`
+				});
 			} catch (err) {
+				if (isAbortLike(err)) throw err;
 				if (!(err instanceof OverpassUnavailableError)) throw err;
 				console.warn('[runner] nearby business sync skipped:', err.message);
-				finalPhase = `fertig - Betriebe übersprungen (${err.message})`;
-				await setProgress(runId, `Betriebe übersprungen (${err.message})`, counts);
+				finalDetail = `Betriebe übersprungen (${err.message})`;
+				writer.phase('leads', {
+					state: 'skipped',
+					current: 1,
+					total: 1,
+					detail: finalDetail,
+					skipped: 1
+				});
 			}
+		} else {
+			writer.phase('leads', {
+				state: 'skipped',
+				current: 1,
+				total: 1,
+				detail: 'Wohnort fehlt',
+				skipped: 1
+			});
 		}
+		await writer.flush(true);
 
-		// --- LLM ranking + cold-email drafts ---
-		await rankAll(runId, settings, counts);
+		await rankAll(settings, counts, writer, signal);
+
+		writer.phase(
+			'finalize',
+			{ state: 'done', current: 1, total: 1, detail: finalDetail || 'Fertig' },
+			finalDetail ? `Fertig - ${finalDetail}` : 'Aktualisierung abgeschlossen'
+		);
+		writer.progress.detail = finalDetail || 'Fertig';
+		await writer.flush(true);
 
 		await db
 			.update(scrapeRun)
-			.set({ status: 'done', phase: finalPhase, finishedAt: new Date(), counts })
+			.set({
+				status: 'done',
+				phase: writer.progress.headline,
+				finishedAt: new Date(),
+				counts,
+				progress: writer.progress
+			})
 			.where(eq(scrapeRun.id, runId));
 	} catch (err) {
+		if (isAbortLike(err) || signal.aborted) {
+			writer.cancelRunning();
+			await writer.flush(true);
+			await db
+				.update(scrapeRun)
+				.set({
+					status: 'canceled',
+					phase: 'Abgebrochen',
+					finishedAt: new Date(),
+					counts,
+					progress: writer.progress
+				})
+				.where(eq(scrapeRun.id, runId));
+			return;
+		}
+
 		console.error('[runner] run failed:', err);
+		writer.progress.headline = 'Aktualisierung fehlgeschlagen';
+		writer.progress.detail = err instanceof Error ? err.message : String(err);
+		for (const id of Object.keys(writer.progress.phases) as RunPhaseId[]) {
+			const phase = writer.progress.phases[id];
+			if (phase.state === 'running') {
+				writer.phase(id, {
+					state: 'error',
+					detail: writer.progress.detail,
+					failed: phase.failed + 1
+				});
+			}
+		}
+		await writer.flush(true);
 		await db
 			.update(scrapeRun)
 			.set({
@@ -153,6 +395,7 @@ export async function runRefresh(runId: number): Promise<void> {
 				phase: 'Fehler',
 				finishedAt: new Date(),
 				counts,
+				progress: writer.progress,
 				error: err instanceof Error ? err.message : String(err)
 			})
 			.where(eq(scrapeRun.id, runId));
@@ -161,84 +404,282 @@ export async function runRefresh(runId: number): Promise<void> {
 	}
 }
 
-async function rankAll(runId: number, settings: Settings, counts: Counts): Promise<void> {
-	let cfg;
+async function rankAll(
+	settings: Settings,
+	counts: Counts,
+	writer: ProgressWriter,
+	signal: AbortSignal
+): Promise<void> {
+	let cfg: LlmConfig;
 	try {
 		cfg = await getLlmConfig();
 	} catch (err) {
 		if (err instanceof LlmNotConfiguredError) {
-			await setProgress(runId, 'LLM nicht konfiguriert — Ranking übersprungen', counts);
+			writer.phase(
+				'rank-listings',
+				{
+					state: 'skipped',
+					current: 0,
+					total: 0,
+					detail: 'LLM nicht konfiguriert',
+					skipped: 1
+				},
+				'Ranking übersprungen'
+			);
+			writer.phase('rank-leads', {
+				state: 'skipped',
+				current: 0,
+				total: 0,
+				detail: 'LLM nicht konfiguriert',
+				skipped: 1
+			});
+			await writer.flush(true);
 			return;
 		}
 		throw err;
 	}
 
-	await setProgress(runId, 'Bewertung der Stellen', counts);
-	const unranked = await db
-		.select()
-		.from(listing)
-		.where(and(eq(listing.status, 'active'), isNull(listing.rankScore)));
-	await mapLimit(unranked, 3, async (row) => {
-		try {
-			const result = await rankListing(cfg, settings, row);
-			await db
-				.update(listing)
-				.set({
-					rankScore: result.score,
-					rankVerdict: result.verdict,
-					rankReason: result.reason,
-					rankedAt: new Date()
-				})
-				.where(eq(listing.id, row.id));
-			counts.ranked++;
-		} catch (err) {
-			console.error(`[runner] rank listing ${row.id} failed:`, err);
-		}
-	});
-	await setProgress(runId, 'Bewertung der Stellen', counts);
+	const rankContext = rankingContextHash(settings, cfg);
+	const draftContext = draftContextHash(settings, cfg);
+	await rankListings(settings, cfg, rankContext, counts, writer, signal);
+	await rankLeads(settings, cfg, rankContext, draftContext, writer, signal);
+}
 
-	// Rank + draft for leads without an active posting that aren't ranked yet.
-	await setProgress(runId, 'Bewertung der Betriebe', counts);
-	const freshLeads = await db
-		.select()
-		.from(lead)
-		.where(and(eq(lead.hasActivePosting, false), isNull(lead.rankScore)));
-	await mapLimit(freshLeads, 3, async (row) => {
-		try {
-			const result = await rankLead(cfg, settings, row);
-			const draft = row.email ? await draftColdEmail(cfg, settings, row) : null;
-			await db
-				.update(lead)
-				.set({
-					rankScore: result.score,
-					rankReason: result.reason,
-					draftSubject: draft?.subject,
-					draftBody: draft?.body
-				})
-				.where(eq(lead.id, row.id));
-		} catch (err) {
-			console.error(`[runner] rank lead ${row.id} failed:`, err);
-		}
+async function rankListings(
+	settings: Settings,
+	cfg: LlmConfig,
+	contextHash: string,
+	counts: Counts,
+	writer: ProgressWriter,
+	signal: AbortSignal
+): Promise<void> {
+	const rows = await db.select().from(listing).where(eq(listing.status, 'active'));
+	const work = rows
+		.map((row) => ({ row, contentHash: row.contentHash ?? listingContentHash(row) }))
+		.filter(({ row, contentHash }) => shouldRankListing(row, contextHash, contentHash));
+	const skipped = rows.length - work.length;
+	let completed = 0;
+	let failed = 0;
+
+	writer.phase(
+		'rank-listings',
+		{
+			state: rows.length > 0 ? 'running' : 'skipped',
+			current: skipped,
+			total: rows.length,
+			detail: `Stellen bewertet: 0 / ${rows.length}, übersprungen: ${skipped}, fehlgeschlagen: 0`,
+			skipped,
+			failed
+		},
+		'Stellen werden bewertet'
+	);
+	await writer.flush(true);
+
+	await mapLimit(
+		work,
+		AI_CONCURRENCY,
+		async ({ row, contentHash }) => {
+			throwIfAborted(signal);
+			try {
+				const result = await rankListing(cfg, settings, row, signal);
+				await db
+					.update(listing)
+					.set({
+						rankScore: result.score,
+						rankVerdict: result.verdict,
+						rankReason: result.reason,
+						rankedAt: new Date(),
+						contentHash,
+						rankContentHash: contentHash,
+						rankContextHash: contextHash
+					})
+					.where(eq(listing.id, row.id));
+				counts.ranked++;
+				completed++;
+			} catch (err) {
+				if (isAbortLike(err)) throw err;
+				failed++;
+				console.error(`[runner] rank listing ${row.id} failed:`, err);
+			} finally {
+				const current = skipped + completed + failed;
+				writer.phase('rank-listings', {
+					current,
+					total: rows.length,
+					detail: `Stellen bewertet: ${completed} / ${rows.length}, übersprungen: ${skipped}, fehlgeschlagen: ${failed}`,
+					skipped,
+					failed
+				});
+				await writer.flush();
+			}
+		},
+		signal
+	);
+
+	writer.phase('rank-listings', {
+		state: failed > 0 ? 'error' : 'done',
+		current: rows.length,
+		total: rows.length,
+		detail: `Stellen bewertet: ${completed} / ${rows.length}, übersprungen: ${skipped}, fehlgeschlagen: ${failed}`,
+		skipped,
+		failed
 	});
-	await setProgress(runId, 'fertig', counts);
+	await writer.flush(true);
+}
+
+async function rankLeads(
+	settings: Settings,
+	cfg: LlmConfig,
+	rankContext: string,
+	draftContext: string,
+	writer: ProgressWriter,
+	signal: AbortSignal
+): Promise<void> {
+	const rows = await db.select().from(lead).where(eq(lead.hasActivePosting, false));
+	const planned = rows.map((row) => {
+		const contentHash = row.contentHash ?? leadContentHash(row);
+		return {
+			row,
+			contentHash,
+			rank: shouldRankLead(row, rankContext, contentHash),
+			draft: shouldDraftLead(row, draftContext, contentHash)
+		};
+	});
+	const work = planned.filter((item) => item.rank || item.draft);
+	const skipped = planned.length - work.length;
+	let completed = 0;
+	let failed = 0;
+
+	writer.phase(
+		'rank-leads',
+		{
+			state: rows.length > 0 ? 'running' : 'skipped',
+			current: skipped,
+			total: rows.length,
+			detail: `Betriebe bewertet: 0 / ${rows.length}, übersprungen: ${skipped}, fehlgeschlagen: 0`,
+			skipped,
+			failed
+		},
+		'Betriebe werden bewertet'
+	);
+	await writer.flush(true);
+
+	await mapLimit(
+		work,
+		AI_CONCURRENCY,
+		async ({ row, contentHash, rank, draft }) => {
+			throwIfAborted(signal);
+			try {
+				const update: Partial<Lead> = {
+					contentHash
+				};
+				if (rank) {
+					const result = await rankLead(cfg, settings, row, signal);
+					update.rankScore = result.score;
+					update.rankReason = result.reason;
+					update.rankContentHash = contentHash;
+					update.rankContextHash = rankContext;
+				}
+				if (draft) {
+					const result = await draftColdEmail(cfg, settings, row, signal);
+					update.draftSubject = result.subject;
+					update.draftBody = result.body;
+					update.draftContentHash = contentHash;
+					update.draftContextHash = draftContext;
+				}
+				await db.update(lead).set(update).where(eq(lead.id, row.id));
+				completed++;
+			} catch (err) {
+				if (isAbortLike(err)) throw err;
+				failed++;
+				console.error(`[runner] rank lead ${row.id} failed:`, err);
+			} finally {
+				const current = skipped + completed + failed;
+				writer.phase('rank-leads', {
+					current,
+					total: rows.length,
+					detail: `Betriebe bewertet: ${completed} / ${rows.length}, übersprungen: ${skipped}, fehlgeschlagen: ${failed}`,
+					skipped,
+					failed
+				});
+				await writer.flush();
+			}
+		},
+		signal
+	);
+
+	writer.phase('rank-leads', {
+		state: failed > 0 ? 'error' : 'done',
+		current: rows.length,
+		total: rows.length,
+		detail: `Betriebe bewertet: ${completed} / ${rows.length}, übersprungen: ${skipped}, fehlgeschlagen: ${failed}`,
+		skipped,
+		failed
+	});
+	await writer.flush(true);
 }
 
 /** Start a refresh in the background. Returns the run id, or null if one is active. */
 export async function startRefresh(): Promise<number | null> {
-	if (running) return null;
-	running = true;
+	if (activeRun) return null;
+	const progress = createProgress();
 	try {
 		const [run] = await db
 			.insert(scrapeRun)
-			.values({ status: 'running', phase: 'starting' })
+			.values({ status: 'running', phase: 'starting', progress })
 			.returning({ id: scrapeRun.id });
-		// Fire and forget — UI polls scrape_run for progress.
-		runRefresh(run.id).finally(() => {
-			running = false;
+
+		const controller = new AbortController();
+		activeRun = { runId: run.id, controller, startedAt: new Date() };
+		runRefresh(run.id, controller.signal, progress).finally(() => {
+			if (activeRun?.runId === run.id) activeRun = null;
 		});
 		return run.id;
 	} catch (err) {
-		running = false;
+		activeRun = null;
 		throw err;
 	}
+}
+
+export async function cancelRefresh(runId: number): Promise<{ active: boolean }> {
+	const [current] = await db.select().from(scrapeRun).where(eq(scrapeRun.id, runId)).limit(1);
+	const progress =
+		current?.progress?.version === 1 ? current.progress : createProgress('Abbruch angefordert');
+	progress.headline = 'Abbruch angefordert';
+	progress.detail = 'Der Lauf wird abgebrochen.';
+	await db
+		.update(scrapeRun)
+		.set({
+			status: 'canceling',
+			cancelRequestedAt: new Date(),
+			phase: 'Abbruch angefordert',
+			progress
+		})
+		.where(
+			and(
+				eq(scrapeRun.id, runId),
+				or(eq(scrapeRun.status, 'running'), eq(scrapeRun.status, 'canceling'))
+			)
+		);
+
+	if (activeRun?.runId !== runId) return { active: false };
+	activeRun.controller.abort(new DOMException('Refresh run canceled.', 'AbortError'));
+	return { active: true };
+}
+
+export async function markInterruptedRun(runId: number): Promise<void> {
+	const progress = createProgress('Aktualisierung fehlgeschlagen');
+	progress.detail = 'Server-Neustart hat den Lauf unterbrochen.';
+	for (const id of Object.keys(progress.phases) as RunPhaseId[]) {
+		progress.phases[id].state = 'error';
+	}
+	await db
+		.update(scrapeRun)
+		.set({
+			status: 'error',
+			phase: 'Fehler',
+			finishedAt: new Date(),
+			progress,
+			error: 'Server-Neustart hat den Lauf unterbrochen.'
+		})
+		.where(eq(scrapeRun.id, runId));
 }

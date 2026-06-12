@@ -48,16 +48,17 @@ function toListing(e: WhEntry): RawListing | null {
 export const willhaben: SourceAdapter = {
 	id: 'willhaben',
 	label: 'willhaben Jobs',
-	async search(profile: ProfileQuery): Promise<RawListing[]> {
+	async search(profile: ProfileQuery, signal?: AbortSignal): Promise<RawListing[]> {
 		const byId = new Map<string, RawListing>();
 		for (const keyword of profile.keywords) {
+			if (signal?.aborted) throw signal.reason;
 			try {
 				const url =
 					'https://www.willhaben.at/jobs/suche?areaId=' +
 					VIENNA_AREA_ID +
 					'&keyword=' +
 					encodeURIComponent(keyword);
-				const html = await fetchText(url, { timeoutMs: 20_000 });
+				const html = await fetchText(url, { timeoutMs: 20_000, signal });
 				for (const entry of parseNextData(html)) {
 					const listing = toListing(entry);
 					if (listing) byId.set(listing.externalId, listing);

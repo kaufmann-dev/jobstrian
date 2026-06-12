@@ -18,10 +18,12 @@ user-configured OpenAI-compatible LLM.
   radius; missing e-mail addresses are extracted from the respective website
   (imprint / contact page). If Overpass is temporarily overloaded, the update
   skips this business sync and still completes the job scraping / ranking run.
-- **LLM ranking**: every job receives a score + verdict + reasoning; for
-  businesses without a listing a German e-mail draft is generated in addition.
+- **LLM ranking**: jobs receive a score + verdict + reasoning; for businesses
+  without a listing a German e-mail draft is generated in addition. Unchanged
+  jobs / businesses are skipped using content and ranking-context fingerprints.
 - **Update button**: one run scrapes, deduplicates, closes vanished listings,
-  synchronizes businesses and rates new entries. Progress is shown live.
+  synchronizes businesses and rates new or changed entries. Structured progress
+  is shown live with per-phase counts, LLM queue metrics and cancellation.
 - Login-protected (Better Auth), German UI, light / dark mode.
 
 ## Tech Stack

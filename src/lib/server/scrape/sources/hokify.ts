@@ -12,7 +12,7 @@ function slug(keyword: string): string {
 		.replace(/^-+|-+$/g, '');
 }
 
-async function searchKeyword(keyword: string): Promise<RawListing[]> {
+async function searchKeyword(keyword: string, signal?: AbortSignal): Promise<RawListing[]> {
 	const url = `https://www.hokify.at/jobs/${slug(keyword)}/wien`;
 	return withPage(async (page) => {
 		await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30_000 });
@@ -52,17 +52,18 @@ async function searchKeyword(keyword: string): Promise<RawListing[]> {
 				};
 			})
 			.filter((x): x is RawListing => x !== null);
-	});
+	}, signal);
 }
 
 export const hokify: SourceAdapter = {
 	id: 'hokify',
 	label: 'hokify',
-	async search(profile: ProfileQuery): Promise<RawListing[]> {
+	async search(profile: ProfileQuery, signal?: AbortSignal): Promise<RawListing[]> {
 		const byId = new Map<string, RawListing>();
 		for (const keyword of profile.keywords) {
+			if (signal?.aborted) throw signal.reason;
 			try {
-				for (const listing of await searchKeyword(keyword)) {
+				for (const listing of await searchKeyword(keyword, signal)) {
 					byId.set(listing.externalId, listing);
 				}
 			} catch (err) {

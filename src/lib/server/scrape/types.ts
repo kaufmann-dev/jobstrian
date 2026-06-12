@@ -23,5 +23,5 @@ export interface SourceAdapter {
 	 * Search the portal for matching listings. Must never throw — catch
 	 * internally, log, and return whatever was gathered.
 	 */
-	search(profile: ProfileQuery): Promise<RawListing[]>;
+	search(profile: ProfileQuery, signal?: AbortSignal): Promise<RawListing[]>;
 }

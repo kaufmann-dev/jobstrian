@@ -2,12 +2,14 @@
 export async function mapLimit<T, R>(
 	items: T[],
 	limit: number,
-	fn: (item: T, index: number) => Promise<R>
+	fn: (item: T, index: number) => Promise<R>,
+	signal?: AbortSignal
 ): Promise<R[]> {
 	const results = new Array<R>(items.length);
 	let cursor = 0;
 	const worker = async () => {
 		while (cursor < items.length) {
+			if (signal?.aborted) throw signal.reason;
 			const index = cursor++;
 			results[index] = await fn(items[index], index);
 		}

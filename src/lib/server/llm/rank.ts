@@ -1,6 +1,8 @@
 import type { Settings, Listing, Lead } from '../db/schema';
 import { chatJson, type LlmConfig } from './client';
 
+export const RANK_PROMPT_VERSION = 'rank-v1';
+
 export interface RankResult {
 	score: number; // 0-100
 	verdict: 'strong' | 'maybe' | 'weak';

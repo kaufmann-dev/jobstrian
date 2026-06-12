@@ -18,17 +18,31 @@ export async function closeBrowser(): Promise<void> {
 	await browser?.close().catch(() => {});
 }
 
+function abortReason(signal: AbortSignal): unknown {
+	return signal.reason ?? new DOMException('The operation was aborted.', 'AbortError');
+}
+
 /** Run `fn` with a fresh page in an isolated context, always cleaned up. */
-export async function withPage<T>(fn: (page: Page) => Promise<T>): Promise<T> {
+export async function withPage<T>(
+	fn: (page: Page) => Promise<T>,
+	signal?: AbortSignal
+): Promise<T> {
+	if (signal?.aborted) throw abortReason(signal);
 	const browser = await getBrowser();
 	const context = await browser.newContext({
 		userAgent: USER_AGENT,
 		locale: 'de-AT'
 	});
+	const closeOnAbort = () => {
+		void context.close().catch(() => {});
+	};
+	if (signal) signal.addEventListener('abort', closeOnAbort, { once: true });
 	const page = await context.newPage();
 	try {
+		if (signal?.aborted) throw abortReason(signal);
 		return await fn(page);
 	} finally {
+		if (signal) signal.removeEventListener('abort', closeOnAbort);
 		await context.close().catch(() => {});
 	}
 }

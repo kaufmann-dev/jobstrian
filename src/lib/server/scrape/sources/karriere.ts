@@ -46,15 +46,17 @@ function parse(html: string): RawListing[] {
 export const karriere: SourceAdapter = {
 	id: 'karriere',
 	label: 'karriere.at',
-	async search(profile: ProfileQuery): Promise<RawListing[]> {
+	async search(profile: ProfileQuery, signal?: AbortSignal): Promise<RawListing[]> {
 		const byId = new Map<string, RawListing>();
 		const loc = slugify(profile.location);
 		for (const keyword of profile.keywords) {
+			if (signal?.aborted) throw signal.reason;
 			try {
 				const url = `https://www.karriere.at/jobs/${slugify(keyword)}/${loc}`;
 				const html = await fetchText(url, {
 					timeoutMs: 20_000,
-					headers: { 'accept-language': 'de-AT,de;q=0.9' }
+					headers: { 'accept-language': 'de-AT,de;q=0.9' },
+					signal
 				});
 				for (const listing of parse(html)) byId.set(listing.externalId, listing);
 			} catch (err) {

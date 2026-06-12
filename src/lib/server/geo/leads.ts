@@ -5,6 +5,7 @@ import { lead, type Settings } from '../db/schema';
 import { fetchText } from '../util/http';
 import { haversineMeters } from '../util/distance';
 import { mapLimit } from '../util/concurrency';
+import { leadContentHash } from '../llm/fingerprints';
 import { findNearbyGastronomy, type OverpassPlace } from './overpass';
 
 const EMAIL_RE = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g;
@@ -35,6 +36,10 @@ function extractFromHtml(html: string): string | undefined {
 	return pickEmail(text.match(EMAIL_RE) ?? []);
 }
 
+function throwIfAborted(signal?: AbortSignal): void {
+	if (signal?.aborted) throw signal.reason;
+}
+
 /** Try to find a contact email by scanning the homepage + imprint/contact pages. */
 export async function extractEmailFromWebsite(
 	website: string,
@@ -48,9 +53,11 @@ export async function extractEmailFromWebsite(
 	}
 	const tryPage = async (path: string): Promise<string | undefined> => {
 		try {
+			throwIfAborted(signal);
 			const html = await fetchText(origin + path, { timeoutMs: 7000, signal });
 			return extractFromHtml(html);
-		} catch {
+		} catch (err) {
+			if (signal?.aborted) throw err;
 			return undefined;
 		}
 	};
@@ -88,20 +95,26 @@ export async function syncLeads(
 	const homeLat = settings.homeLat;
 	const homeLon = settings.homeLon;
 	// Enrich + upsert with bounded concurrency so large radii stay tractable.
-	const inserted = await mapLimit(places, 8, async (place) => {
-		const distance = Math.round(haversineMeters(homeLat, homeLon, place.lat, place.lon));
-		let email = place.email;
-		let emailSource: 'osm' | 'website' | null = email ? 'osm' : null;
-		if (!email && place.website) {
-			const found = await extractEmailFromWebsite(place.website, signal);
-			if (found) {
-				email = found;
-				emailSource = 'website';
+	const inserted = await mapLimit(
+		places,
+		8,
+		async (place) => {
+			throwIfAborted(signal);
+			const distance = Math.round(haversineMeters(homeLat, homeLon, place.lat, place.lon));
+			let email = place.email;
+			let emailSource: 'osm' | 'website' | null = email ? 'osm' : null;
+			if (!email && place.website) {
+				const found = await extractEmailFromWebsite(place.website, signal);
+				if (found) {
+					email = found;
+					emailSource = 'website';
+				}
 			}
-		}
-		const isNew = await upsertLead(place, distance, email, emailSource, runId);
-		return isNew ? place.osmId : null;
-	});
+			const isNew = await upsertLead(place, distance, email, emailSource, runId);
+			return isNew ? place.osmId : null;
+		},
+		signal
+	);
 
 	return { total: places.length, newOsmIds: inserted.filter((x): x is string => x !== null) };
 }
@@ -127,6 +140,14 @@ async function upsertLead(
 			phone: place.phone,
 			email,
 			emailSource,
+			contentHash: leadContentHash({
+				name: place.name,
+				category: place.category,
+				address: place.address ?? null,
+				distanceMeters: distance,
+				website: place.website ?? null,
+				email: email ?? null
+			}),
 			lastSeenRunId: runId
 		})
 		.onConflictDoUpdate({
@@ -141,6 +162,17 @@ async function upsertLead(
 				// Only fill email/website-derived data; keep an existing email if newly missing.
 				email: sql`coalesce(${lead.email}, ${email ?? null})`,
 				emailSource: sql`coalesce(${lead.emailSource}, ${emailSource})`,
+				contentHash:
+					email == null
+						? null
+						: leadContentHash({
+								name: place.name,
+								category: place.category,
+								address: place.address ?? null,
+								distanceMeters: distance,
+								website: place.website ?? null,
+								email
+							}),
 				lastSeenRunId: runId
 			}
 		})

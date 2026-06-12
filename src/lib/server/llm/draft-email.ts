@@ -2,6 +2,8 @@ import type { Settings, Lead } from '../db/schema';
 import { chatJson, type LlmConfig } from './client';
 import { profileBlock } from './rank';
 
+export const DRAFT_PROMPT_VERSION = 'draft-cold-email-v1';
+
 export interface EmailDraft {
 	subject: string;
 	body: string;

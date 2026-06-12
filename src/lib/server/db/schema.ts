@@ -152,14 +152,19 @@ export const scrapeRun = pgTable('scrape_run', {
 	id: serial('id').primaryKey(),
 	startedAt: timestamp('started_at').defaultNow().notNull(),
 	finishedAt: timestamp('finished_at'),
-	status: text('status', { enum: ['running', 'done', 'error'] })
+	status: text('status', { enum: ['running', 'canceling', 'canceled', 'done', 'error'] })
 		.notNull()
 		.default('running'),
+	cancelRequestedAt: timestamp('cancel_requested_at'),
 	phase: text('phase').notNull().default('starting'),
 	counts: jsonb('counts')
 		.$type<{ added: number; closed: number; ranked: number; leads: number }>()
 		.notNull()
 		.default({ added: 0, closed: 0, ranked: 0, leads: 0 }),
+	progress: jsonb('progress')
+		.$type<RunProgress>()
+		.notNull()
+		.default(sql`'{}'::jsonb`),
 	error: text('error')
 });
 
@@ -182,11 +187,14 @@ export const listing = pgTable(
 			.default('active'),
 		firstSeenAt: timestamp('first_seen_at').defaultNow().notNull(),
 		lastSeenRunId: integer('last_seen_run_id'),
+		contentHash: text('content_hash'),
 		// LLM ranking.
 		rankScore: integer('rank_score'),
 		rankVerdict: text('rank_verdict', { enum: ['strong', 'maybe', 'weak'] }),
 		rankReason: text('rank_reason'),
-		rankedAt: timestamp('ranked_at')
+		rankedAt: timestamp('ranked_at'),
+		rankContentHash: text('rank_content_hash'),
+		rankContextHash: text('rank_context_hash')
 	},
 	(table) => [
 		uniqueIndex('listing_source_external_id_idx').on(table.source, table.externalId),
@@ -220,7 +228,12 @@ export const lead = pgTable(
 			.notNull()
 			.default('new'),
 		firstSeenAt: timestamp('first_seen_at').defaultNow().notNull(),
-		lastSeenRunId: integer('last_seen_run_id')
+		lastSeenRunId: integer('last_seen_run_id'),
+		contentHash: text('content_hash'),
+		rankContentHash: text('rank_content_hash'),
+		rankContextHash: text('rank_context_hash'),
+		draftContentHash: text('draft_content_hash'),
+		draftContextHash: text('draft_context_hash')
 	},
 	(table) => [
 		uniqueIndex('lead_osm_id_idx').on(table.osmId),
@@ -233,3 +246,38 @@ export type Listing = typeof listing.$inferSelect;
 export type Lead = typeof lead.$inferSelect;
 export type ScrapeRun = typeof scrapeRun.$inferSelect;
 export type Cv = typeof cv.$inferSelect;
+
+export type RunStatus = 'running' | 'canceling' | 'canceled' | 'done' | 'error';
+export type RunPhaseId =
+	| 'setup'
+	| 'scrape'
+	| 'reconcile'
+	| 'leads'
+	| 'rank-listings'
+	| 'rank-leads'
+	| 'finalize';
+export type RunPhaseState = 'pending' | 'running' | 'done' | 'skipped' | 'error' | 'canceled';
+export interface RunPhaseProgress {
+	state: RunPhaseState;
+	current: number;
+	total: number;
+	detail: string;
+	skipped: number;
+	failed: number;
+}
+export interface RunLlmProgress {
+	queued: number;
+	inFlight: number;
+	completed: number;
+	failed: number;
+	skipped: number;
+	lastMinuteStarted: number;
+}
+export interface RunProgress {
+	version: 1;
+	headline: string;
+	detail: string;
+	overall: { current: number; total: number; percent: number };
+	phases: Record<RunPhaseId, RunPhaseProgress>;
+	llm: RunLlmProgress;
+}
