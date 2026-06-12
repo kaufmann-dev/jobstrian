@@ -33,6 +33,23 @@
 		{ label: 'Ohne Ausschreibung', value: stats.openLeads }
 	]);
 
+	type StartRunResponse =
+		| { started: true; runId: number }
+		| { started: false; reason: string; message?: string };
+
+	async function readStartResponse(res: Response): Promise<StartRunResponse | null> {
+		try {
+			return (await res.json()) as StartRunResponse;
+		} catch {
+			return null;
+		}
+	}
+
+	function startFailureToast(res: Response, body: StartRunResponse | null): string {
+		if (body && !body.started && body.message) return body.message;
+		return `Aktualisierung konnte nicht gestartet werden (${res.status}).`;
+	}
+
 	async function poll() {
 		if (polling) return;
 		polling = true;
@@ -56,12 +73,17 @@
 		starting = true;
 		try {
 			const res = await fetch('/api/run/start', { method: 'POST' });
+			const body = await readStartResponse(res);
 			if (res.status === 409) {
-				toast.info('Eine Aktualisierung läuft bereits.');
+				toast.info(startFailureToast(res, body));
 			} else if (!res.ok) {
-				toast.error('Start fehlgeschlagen.');
+				toast.error(startFailureToast(res, body));
+				return;
 			}
 			await poll();
+		} catch (err) {
+			const message = err instanceof Error ? err.message : String(err);
+			toast.error(`Aktualisierung konnte nicht gestartet werden: ${message}`);
 		} finally {
 			starting = false;
 		}
