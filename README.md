@@ -16,7 +16,8 @@ user-configured OpenAI-compatible LLM.
     results are not reliably accessible without a login / app.
 - **Nearby businesses**: OpenStreetMap (Overpass) finds gastronomy within a
   radius; missing e-mail addresses are extracted from the respective website
-  (imprint / contact page).
+  (imprint / contact page). If Overpass is temporarily overloaded, the update
+  skips this business sync and still completes the job scraping / ranking run.
 - **LLM ranking**: every job receives a score + verdict + reasoning; for
   businesses without a listing a German e-mail draft is generated in addition.
 - **Update button**: one run scrapes, deduplicates, closes vanished listings,

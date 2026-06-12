@@ -4,6 +4,7 @@ import { listing, lead, scrapeRun, type Settings } from '../db/schema';
 import { getSettings, updateSettings } from '../settings';
 import { geocode } from '../geo/nominatim';
 import { syncLeads } from '../geo/leads';
+import { OverpassUnavailableError } from '../geo/overpass';
 import { getLlmConfig, LlmNotConfiguredError } from '../llm/client';
 import { rankListing, rankLead } from '../llm/rank';
 import { draftColdEmail } from '../llm/draft-email';
@@ -82,6 +83,7 @@ async function markLeadsWithPostings(): Promise<void> {
 export async function runRefresh(runId: number): Promise<void> {
 	const counts: Counts = { added: 0, closed: 0, ranked: 0, leads: 0 };
 	let usesBrowser = false;
+	let finalPhase = 'fertig';
 	try {
 		let settings = await getSettings();
 		const profile: ProfileQuery = {
@@ -122,10 +124,17 @@ export async function runRefresh(runId: number): Promise<void> {
 		await setProgress(runId, 'Betriebe in der Nähe', counts);
 		settings = await ensureHomeCoords(settings);
 		if (settings.homeLat != null && settings.homeLon != null) {
-			const leadResult = await syncLeads(settings, runId);
-			counts.leads = leadResult.total;
-			await markLeadsWithPostings();
-			await setProgress(runId, 'Betriebe in der Nähe', counts);
+			try {
+				const leadResult = await syncLeads(settings, runId);
+				counts.leads = leadResult.total;
+				await markLeadsWithPostings();
+				await setProgress(runId, 'Betriebe in der Nähe', counts);
+			} catch (err) {
+				if (!(err instanceof OverpassUnavailableError)) throw err;
+				console.warn('[runner] nearby business sync skipped:', err.message);
+				finalPhase = `fertig - Betriebe übersprungen (${err.message})`;
+				await setProgress(runId, `Betriebe übersprungen (${err.message})`, counts);
+			}
 		}
 
 		// --- LLM ranking + cold-email drafts ---
@@ -133,7 +142,7 @@ export async function runRefresh(runId: number): Promise<void> {
 
 		await db
 			.update(scrapeRun)
-			.set({ status: 'done', phase: 'fertig', finishedAt: new Date(), counts })
+			.set({ status: 'done', phase: finalPhase, finishedAt: new Date(), counts })
 			.where(eq(scrapeRun.id, runId));
 	} catch (err) {
 		console.error('[runner] run failed:', err);
