@@ -7,9 +7,16 @@ export const GET: RequestHandler = async ({ url }) => {
 		source: url.searchParams.get('source'),
 		verdict: url.searchParams.get('verdict'),
 		showClosed: url.searchParams.get('showClosed') === 'true',
+		search: url.searchParams.get('search') ?? '',
+		sort: url.searchParams.get('sort') ?? undefined,
 		cursor: url.searchParams.get('cursor')
 	});
 	if (!result.success) return json({ message: 'Ungültige Filter' }, { status: 400 });
 	const { cursor, ...filters } = result.data;
-	return json(await getListingPage(filters, cursor));
+	try {
+		return json(await getListingPage(filters, cursor));
+	} catch (error) {
+		console.error('Failed to list listings', error);
+		return json({ message: 'Stellen konnten nicht geladen werden.' }, { status: 500 });
+	}
 };

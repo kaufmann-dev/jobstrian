@@ -6,10 +6,10 @@
 	import { Badge } from '$lib/components/ui/badge/index.js';
 	import { Button } from '$lib/components/ui/button/index.js';
 	import { Checkbox } from '$lib/components/ui/checkbox/index.js';
-	import { NativeSelect } from '$lib/components/ui/native-select/index.js';
+	import * as Select from '$lib/components/ui/select/index.js';
 	import { Label } from '$lib/components/ui/label/index.js';
-	import InfiniteDataTable from '$lib/components/infinite-data-table.svelte';
-	import { InfiniteListController } from '$lib/components/infinite-list-controller.svelte.js';
+	import ServerDataTable from '$lib/components/server-data-table.svelte';
+	import { ServerListController } from '$lib/components/server-list-controller.svelte.js';
 	import { renderSnippet } from '$lib/components/ui/data-table/render-helpers.js';
 	import ExternalLink from '@lucide/svelte/icons/external-link';
 	import Star from '@lucide/svelte/icons/star';
@@ -25,25 +25,20 @@
 		ams: 'AMS'
 	};
 
-	const controller = new InfiniteListController<Listing>(
+	const controller = new ServerListController<Listing>(
 		'/api/listings',
-		untrack(() => data.page)
+		untrack(() => data.page),
+		{ sort: 'recommended' }
 	);
 	let sourceFilter = $state('all');
 	let verdictFilter = $state('all');
 	let showClosed = $state(false);
 	let selected = $state<Listing | null>(null);
 
-	function query(): string {
-		const params = new URLSearchParams();
-		if (sourceFilter !== 'all') params.set('source', sourceFilter);
-		if (verdictFilter !== 'all') params.set('verdict', verdictFilter);
-		if (showClosed) params.set('showClosed', 'true');
-		return params.toString();
-	}
-
-	function reset(): void {
-		void controller.reset(query());
+	function resetFilters(): void {
+		sourceFilter = 'all';
+		verdictFilter = 'all';
+		showClosed = false;
 		selected = null;
 	}
 
@@ -57,7 +52,7 @@
 			toast.error('Markierung konnte nicht gespeichert werden.');
 			return;
 		}
-		await controller.reset(query());
+		await controller.reset();
 	}
 
 	function verdictVariant(v: string | null): 'default' | 'secondary' | 'outline' {
@@ -70,37 +65,53 @@
 	}
 
 	const columns: ColumnDef<Listing>[] = [
-		{ id: 'star', header: '', cell: ({ row }) => renderSnippet(starCell, { job: row.original }) },
+		{
+			id: 'star',
+			header: '',
+			cell: ({ row }) => renderSnippet(starCell, { job: row.original }),
+			meta: { class: 'w-10 px-1' }
+		},
 		{
 			id: 'score',
 			header: 'Score',
-			cell: ({ row }) => renderSnippet(scoreCell, { job: row.original })
+			cell: ({ row }) => renderSnippet(scoreCell, { job: row.original }),
+			meta: { class: 'hidden w-16 sm:table-cell' }
 		},
 		{
 			id: 'title',
 			header: 'Stelle',
-			cell: ({ row }) => renderSnippet(titleCell, { job: row.original })
+			cell: ({ row }) => renderSnippet(titleCell, { job: row.original }),
+			meta: { class: 'w-auto whitespace-normal' }
 		},
 		{
 			id: 'company',
 			header: 'Unternehmen',
-			cell: ({ row }) => renderSnippet(companyCell, { job: row.original })
+			cell: ({ row }) => renderSnippet(companyCell, { job: row.original }),
+			meta: { class: 'hidden w-48 whitespace-normal md:table-cell' }
 		},
 		{
 			id: 'location',
 			header: 'Ort',
-			cell: ({ row }) => renderSnippet(locationCell, { job: row.original })
+			cell: ({ row }) => renderSnippet(locationCell, { job: row.original }),
+			meta: { class: 'hidden w-32 lg:table-cell' }
 		},
 		{
 			id: 'source',
 			header: 'Portal',
-			cell: ({ row }) => renderSnippet(sourceCell, { job: row.original })
+			cell: ({ row }) => renderSnippet(sourceCell, { job: row.original }),
+			meta: { class: 'hidden w-24 xl:table-cell' }
 		},
-		{ id: 'date', header: 'Datum', cell: ({ row }) => fmtDate(row.original.postedAt) },
+		{
+			id: 'date',
+			header: 'Datum',
+			cell: ({ row }) => fmtDate(row.original.postedAt),
+			meta: { class: 'hidden w-20 xl:table-cell' }
+		},
 		{
 			id: 'actions',
 			header: '',
-			cell: ({ row }) => renderSnippet(actionCell, { job: row.original })
+			cell: ({ row }) => renderSnippet(actionCell, { job: row.original }),
+			meta: { class: 'w-24 text-right' }
 		}
 	];
 </script>
@@ -152,40 +163,80 @@
 <div class="space-y-4">
 	<h1 class="text-2xl font-semibold">Stellen</h1>
 
-	<div class="flex flex-wrap items-end gap-4">
+	{#snippet filters()}
 		<div class="space-y-1">
 			<Label for="src">Portal</Label>
-			<NativeSelect id="src" bind:value={sourceFilter} onchange={reset} class="w-40">
-				<option value="all">Alle Portale</option>
-				{#each Object.entries(SOURCE_LABELS) as [id, label] (id)}
-					<option value={id}>{label}</option>
-				{/each}
-			</NativeSelect>
+			<Select.Root
+				type="single"
+				value={sourceFilter}
+				onValueChange={(value) => {
+					if (!value) return;
+					sourceFilter = value;
+					void controller.reset({ source: value === 'all' ? null : value });
+					selected = null;
+				}}
+			>
+				<Select.Trigger id="src" class="w-36"
+					>{sourceFilter === 'all' ? 'Alle Portale' : SOURCE_LABELS[sourceFilter]}</Select.Trigger
+				>
+				<Select.Content>
+					<Select.Item value="all">Alle Portale</Select.Item>
+					{#each Object.entries(SOURCE_LABELS) as [id, label] (id)}
+						<Select.Item value={id}>{label}</Select.Item>
+					{/each}
+				</Select.Content>
+			</Select.Root>
 		</div>
 		<div class="space-y-1">
 			<Label for="vd">Bewertung</Label>
-			<NativeSelect id="vd" bind:value={verdictFilter} onchange={reset} class="w-40">
-				<option value="all">Alle</option>
-				<option value="strong">Passt gut</option>
-				<option value="maybe">Vielleicht</option>
-				<option value="weak">Schwach</option>
-			</NativeSelect>
+			<Select.Root
+				type="single"
+				value={verdictFilter}
+				onValueChange={(value) => {
+					if (!value) return;
+					verdictFilter = value;
+					void controller.reset({ verdict: value === 'all' ? null : value });
+					selected = null;
+				}}
+			>
+				<Select.Trigger id="vd" class="w-32">
+					{{ all: 'Alle', strong: 'Passt gut', maybe: 'Vielleicht', weak: 'Schwach' }[
+						verdictFilter
+					]}
+				</Select.Trigger>
+				<Select.Content>
+					<Select.Item value="all">Alle</Select.Item>
+					<Select.Item value="strong">Passt gut</Select.Item>
+					<Select.Item value="maybe">Vielleicht</Select.Item>
+					<Select.Item value="weak">Schwach</Select.Item>
+				</Select.Content>
+			</Select.Root>
 		</div>
-		<label class="flex items-center gap-2 pb-2 text-sm">
+		<label class="flex items-center gap-2 pb-1 text-sm">
 			<Checkbox
 				checked={showClosed}
 				onCheckedChange={(checked) => {
 					showClosed = checked;
-					reset();
+					void controller.reset({ showClosed: checked ? 'true' : null });
+					selected = null;
 				}}
 			/>
 			Geschlossene zeigen
 		</label>
-	</div>
+	{/snippet}
 
-	<InfiniteDataTable
+	<ServerDataTable
 		{controller}
 		{columns}
+		{filters}
+		onResetFilters={resetFilters}
+		searchPlaceholder="Stelle, Unternehmen oder Ort suchen"
+		sortOptions={[
+			{ value: 'recommended', label: 'Empfohlen' },
+			{ value: 'newest', label: 'Neueste' },
+			{ value: 'score', label: 'Höchster Score' }
+		]}
+		defaultSort="recommended"
 		itemLabel="Stellen"
 		emptyText="Keine Stellen. Klicke auf „Aktualisieren“ in der Übersicht."
 	/>

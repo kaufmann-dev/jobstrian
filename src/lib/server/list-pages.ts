@@ -1,33 +1,63 @@
-import { and, asc, desc, eq, isNotNull, ne, sql, type SQL } from 'drizzle-orm';
+import { and, asc, desc, eq, ilike, isNotNull, ne, or, sql, type SQL } from 'drizzle-orm';
 import { z } from 'zod';
 import {
 	DEFAULT_LEAD_FILTERS,
 	DEFAULT_LISTING_FILTERS,
+	LEAD_SORTS,
 	LIST_BATCH_SIZE,
+	LISTING_SORTS,
 	type CursorPage,
 	type LeadFilters,
-	type ListingFilters
+	type LeadSort,
+	type ListingFilters,
+	type ListingSort
 } from '$lib/list-pages';
 import { db } from './db';
 import { lead, listing, type Lead, type Listing } from './db/schema';
 
-const listingCursorSchema = z.object({
-	starred: z.boolean(),
-	score: z.number().int().nullable(),
-	firstSeenAt: z.string(),
-	id: z.number().int()
-});
+const listingCursorSchema = z.discriminatedUnion('sort', [
+	z.object({
+		sort: z.literal('recommended'),
+		starred: z.boolean(),
+		score: z.number().int().nullable(),
+		firstSeenAt: z.string().datetime(),
+		id: z.number().int()
+	}),
+	z.object({
+		sort: z.literal('newest'),
+		starred: z.boolean(),
+		firstSeenAt: z.string().datetime(),
+		id: z.number().int()
+	}),
+	z.object({
+		sort: z.literal('score'),
+		starred: z.boolean(),
+		score: z.number().int().nullable(),
+		id: z.number().int()
+	})
+]);
 
-const leadCursorSchema = z.object({
-	score: z.number().int().nullable(),
-	distanceMeters: z.number().int(),
-	id: z.number().int()
-});
+const leadCursorSchema = z.discriminatedUnion('sort', [
+	z.object({
+		sort: z.literal('recommended'),
+		score: z.number().int().nullable(),
+		distanceMeters: z.number().int(),
+		id: z.number().int()
+	}),
+	z.object({
+		sort: z.literal('nearest'),
+		distanceMeters: z.number().int(),
+		id: z.number().int()
+	}),
+	z.object({ sort: z.literal('name'), name: z.string(), id: z.number().int() })
+]);
 
 export const listingFiltersSchema = z.object({
 	source: z.string().min(1).nullable().default(DEFAULT_LISTING_FILTERS.source),
 	verdict: z.enum(['strong', 'maybe', 'weak']).nullable().default(DEFAULT_LISTING_FILTERS.verdict),
 	showClosed: z.boolean().default(DEFAULT_LISTING_FILTERS.showClosed),
+	search: z.string().trim().max(200).default(DEFAULT_LISTING_FILTERS.search),
+	sort: z.enum(LISTING_SORTS).default(DEFAULT_LISTING_FILTERS.sort),
 	cursor: z.string().min(1).nullable().default(null)
 });
 
@@ -35,6 +65,8 @@ export const leadFiltersSchema = z.object({
 	onlyWithEmail: z.boolean().default(DEFAULT_LEAD_FILTERS.onlyWithEmail),
 	onlyOpen: z.boolean().default(DEFAULT_LEAD_FILTERS.onlyOpen),
 	hideIgnored: z.boolean().default(DEFAULT_LEAD_FILTERS.hideIgnored),
+	search: z.string().trim().max(200).default(DEFAULT_LEAD_FILTERS.search),
+	sort: z.enum(LEAD_SORTS).default(DEFAULT_LEAD_FILTERS.sort),
 	cursor: z.string().min(1).nullable().default(null)
 });
 
@@ -53,8 +85,20 @@ function decodeCursor<T>(cursor: string | null, schema: z.ZodType<T>): T | null 
 	}
 }
 
-export function encodeListingCursor(row: Listing): string {
+export function encodeListingCursor(row: Listing, sort: ListingSort): string {
+	if (sort === 'newest') {
+		return encodeCursor({
+			sort,
+			starred: row.starred,
+			firstSeenAt: row.firstSeenAt.toISOString(),
+			id: row.id
+		});
+	}
+	if (sort === 'score') {
+		return encodeCursor({ sort, starred: row.starred, score: row.rankScore, id: row.id });
+	}
 	return encodeCursor({
+		sort,
 		starred: row.starred,
 		score: row.rankScore,
 		firstSeenAt: row.firstSeenAt.toISOString(),
@@ -66,8 +110,16 @@ export function decodeListingCursor(cursor: string | null) {
 	return decodeCursor(cursor, listingCursorSchema);
 }
 
-export function encodeLeadCursor(row: Lead): string {
-	return encodeCursor({ score: row.rankScore, distanceMeters: row.distanceMeters, id: row.id });
+export function encodeLeadCursor(row: Lead, sort: LeadSort): string {
+	if (sort === 'nearest')
+		return encodeCursor({ sort, distanceMeters: row.distanceMeters, id: row.id });
+	if (sort === 'name') return encodeCursor({ sort, name: row.name, id: row.id });
+	return encodeCursor({
+		sort,
+		score: row.rankScore,
+		distanceMeters: row.distanceMeters,
+		id: row.id
+	});
 }
 
 export function decodeLeadCursor(cursor: string | null) {
@@ -84,29 +136,61 @@ function listingWhere(filters: ListingFilters): SQL | undefined {
 	return and(
 		filters.showClosed ? undefined : eq(listing.status, 'active'),
 		filters.source ? eq(listing.source, filters.source) : undefined,
-		filters.verdict ? eq(listing.rankVerdict, filters.verdict) : undefined
+		filters.verdict ? eq(listing.rankVerdict, filters.verdict) : undefined,
+		filters.search
+			? or(
+					ilike(listing.title, `%${filters.search}%`),
+					ilike(listing.company, `%${filters.search}%`),
+					ilike(listing.location, `%${filters.search}%`)
+				)
+			: undefined
 	);
 }
 
-function listingAfter(cursor: ReturnType<typeof decodeListingCursor>): SQL | undefined {
-	if (!cursor) return undefined;
+function afterStarred(cursorStarred: boolean, withinStarred: SQL): SQL {
+	return cursorStarred
+		? sql`((not ${listing.starred}) or (${listing.starred} and ${withinStarred}))`
+		: sql`((not ${listing.starred}) and ${withinStarred})`;
+}
+
+export function listingAfter(
+	cursor: ReturnType<typeof decodeListingCursor>,
+	sort: ListingSort
+): SQL | undefined {
+	if (!cursor || cursor.sort !== sort) return undefined;
+	if (cursor.sort === 'newest') {
+		const seenAt = new Date(cursor.firstSeenAt);
+		return afterStarred(
+			cursor.starred,
+			sql`(${listing.firstSeenAt} < ${seenAt} or (${listing.firstSeenAt} = ${seenAt} and ${listing.id} < ${cursor.id}))`
+		);
+	}
+	if (cursor.sort === 'score') {
+		const within =
+			cursor.score === null
+				? sql`${listing.rankScore} is null and ${listing.id} < ${cursor.id}`
+				: sql`(${listing.rankScore} < ${cursor.score} or ${listing.rankScore} is null or (${listing.rankScore} = ${cursor.score} and ${listing.id} < ${cursor.id}))`;
+		return afterStarred(cursor.starred, within);
+	}
 	const seenAt = new Date(cursor.firstSeenAt);
-	const laterWithinScore = sql`(
-		${listing.firstSeenAt} < ${seenAt}
-		or (${listing.firstSeenAt} = ${seenAt} and ${listing.id} < ${cursor.id})
-	)`;
-	const laterWithinStar =
+	const laterWithinScore =
 		cursor.score === null
-			? sql`${listing.rankScore} is null and ${laterWithinScore}`
-			: sql`(
-			${listing.rankScore} < ${cursor.score}
-			or ${listing.rankScore} is null
-			or (${listing.rankScore} = ${cursor.score} and ${laterWithinScore})
-		)`;
-	return sql`(
-		${listing.starred} < ${cursor.starred}
-		or (${listing.starred} = ${cursor.starred} and ${laterWithinStar})
-	)`;
+			? sql`${listing.rankScore} is null and (${listing.firstSeenAt} < ${seenAt} or (${listing.firstSeenAt} = ${seenAt} and ${listing.id} < ${cursor.id}))`
+			: sql`(${listing.rankScore} < ${cursor.score} or ${listing.rankScore} is null or (${listing.rankScore} = ${cursor.score} and (${listing.firstSeenAt} < ${seenAt} or (${listing.firstSeenAt} = ${seenAt} and ${listing.id} < ${cursor.id}))))`;
+	return afterStarred(cursor.starred, laterWithinScore);
+}
+
+function listingOrder(sort: ListingSort): SQL[] {
+	if (sort === 'newest')
+		return [desc(listing.starred), desc(listing.firstSeenAt), desc(listing.id)];
+	if (sort === 'score')
+		return [desc(listing.starred), sql`${listing.rankScore} desc nulls last`, desc(listing.id)];
+	return [
+		desc(listing.starred),
+		sql`${listing.rankScore} desc nulls last`,
+		desc(listing.firstSeenAt),
+		desc(listing.id)
+	];
 }
 
 export async function getListingPage(
@@ -119,13 +203,8 @@ export async function getListingPage(
 		db
 			.select()
 			.from(listing)
-			.where(and(where, listingAfter(decodedCursor)))
-			.orderBy(
-				desc(listing.starred),
-				sql`${listing.rankScore} desc nulls last`,
-				desc(listing.firstSeenAt),
-				desc(listing.id)
-			)
+			.where(and(where, listingAfter(decodedCursor, filters.sort)))
+			.orderBy(...listingOrder(filters.sort))
 			.limit(LIST_BATCH_SIZE + 1),
 		countRows(listing, where),
 		countRows(listing)
@@ -134,7 +213,7 @@ export async function getListingPage(
 	const items = hasMore ? rows.slice(0, LIST_BATCH_SIZE) : rows;
 	return {
 		items,
-		nextCursor: hasMore ? encodeListingCursor(items.at(-1)!) : null,
+		nextCursor: hasMore ? encodeListingCursor(items.at(-1)!, filters.sort) : null,
 		matchingTotal,
 		total
 	};
@@ -144,12 +223,29 @@ function leadWhere(filters: LeadFilters): SQL | undefined {
 	return and(
 		filters.onlyWithEmail ? isNotNull(lead.email) : undefined,
 		filters.onlyOpen ? eq(lead.hasActivePosting, false) : undefined,
-		filters.hideIgnored ? ne(lead.status, 'ignored') : undefined
+		filters.hideIgnored ? ne(lead.status, 'ignored') : undefined,
+		filters.search
+			? or(
+					ilike(lead.name, `%${filters.search}%`),
+					ilike(lead.category, `%${filters.search}%`),
+					ilike(lead.address, `%${filters.search}%`),
+					ilike(lead.email, `%${filters.search}%`)
+				)
+			: undefined
 	);
 }
 
-function leadAfter(cursor: ReturnType<typeof decodeLeadCursor>): SQL | undefined {
-	if (!cursor) return undefined;
+export function leadAfter(
+	cursor: ReturnType<typeof decodeLeadCursor>,
+	sort: LeadSort
+): SQL | undefined {
+	if (!cursor || cursor.sort !== sort) return undefined;
+	if (cursor.sort === 'nearest') {
+		return sql`(${lead.distanceMeters} > ${cursor.distanceMeters} or (${lead.distanceMeters} = ${cursor.distanceMeters} and ${lead.id} > ${cursor.id}))`;
+	}
+	if (cursor.sort === 'name') {
+		return sql`(lower(${lead.name}) > lower(${cursor.name}) or (lower(${lead.name}) = lower(${cursor.name}) and ${lead.id} > ${cursor.id}))`;
+	}
 	const laterWithinScore = sql`(
 		${lead.distanceMeters} > ${cursor.distanceMeters}
 		or (${lead.distanceMeters} = ${cursor.distanceMeters} and ${lead.id} > ${cursor.id})
@@ -163,6 +259,12 @@ function leadAfter(cursor: ReturnType<typeof decodeLeadCursor>): SQL | undefined
 		)`;
 }
 
+function leadOrder(sort: LeadSort): SQL[] {
+	if (sort === 'nearest') return [asc(lead.distanceMeters), asc(lead.id)];
+	if (sort === 'name') return [sql`lower(${lead.name}) asc`, asc(lead.id)];
+	return [sql`${lead.rankScore} desc nulls last`, asc(lead.distanceMeters), asc(lead.id)];
+}
+
 export async function getLeadPage(
 	filters: LeadFilters,
 	cursor: string | null = null
@@ -173,8 +275,8 @@ export async function getLeadPage(
 		db
 			.select()
 			.from(lead)
-			.where(and(where, leadAfter(decodedCursor)))
-			.orderBy(sql`${lead.rankScore} desc nulls last`, asc(lead.distanceMeters), asc(lead.id))
+			.where(and(where, leadAfter(decodedCursor, filters.sort)))
+			.orderBy(...leadOrder(filters.sort))
 			.limit(LIST_BATCH_SIZE + 1),
 		countRows(lead, where),
 		countRows(lead)
@@ -183,7 +285,7 @@ export async function getLeadPage(
 	const items = hasMore ? rows.slice(0, LIST_BATCH_SIZE) : rows;
 	return {
 		items,
-		nextCursor: hasMore ? encodeLeadCursor(items.at(-1)!) : null,
+		nextCursor: hasMore ? encodeLeadCursor(items.at(-1)!, filters.sort) : null,
 		matchingTotal,
 		total
 	};

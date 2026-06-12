@@ -1,6 +1,7 @@
 <script lang="ts">
 	import type { ColumnDef } from '@tanstack/table-core';
 	import { untrack } from 'svelte';
+	import { resolve } from '$app/paths';
 	import { toast } from 'svelte-sonner';
 	import * as Sheet from '$lib/components/ui/sheet/index.js';
 	import { Badge } from '$lib/components/ui/badge/index.js';
@@ -9,8 +10,8 @@
 	import { Label } from '$lib/components/ui/label/index.js';
 	import { Textarea } from '$lib/components/ui/textarea/index.js';
 	import { Input } from '$lib/components/ui/input/index.js';
-	import InfiniteDataTable from '$lib/components/infinite-data-table.svelte';
-	import { InfiniteListController } from '$lib/components/infinite-list-controller.svelte.js';
+	import ServerDataTable from '$lib/components/server-data-table.svelte';
+	import { ServerListController } from '$lib/components/server-list-controller.svelte.js';
 	import { renderSnippet } from '$lib/components/ui/data-table/render-helpers.js';
 	import Mail from '@lucide/svelte/icons/mail';
 	import Phone from '@lucide/svelte/icons/phone';
@@ -23,26 +24,20 @@
 
 	let { data } = $props();
 
-	const controller = new InfiniteListController<Lead>(
+	const controller = new ServerListController<Lead>(
 		'/api/leads',
-		untrack(() => data.page)
+		untrack(() => data.page),
+		{ sort: 'recommended', onlyOpen: 'true', hideIgnored: 'true' }
 	);
 	let onlyWithEmail = $state(false);
 	let onlyOpen = $state(true);
 	let hideIgnored = $state(true);
 	let selected = $state<Lead | null>(null);
 
-	function query(): string {
-		const params = new URLSearchParams({
-			onlyWithEmail: String(onlyWithEmail),
-			onlyOpen: String(onlyOpen),
-			hideIgnored: String(hideIgnored)
-		});
-		return params.toString();
-	}
-
-	function reset(): void {
-		void controller.reset(query());
+	function resetFilters(): void {
+		onlyWithEmail = false;
+		onlyOpen = true;
+		hideIgnored = true;
 		selected = null;
 	}
 
@@ -61,7 +56,7 @@
 			toast.error('Status konnte nicht gespeichert werden.');
 			return;
 		}
-		await controller.reset(query());
+		await controller.reset();
 		selected = null;
 	}
 
@@ -76,28 +71,38 @@
 		{
 			id: 'score',
 			header: 'Score',
-			cell: ({ row }) => renderSnippet(scoreCell, { item: row.original })
+			cell: ({ row }) => renderSnippet(scoreCell, { item: row.original }),
+			meta: { class: 'hidden w-16 sm:table-cell' }
 		},
 		{
 			id: 'business',
 			header: 'Betrieb',
-			cell: ({ row }) => renderSnippet(businessCell, { item: row.original })
+			cell: ({ row }) => renderSnippet(businessCell, { item: row.original }),
+			meta: { class: 'w-auto whitespace-normal' }
 		},
-		{ id: 'distance', header: 'Entfernung', cell: ({ row }) => `${row.original.distanceMeters} m` },
+		{
+			id: 'distance',
+			header: 'Entfernung',
+			cell: ({ row }) => `${row.original.distanceMeters} m`,
+			meta: { class: 'w-24' }
+		},
 		{
 			id: 'contact',
 			header: 'Kontakt',
-			cell: ({ row }) => renderSnippet(contactCell, { item: row.original })
+			cell: ({ row }) => renderSnippet(contactCell, { item: row.original }),
+			meta: { class: 'hidden w-36 md:table-cell' }
 		},
 		{
 			id: 'status',
 			header: 'Status',
-			cell: ({ row }) => renderSnippet(statusCell, { item: row.original })
+			cell: ({ row }) => renderSnippet(statusCell, { item: row.original }),
+			meta: { class: 'hidden w-52 lg:table-cell' }
 		},
 		{
 			id: 'actions',
 			header: '',
-			cell: ({ row }) => renderSnippet(actionCell, { item: row.original })
+			cell: ({ row }) => renderSnippet(actionCell, { item: row.original }),
+			meta: { class: 'w-24 text-right' }
 		}
 	];
 </script>
@@ -148,13 +153,14 @@
 		</p>
 	</div>
 
-	<div class="flex flex-wrap items-center gap-4 text-sm">
+	{#snippet filters()}
 		<label class="flex items-center gap-2">
 			<Checkbox
 				checked={onlyWithEmail}
 				onCheckedChange={(checked) => {
 					onlyWithEmail = checked;
-					reset();
+					void controller.reset({ onlyWithEmail: checked ? 'true' : null });
+					selected = null;
 				}}
 			/>
 			Nur mit E-Mail
@@ -164,7 +170,8 @@
 				checked={onlyOpen}
 				onCheckedChange={(checked) => {
 					onlyOpen = checked;
-					reset();
+					void controller.reset({ onlyOpen: String(checked) });
+					selected = null;
 				}}
 			/>
 			Nur ohne Ausschreibung
@@ -174,16 +181,26 @@
 				checked={hideIgnored}
 				onCheckedChange={(checked) => {
 					hideIgnored = checked;
-					reset();
+					void controller.reset({ hideIgnored: String(checked) });
+					selected = null;
 				}}
 			/>
 			Ignorierte ausblenden
 		</label>
-	</div>
+	{/snippet}
 
-	<InfiniteDataTable
+	<ServerDataTable
 		{controller}
 		{columns}
+		{filters}
+		onResetFilters={resetFilters}
+		searchPlaceholder="Betrieb, Kategorie, Adresse oder E-Mail suchen"
+		sortOptions={[
+			{ value: 'recommended', label: 'Empfohlen' },
+			{ value: 'nearest', label: 'Nächste' },
+			{ value: 'name', label: 'Name A–Z' }
+		]}
+		defaultSort="recommended"
 		itemLabel="Betrieben"
 		emptyText="Noch keine Betriebe. Trage deinen Wohnort in den Einstellungen ein und aktualisiere."
 	/>
@@ -223,9 +240,14 @@
 							{selected.phone}
 						</p>{/if}
 					{#if selected.website}
-						<a class="flex items-center gap-2 underline" href={selected.website} target="_blank">
+						<Button
+							variant="link"
+							href={selected.website}
+							target="_blank"
+							class="h-auto p-0 font-normal"
+						>
 							<Globe class="size-4" /> Website
-						</a>
+						</Button>
 					{/if}
 				</div>
 				<div class="flex flex-wrap gap-2">
@@ -259,7 +281,7 @@
 							<Textarea id="body" readonly rows={10} value={selected.draftBody} />
 						</div>
 						{#if data.hasCv}
-							<a href="/api/cv" class="flex items-center gap-2 text-sm underline">
+							<a href={resolve('/api/cv')} class="flex items-center gap-2 text-sm underline">
 								<Paperclip class="size-4" />
 								<Download class="size-4" /> Lebenslauf herunterladen
 							</a>

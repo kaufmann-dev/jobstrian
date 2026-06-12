@@ -1,10 +1,21 @@
+import { PgDialect } from 'drizzle-orm/pg-core';
 import { describe, expect, it } from 'vitest';
+import {
+	DEFAULT_LEAD_FILTERS,
+	DEFAULT_LISTING_FILTERS,
+	LEAD_SORTS,
+	LISTING_SORTS
+} from '$lib/list-pages';
 import type { Lead, Listing } from './db/schema';
 import {
 	decodeLeadCursor,
 	decodeListingCursor,
 	encodeLeadCursor,
-	encodeListingCursor
+	encodeListingCursor,
+	leadAfter,
+	leadFiltersSchema,
+	listingAfter,
+	listingFiltersSchema
 } from './list-pages';
 
 const listing = {
@@ -14,28 +25,77 @@ const listing = {
 	firstSeenAt: new Date('2026-06-12T10:00:00Z')
 } as Listing;
 
-const lead = { id: 9, rankScore: null, distanceMeters: 350 } as Lead;
+const lead = { id: 9, name: 'Café Central', rankScore: null, distanceMeters: 350 } as Lead;
+const dialect = new PgDialect();
 
-describe('list cursors', () => {
-	it('round-trips listing cursor ordering values including a null score', () => {
-		expect(decodeListingCursor(encodeListingCursor(listing))).toEqual({
+describe('listing cursors', () => {
+	it.each(LISTING_SORTS)('round-trips %s ordering values', (sort) => {
+		expect(decodeListingCursor(encodeListingCursor(listing, sort))).toMatchObject({
+			sort,
 			starred: true,
-			score: null,
-			firstSeenAt: '2026-06-12T10:00:00.000Z',
 			id: 7
 		});
 	});
 
-	it('round-trips lead cursor ordering values including a null score', () => {
-		expect(decodeLeadCursor(encodeLeadCursor(lead))).toEqual({
-			score: null,
-			distanceMeters: 350,
-			id: 9
-		});
+	it.each(LISTING_SORTS)(
+		'uses explicit starred branches for %s without boolean comparisons',
+		(sort) => {
+			const cursor = decodeListingCursor(encodeListingCursor(listing, sort));
+			const query = dialect.sqlToQuery(listingAfter(cursor, sort)!);
+			expect(query.sql).not.toMatch(/"listing"\."starred"\s*</);
+			expect(query.sql).toContain('not "listing"."starred"');
+		}
+	);
+
+	it('handles an unstarred cursor and null score', () => {
+		const cursor = decodeListingCursor(
+			encodeListingCursor({ ...listing, starred: false, rankScore: null } as Listing, 'recommended')
+		);
+		const query = dialect.sqlToQuery(listingAfter(cursor, 'recommended')!);
+		expect(query.sql).toContain('"listing"."rank_score" is null');
+		expect(query.sql).toContain('not "listing"."starred"');
+	});
+});
+
+describe('lead cursors', () => {
+	it.each(LEAD_SORTS)('round-trips %s ordering values', (sort) => {
+		expect(decodeLeadCursor(encodeLeadCursor(lead, sort))).toMatchObject({ sort, id: 9 });
 	});
 
-	it('rejects malformed cursors', () => {
+	it.each(LEAD_SORTS)('builds a cursor predicate for %s', (sort) => {
+		const cursor = decodeLeadCursor(encodeLeadCursor(lead, sort));
+		expect(dialect.sqlToQuery(leadAfter(cursor, sort)!).sql).toContain('"lead"');
+	});
+});
+
+describe('list filter parsing', () => {
+	it('accepts search and every listing sort preset', () => {
+		for (const sort of LISTING_SORTS) {
+			expect(listingFiltersSchema.parse({ search: 'Wien', sort })).toMatchObject({
+				search: 'Wien',
+				sort
+			});
+		}
+	});
+
+	it('accepts search and every lead sort preset', () => {
+		for (const sort of LEAD_SORTS) {
+			expect(leadFiltersSchema.parse({ search: 'café', sort })).toMatchObject({
+				search: 'café',
+				sort
+			});
+		}
+	});
+
+	it('rejects malformed cursors and ignores cursors from another sort', () => {
 		expect(decodeListingCursor('not-a-cursor')).toBeNull();
 		expect(decodeLeadCursor('not-a-cursor')).toBeNull();
+		const cursor = decodeListingCursor(encodeListingCursor(listing, 'newest'));
+		expect(listingAfter(cursor, 'score')).toBeUndefined();
+	});
+
+	it('keeps the intended default filters', () => {
+		expect(listingFiltersSchema.parse({})).toMatchObject(DEFAULT_LISTING_FILTERS);
+		expect(leadFiltersSchema.parse({})).toMatchObject(DEFAULT_LEAD_FILTERS);
 	});
 });

@@ -7,9 +7,16 @@ export const GET: RequestHandler = async ({ url }) => {
 		onlyWithEmail: url.searchParams.get('onlyWithEmail') === 'true',
 		onlyOpen: url.searchParams.get('onlyOpen') !== 'false',
 		hideIgnored: url.searchParams.get('hideIgnored') !== 'false',
+		search: url.searchParams.get('search') ?? '',
+		sort: url.searchParams.get('sort') ?? undefined,
 		cursor: url.searchParams.get('cursor')
 	});
 	if (!result.success) return json({ message: 'Ungültige Filter' }, { status: 400 });
 	const { cursor, ...filters } = result.data;
-	return json(await getLeadPage(filters, cursor));
+	try {
+		return json(await getLeadPage(filters, cursor));
+	} catch (error) {
+		console.error('Failed to list leads', error);
+		return json({ message: 'Betriebe konnten nicht geladen werden.' }, { status: 500 });
+	}
 };

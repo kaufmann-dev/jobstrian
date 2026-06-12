@@ -109,8 +109,29 @@
 	}
 
 	function normalizeProgress(currentRun: ScrapeRun | null): RunProgress {
-		if (currentRun?.progress?.version === 1) return currentRun.progress;
-		return fallbackProgress(currentRun);
+		const fallback = fallbackProgress(currentRun);
+		const stored = currentRun?.progress as Partial<RunProgress> | null | undefined;
+		if (stored?.version !== 1) return fallback;
+		const phases = Object.fromEntries(
+			(Object.keys(phaseLabels) as RunPhaseId[]).map((id) => {
+				const phase = { ...fallback.phases[id], ...stored.phases?.[id] };
+				if (
+					currentRun?.status === 'done' &&
+					(phase.state === 'error' || (phase.state === 'done' && phase.failed > 0))
+				) {
+					phase.state = 'warning';
+				}
+				return [id, phase];
+			})
+		) as RunProgress['phases'];
+		return {
+			...fallback,
+			...stored,
+			headline: stored.headline ?? fallback.headline,
+			detail: stored.detail ?? fallback.detail,
+			phases,
+			llm: { ...fallback.llm, ...stored.llm }
+		};
 	}
 
 	function toPhaseRows(currentProgress: RunProgress): PhaseRow[] {
@@ -149,15 +170,28 @@
 		return 'wartet';
 	}
 
-	function phaseTone(state: RunPhaseProgress['state']): string {
-		if (state === 'running')
-			return 'border-blue-500/40 bg-blue-500/5 text-blue-700 dark:text-blue-300';
-		if (state === 'done')
-			return 'border-green-500/40 bg-green-500/5 text-green-700 dark:text-green-300';
-		if (state === 'warning')
-			return 'border-amber-500/40 bg-amber-500/5 text-amber-700 dark:text-amber-300';
-		if (state === 'error') return 'border-destructive/40 bg-destructive/5 text-destructive';
-		return 'border-border bg-muted/30 text-muted-foreground';
+	function phaseAccent(state: RunPhaseProgress['state']): string {
+		if (state === 'running') return 'border-l-blue-500';
+		if (state === 'done') return 'border-l-green-500';
+		if (state === 'warning') return 'border-l-amber-500';
+		if (state === 'error') return 'border-l-destructive';
+		return 'border-l-muted-foreground/30';
+	}
+
+	function phaseDot(state: RunPhaseProgress['state']): string {
+		if (state === 'running') return 'bg-blue-500';
+		if (state === 'done') return 'bg-green-500';
+		if (state === 'warning') return 'bg-amber-500';
+		if (state === 'error') return 'bg-destructive';
+		return 'bg-muted-foreground/40';
+	}
+
+	function phaseBadge(state: RunPhaseProgress['state']): string {
+		if (state === 'done') return 'border-green-500/40 text-green-700 dark:text-green-300';
+		if (state === 'warning') return 'border-amber-500/40 text-amber-700 dark:text-amber-300';
+		if (state === 'error') return 'border-destructive/40 text-destructive';
+		if (state === 'running') return 'border-blue-500/40 text-blue-700 dark:text-blue-300';
+		return '';
 	}
 
 	function phaseProgressClass(state: RunPhaseProgress['state']): string {
@@ -312,7 +346,7 @@
 	{/if}
 
 	{#if run}
-		<Card.Root class={phaseTone(currentPhase?.state ?? 'pending')}>
+		<Card.Root class={['border-l-4 bg-card', phaseAccent(currentPhase?.state ?? 'pending')]}>
 			<Card.Header class="gap-2 py-4">
 				<div class="flex flex-wrap items-start justify-between gap-3">
 					<div class="min-w-0 space-y-1">
@@ -364,12 +398,18 @@
 					<Card.Content class="space-y-4">
 						<div class="grid gap-3">
 							{#each phaseRows as phase (phase.id)}
-								<div class={['space-y-1.5 rounded-md border p-3', phaseTone(phase.state)]}>
+								<div
+									class={[
+										'space-y-1.5 rounded-md border border-l-2 bg-card p-3',
+										phaseAccent(phase.state)
+									]}
+								>
 									<div class="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-sm">
 										<div class="flex min-w-0 items-center gap-2">
 											{#if phase.state === 'running'}<Spinner class="size-3.5" />{/if}
+											<span class={['size-2 shrink-0 rounded-full', phaseDot(phase.state)]}></span>
 											<span class="font-medium">{phase.label}</span>
-											<Badge variant={phase.state === 'error' ? 'destructive' : 'outline'}>
+											<Badge variant="outline" class={phaseBadge(phase.state)}>
 												{phaseStateLabel(phase.state)}
 											</Badge>
 										</div>
