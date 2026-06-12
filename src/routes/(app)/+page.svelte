@@ -15,6 +15,8 @@
 	import TriangleAlert from '@lucide/svelte/icons/triangle-alert';
 	import ChevronDown from '@lucide/svelte/icons/chevron-down';
 	import ChevronUp from '@lucide/svelte/icons/chevron-up';
+	import Check from '@lucide/svelte/icons/check';
+	import CircleX from '@lucide/svelte/icons/circle-x';
 	import Briefcase from '@lucide/svelte/icons/briefcase';
 	import Sparkles from '@lucide/svelte/icons/sparkles';
 	import Archive from '@lucide/svelte/icons/archive';
@@ -46,6 +48,7 @@
 			phaseRows.find((phase) => phase.state === 'warning' || phase.state === 'error') ??
 			phaseRows.findLast((phase) => phase.state === 'done')
 	);
+	const totalFailed = $derived(phaseRows.reduce((sum, phase) => sum + phase.failed, 0));
 
 	const statGroups = $derived([
 		{
@@ -185,7 +188,6 @@
 	function statusVariant(
 		status: ScrapeRun['status'] | undefined
 	): 'default' | 'secondary' | 'destructive' | 'outline' {
-		if (status === 'done') return 'default';
 		if (status === 'error') return 'destructive';
 		if (status === 'canceled') return 'outline';
 		return 'secondary';
@@ -199,38 +201,6 @@
 		if (state === 'error') return 'Fehler';
 		if (state === 'canceled') return 'abgebrochen';
 		return 'wartet';
-	}
-
-	function phaseAccent(state: RunPhaseProgress['state']): string {
-		if (state === 'running') return 'border-l-blue-500';
-		if (state === 'done') return 'border-l-green-500';
-		if (state === 'warning') return 'border-l-amber-500';
-		if (state === 'error') return 'border-l-destructive';
-		return 'border-l-muted-foreground/30';
-	}
-
-	function phaseDot(state: RunPhaseProgress['state']): string {
-		if (state === 'running') return 'bg-blue-500';
-		if (state === 'done') return 'bg-green-500';
-		if (state === 'warning') return 'bg-amber-500';
-		if (state === 'error') return 'bg-destructive';
-		return 'bg-muted-foreground/40';
-	}
-
-	function phaseBadge(state: RunPhaseProgress['state']): string {
-		if (state === 'done') return 'border-green-500/40 text-green-700 dark:text-green-300';
-		if (state === 'warning') return 'border-amber-500/40 text-amber-700 dark:text-amber-300';
-		if (state === 'error') return 'border-destructive/40 text-destructive';
-		if (state === 'running') return 'border-blue-500/40 text-blue-700 dark:text-blue-300';
-		return '';
-	}
-
-	function phaseProgressClass(state: RunPhaseProgress['state']): string {
-		if (state === 'running') return '[&_[data-slot=progress-indicator]]:bg-blue-500';
-		if (state === 'done') return '[&_[data-slot=progress-indicator]]:bg-green-500';
-		if (state === 'warning') return '[&_[data-slot=progress-indicator]]:bg-amber-500';
-		if (state === 'error') return '[&_[data-slot=progress-indicator]]:bg-destructive';
-		return '[&_[data-slot=progress-indicator]]:bg-muted-foreground/50';
 	}
 
 	function phasePercent(phase: RunPhaseProgress): number {
@@ -377,20 +347,13 @@
 	{/if}
 
 	{#if run}
-		<Card.Root class={['border-l-4 bg-card', phaseAccent(currentPhase?.state ?? 'pending')]}>
+		<Card.Root>
 			<Card.Header class="gap-2 py-4">
-				<div class="flex flex-wrap items-start justify-between gap-3">
-					<div class="min-w-0 space-y-1">
-						<div class="flex flex-wrap items-center gap-2">
-							{#if isActive}<Spinner class="size-4 text-blue-500" />{/if}
-							<Badge variant={statusVariant(run.status)}>{statusLabel(run.status)}</Badge>
-							<Card.Title class="text-base">{progress.headline}</Card.Title>
-						</div>
-						<Card.Description>
-							{currentPhase?.label ?? 'Aktualisierung'} · {currentPhase?.detail ||
-								progress.detail ||
-								'Bereit'}
-						</Card.Description>
+				<div class="flex flex-wrap items-center justify-between gap-3">
+					<div class="flex min-w-0 flex-wrap items-center gap-2">
+						{#if isActive}<Spinner class="size-4 text-primary" />{/if}
+						<Badge variant={statusVariant(run.status)}>{statusLabel(run.status)}</Badge>
+						<Card.Title class="text-base">{progress.headline}</Card.Title>
 					</div>
 					<div class="flex items-center gap-2">
 						<span class="text-xs whitespace-nowrap text-muted-foreground">{elapsedLabel(run)}</span>
@@ -423,57 +386,81 @@
 						{/if}
 					</div>
 				</div>
+				{#if isActive}
+					<Card.Description>
+						{currentPhase?.label ?? 'Aktualisierung'} · {currentPhase?.detail ||
+							progress.detail ||
+							'Bereit'}
+					</Card.Description>
+				{:else if totalFailed > 0}
+					<Card.Description class="text-amber-600 dark:text-amber-400">
+						{totalFailed}
+						{totalFailed === 1 ? 'Bewertung' : 'Bewertungen'} fehlgeschlagen.
+					</Card.Description>
+				{/if}
 			</Card.Header>
 			{#if progressExpanded}
 				<div transition:slide>
 					<Card.Content class="space-y-4">
-						<div class="grid gap-3">
+						<ul class="divide-y">
 							{#each phaseRows as phase (phase.id)}
-								<div
-									class={[
-										'space-y-1.5 rounded-lg border border-l-2 bg-muted/40 p-3',
-										phaseAccent(phase.state)
-									]}
-								>
-									<div class="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-sm">
-										<div class="flex min-w-0 items-center gap-2">
-											{#if phase.state === 'running'}<Spinner class="size-3.5" />{/if}
-											<span class={['size-2 shrink-0 rounded-full', phaseDot(phase.state)]}></span>
-											<span class="font-medium">{phase.label}</span>
-											<Badge variant="outline" class={phaseBadge(phase.state)}>
-												{phaseStateLabel(phase.state)}
-											</Badge>
+								<li class="space-y-1.5 py-2 text-sm first:pt-0 last:pb-0">
+									<div class="flex items-center justify-between gap-3">
+										<div class="flex min-w-0 items-center gap-2.5">
+											{#if phase.state === 'running'}
+												<Spinner class="size-4 shrink-0 text-primary" />
+											{:else if phase.state === 'done'}
+												<Check class="size-4 shrink-0 text-emerald-600 dark:text-emerald-400" />
+											{:else if phase.state === 'warning'}
+												<TriangleAlert class="size-4 shrink-0 text-amber-600 dark:text-amber-400" />
+											{:else if phase.state === 'error'}
+												<CircleX class="size-4 shrink-0 text-destructive" />
+											{:else}
+												<span class="mx-1 size-2 shrink-0 rounded-full bg-muted-foreground/30"
+												></span>
+											{/if}
+											<span
+												class={[
+													phase.state === 'pending' || phase.state === 'skipped'
+														? 'text-muted-foreground'
+														: 'font-medium'
+												]}
+											>
+												{phase.label}
+											</span>
+											<span class="sr-only">{phaseStateLabel(phase.state)}</span>
 										</div>
-										<div class="text-xs whitespace-nowrap text-muted-foreground">
-											{phase.current} / {phase.total}
-											{#if phase.skipped > 0}
-												· übersprungen: {phase.skipped}{/if}
+										<span class="text-xs whitespace-nowrap text-muted-foreground tabular-nums">
 											{#if phase.failed > 0}
-												· fehlgeschlagen: {phase.failed}{/if}
-										</div>
+												<span class="text-amber-600 dark:text-amber-400"
+													>{phase.failed} fehlgeschlagen ·
+												</span>
+											{/if}
+											{#if phase.skipped > 0}{phase.skipped} übersprungen ·
+											{/if}
+											{phase.current} / {phase.total}
+										</span>
 									</div>
-									<Progress
-										value={phasePercent(phase)}
-										class={['h-1.5', phaseProgressClass(phase.state)]}
-									/>
-									{#if phase.detail}
-										<p class="text-xs break-words text-muted-foreground">{phase.detail}</p>
+									{#if phase.state === 'running'}
+										<Progress value={phasePercent(phase)} class="h-1" />
+										{#if phase.detail}
+											<p class="text-xs break-words text-muted-foreground">{phase.detail}</p>
+										{/if}
 									{/if}
-								</div>
+								</li>
 							{/each}
-						</div>
+						</ul>
 
-						<div class="flex flex-wrap gap-x-6 gap-y-1 text-sm text-muted-foreground">
-							<span>Neue Stellen: {run.counts.added}</span>
-							<span>Nicht mehr verfügbar: {run.counts.closed}</span>
-							<span>KI-bewertete Stellen: {run.counts.ranked}</span>
-							<span>Gefundene Betriebe: {run.counts.leads}</span>
-							<span>
-								KI-Limit: {progress.llm.requestsPerMinute} Anfragen/Minute · {progress.llm.inFlight} von
-								{progress.llm.maxConcurrent} aktiv · {progress.llm.queued} warten
-							</span>
-							{#if run.error}<span class="text-destructive">{run.error}</span>{/if}
-						</div>
+						<p class="border-t pt-3 text-sm text-muted-foreground">
+							{run.counts.added} neue Stellen · {run.counts.closed} nicht mehr verfügbar · {run
+								.counts.ranked} bewertet · {run.counts.leads} Betriebe gefunden
+							{#if isActive}
+								· KI: {progress.llm.inFlight} aktiv, {progress.llm.queued} warten
+							{/if}
+						</p>
+						{#if run.error}
+							<p class="text-sm text-destructive">{run.error}</p>
+						{/if}
 					</Card.Content>
 				</div>
 			{/if}
