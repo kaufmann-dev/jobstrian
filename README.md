@@ -40,7 +40,7 @@ user-configured OpenAI-compatible LLM.
 
 ```bash
 pnpm install
-pnpm exec playwright install chromium   # for the AMS adapter (browser)
+pnpm exec playwright install chromium   # for browser-backed adapters
 ```
 
 ### 2. Environment variables (`.env`)
@@ -97,6 +97,10 @@ and production); `pnpm drizzle-kit migrate` remains available to apply them manu
 | -------------- | -------- |
 | Build Pack     | Nixpacks |
 | Base Directory | `/`      |
+
+`nixpacks.toml` installs Chromium during the build with
+`pnpm exec playwright install --with-deps chromium` so browser-backed portal
+adapters work in production.
 
 Pending migrations are applied automatically at server startup, so no
 post-deployment migration command is needed.

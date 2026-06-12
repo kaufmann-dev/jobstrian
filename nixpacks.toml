@@ -1,2 +1,9 @@
+[phases.playwright]
+dependsOn = ["install"]
+cmds = ["pnpm exec playwright install --with-deps chromium"]
+
+[phases.build]
+dependsOn = ["...", "playwright"]
+
 [start]
 cmd = "BODY_SIZE_LIMIT=${BODY_SIZE_LIMIT:-10M} node build"
