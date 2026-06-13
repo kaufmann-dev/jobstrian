@@ -13,9 +13,7 @@ export const DEFAULT_ROLE_KEYWORDS = [
 
 export const ALL_SOURCES = ['hokify', 'willhaben', 'karriere', 'ams'] as const;
 
-// hokify gates its search results behind interactions that don't expose a
-// stable endpoint, so it is off by default (the adapter stays for later use).
-export const DEFAULT_SOURCES = ['willhaben', 'karriere', 'ams'];
+export const DEFAULT_SOURCES = ['hokify', 'willhaben', 'karriere', 'ams'];
 
 /** Get the single settings row, creating it with defaults on first access. */
 export async function getSettings(): Promise<Settings> {

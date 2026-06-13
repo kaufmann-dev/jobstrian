@@ -35,7 +35,7 @@
 	const { form: formData, enhance, submitting } = form;
 
 	const sources = [
-		{ name: 'sourceHokify', label: 'hokify (deaktiviert empfohlen)' },
+		{ name: 'sourceHokify', label: 'hokify' },
 		{ name: 'sourceWillhaben', label: 'willhaben Jobs' },
 		{ name: 'sourceKarriere', label: 'karriere.at' },
 		{ name: 'sourceAms', label: 'AMS eJob-Room' }

@@ -1,8 +1,9 @@
-import { withPage } from '../browser';
+import * as cheerio from 'cheerio';
+import { fetchText } from '../../util/http';
 import type { ProfileQuery, RawListing, SourceAdapter } from '../types';
 
-function slug(keyword: string): string {
-	return keyword
+function slug(value: string): string {
+	return value
 		.toLowerCase()
 		.replace(/ä/g, 'ae')
 		.replace(/ö/g, 'oe')
@@ -12,47 +13,30 @@ function slug(keyword: string): string {
 		.replace(/^-+|-+$/g, '');
 }
 
-async function searchKeyword(keyword: string, signal?: AbortSignal): Promise<RawListing[]> {
-	const url = `https://www.hokify.at/jobs/${slug(keyword)}/wien`;
-	return withPage(async (page) => {
-		await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30_000 });
-		// Job cards are rendered client-side; wait for the anchors to appear.
-		await page.waitForSelector('a[href*="/job/"]', { timeout: 15_000 }).catch(() => {});
+function parse(html: string): RawListing[] {
+	const $ = cheerio.load(html);
+	const byId = new Map<string, RawListing>();
 
-		const raw = await page.$$eval('a[href*="/job/"]', (anchors) => {
-			const seen = new Set<string>();
-			const results: { href: string; title: string; company: string; location: string }[] = [];
-			for (const a of anchors as HTMLAnchorElement[]) {
-				const href = a.href.split('?')[0];
-				if (!/\/job\/[A-Za-z0-9]/.test(href) || seen.has(href)) continue;
-				const card = a.closest('article, li, [class*="card"], [class*="Card"]') ?? a;
-				const heading = card.querySelector('h2, h3, [class*="title"], [class*="Title"]');
-				const title = (heading?.textContent ?? a.textContent ?? '').trim();
-				if (!title) continue;
-				seen.add(href);
-				const company =
-					card.querySelector('[class*="company"], [class*="Company"]')?.textContent?.trim() ?? '';
-				const location =
-					card.querySelector('[class*="location"], [class*="Location"]')?.textContent?.trim() ?? '';
-				results.push({ href, title, company, location });
-			}
-			return results;
+	$('li').each((_, element) => {
+		const card = $(element);
+		const link = card.find('h2 a[href^="/job/"]').first();
+		const href = link.attr('href')?.split('?')[0];
+		const idMatch = href?.match(/^\/job\/([A-Za-z0-9_-]+)$/);
+		const title = link.text().trim();
+		if (!href || !idMatch || !title || byId.has(idMatch[1])) return;
+
+		const company = card.find('[data-cy="companyName"]').first().text().trim();
+		const location = card.find('a[href$="-Jobs"]').first().text().trim();
+		byId.set(idMatch[1], {
+			externalId: idMatch[1],
+			url: `https://hokify.at${href}`,
+			title,
+			company: company || undefined,
+			location: location || undefined
 		});
+	});
 
-		return raw
-			.map((r): RawListing | null => {
-				const idMatch = r.href.match(/\/job\/([A-Za-z0-9_-]+)/);
-				if (!idMatch) return null;
-				return {
-					externalId: idMatch[1],
-					url: r.href,
-					title: r.title,
-					company: r.company || undefined,
-					location: r.location || undefined
-				};
-			})
-			.filter((x): x is RawListing => x !== null);
-	}, signal);
+	return [...byId.values()];
 }
 
 export const hokify: SourceAdapter = {
@@ -60,12 +44,17 @@ export const hokify: SourceAdapter = {
 	label: 'hokify',
 	async search(profile: ProfileQuery, signal?: AbortSignal): Promise<RawListing[]> {
 		const byId = new Map<string, RawListing>();
+		const location = slug(profile.location);
 		for (const keyword of profile.keywords) {
 			if (signal?.aborted) throw signal.reason;
 			try {
-				for (const listing of await searchKeyword(keyword, signal)) {
-					byId.set(listing.externalId, listing);
-				}
+				const url = `https://hokify.at/jobs/m/${slug(keyword)}/${location}`;
+				const html = await fetchText(url, {
+					timeoutMs: 20_000,
+					headers: { 'accept-language': 'de-AT,de;q=0.9' },
+					signal
+				});
+				for (const listing of parse(html)) byId.set(listing.externalId, listing);
 			} catch (err) {
 				console.error(`[hokify] "${keyword}" failed:`, err);
 			}

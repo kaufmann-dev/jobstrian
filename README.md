@@ -10,10 +10,9 @@ user-configured OpenAI-compatible LLM.
 ## Features
 
 - **Portal scraping** via interchangeable adapters:
-  - `willhaben` Jobs (embedded JSON), `karriere.at` (HTML), `AMS eJob-Room`
-    (browser-driven, because the search API requires an SPA token).
-  - `hokify` is available as an adapter but disabled by default – its search
-    results are not reliably accessible without a login / app.
+  - `hokify`, `willhaben` Jobs (embedded JSON), `karriere.at` (HTML), and
+    `AMS eJob-Room` (browser-driven, because the search API requires an SPA
+    token).
 - **Nearby businesses**: OpenStreetMap (Overpass) finds gastronomy within a
   radius; missing e-mail addresses are extracted from the respective website
   (imprint / contact page). If Overpass is temporarily overloaded, the update

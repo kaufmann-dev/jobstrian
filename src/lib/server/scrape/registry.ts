@@ -12,7 +12,7 @@ export const ADAPTERS: Record<string, SourceAdapter> = {
 };
 
 /** Adapters that drive a headless browser (heavier; need Chromium installed). */
-export const BROWSER_ADAPTERS = new Set(['hokify', 'ams']);
+export const BROWSER_ADAPTERS = new Set(['ams']);
 
 export function getEnabledAdapters(enabled: string[]): SourceAdapter[] {
 	return enabled.map((id) => ADAPTERS[id]).filter((a): a is SourceAdapter => Boolean(a));
