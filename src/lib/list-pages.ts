@@ -1,4 +1,4 @@
-import type { Lead, Listing } from '$lib/server/db/schema';
+import type { Listing } from '$lib/server/db/schema';
 
 export const LIST_BATCH_SIZE = 50;
 
@@ -9,10 +9,34 @@ export interface CursorPage<T> {
 	total: number;
 }
 
-export const LISTING_SORTS = ['recommended', 'newest', 'score'] as const;
+export const LISTING_SORTS = [
+	'recommended',
+	'score-asc',
+	'score-desc',
+	'title-asc',
+	'title-desc',
+	'company-asc',
+	'company-desc',
+	'location-asc',
+	'location-desc',
+	'source-asc',
+	'source-desc',
+	'posted-asc',
+	'posted-desc'
+] as const;
 export type ListingSort = (typeof LISTING_SORTS)[number];
 
-export const LEAD_SORTS = ['recommended', 'nearest', 'name'] as const;
+export const LEAD_SORTS = [
+	'recommended',
+	'score-asc',
+	'score-desc',
+	'name-asc',
+	'name-desc',
+	'distance-asc',
+	'distance-desc',
+	'status-asc',
+	'status-desc'
+] as const;
 export type LeadSort = (typeof LEAD_SORTS)[number];
 
 export interface ListingFilters {

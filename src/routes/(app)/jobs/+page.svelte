@@ -101,37 +101,55 @@
 			id: 'score',
 			header: 'Score',
 			cell: ({ row }) => renderSnippet(scoreCell, { job: row.original }),
-			meta: { class: 'hidden w-16 sm:table-cell' }
+			meta: {
+				class: 'hidden w-16 sm:table-cell',
+				sort: { asc: 'score-asc', desc: 'score-desc', initial: 'desc' }
+			}
 		},
 		{
 			id: 'title',
 			header: 'Stelle',
 			cell: ({ row }) => renderSnippet(titleCell, { job: row.original }),
-			meta: { class: 'w-auto whitespace-normal' }
+			meta: {
+				class: 'w-auto whitespace-normal',
+				sort: { asc: 'title-asc', desc: 'title-desc', initial: 'asc' }
+			}
 		},
 		{
 			id: 'company',
 			header: 'Unternehmen',
 			cell: ({ row }) => renderSnippet(companyCell, { job: row.original }),
-			meta: { class: 'hidden w-48 whitespace-normal md:table-cell' }
+			meta: {
+				class: 'hidden w-48 whitespace-normal md:table-cell',
+				sort: { asc: 'company-asc', desc: 'company-desc', initial: 'asc' }
+			}
 		},
 		{
 			id: 'location',
 			header: 'Ort',
 			cell: ({ row }) => renderSnippet(locationCell, { job: row.original }),
-			meta: { class: 'hidden w-32 lg:table-cell' }
+			meta: {
+				class: 'hidden w-32 lg:table-cell',
+				sort: { asc: 'location-asc', desc: 'location-desc', initial: 'asc' }
+			}
 		},
 		{
 			id: 'source',
 			header: 'Portal',
 			cell: ({ row }) => renderSnippet(sourceCell, { job: row.original }),
-			meta: { class: 'hidden w-24 xl:table-cell' }
+			meta: {
+				class: 'hidden w-24 xl:table-cell',
+				sort: { asc: 'source-asc', desc: 'source-desc', initial: 'asc' }
+			}
 		},
 		{
 			id: 'date',
 			header: 'Datum',
 			cell: ({ row }) => fmtDate(row.original.postedAt),
-			meta: { class: 'hidden w-20 xl:table-cell' }
+			meta: {
+				class: 'hidden w-20 xl:table-cell',
+				sort: { asc: 'posted-asc', desc: 'posted-desc', initial: 'desc' }
+			}
 		},
 		{
 			id: 'actions',
@@ -266,11 +284,6 @@
 		onRowClick={(job) => (selected = job)}
 		onResetFilters={resetFilters}
 		searchPlaceholder="Stelle, Unternehmen oder Ort suchen"
-		sortOptions={[
-			{ value: 'recommended', label: 'Empfohlen' },
-			{ value: 'newest', label: 'Neueste' },
-			{ value: 'score', label: 'Höchster Score' }
-		]}
 		defaultSort="recommended"
 		itemLabel="Stellen"
 		emptyText="Keine Stellen. Klicke auf „Aktualisieren“ in der Übersicht."

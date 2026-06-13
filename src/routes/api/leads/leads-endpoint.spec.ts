@@ -15,13 +15,23 @@ describe('GET /api/leads', () => {
 
 	it('passes search and sort to the list query', async () => {
 		getLeadPage.mockResolvedValue({ items: [], nextCursor: null, matchingTotal: 0, total: 0 });
-		const url = new URL('http://localhost/api/leads?search=cafe&sort=name');
+		const url = new URL('http://localhost/api/leads?search=cafe&sort=name-asc');
 		const response = await GET({ url } as never);
 		expect(response.status).toBe(200);
 		expect(getLeadPage).toHaveBeenCalledWith(
-			expect.objectContaining({ search: 'cafe', sort: 'name' }),
+			expect.objectContaining({ search: 'cafe', sort: 'name-asc' }),
 			null
 		);
+	});
+
+	it('treats an empty search as an unfiltered request', async () => {
+		getLeadPage.mockResolvedValue({ items: [], nextCursor: null, matchingTotal: 0, total: 0 });
+		const response = await GET({
+			url: new URL('http://localhost/api/leads?search=&sort=recommended')
+		} as never);
+
+		expect(response.status).toBe(200);
+		expect(getLeadPage).toHaveBeenCalledWith(expect.objectContaining({ search: '' }), null);
 	});
 
 	it('returns a clear JSON error', async () => {

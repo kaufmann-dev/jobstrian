@@ -22,40 +22,55 @@ const listing = {
 	id: 7,
 	starred: true,
 	rankScore: null,
+	title: 'Barista',
+	company: 'Café Central',
+	location: 'Wien',
+	source: 'ams',
+	postedAt: new Date('2026-06-11T10:00:00Z'),
 	firstSeenAt: new Date('2026-06-12T10:00:00Z')
 } as Listing;
 
-const lead = { id: 9, name: 'Café Central', rankScore: null, distanceMeters: 350 } as Lead;
+const lead = {
+	id: 9,
+	name: 'Café Central',
+	rankScore: null,
+	distanceMeters: 350,
+	status: 'new',
+	hasActivePosting: false
+} as Lead;
 const dialect = new PgDialect();
 
 describe('listing cursors', () => {
 	it.each(LISTING_SORTS)('round-trips %s ordering values', (sort) => {
 		expect(decodeListingCursor(encodeListingCursor(listing, sort))).toMatchObject({
 			sort,
-			starred: true,
 			id: 7
 		});
 	});
 
-	it.each(LISTING_SORTS)(
-		'uses explicit starred branches for %s without boolean comparisons',
-		(sort) => {
-			const cursor = decodeListingCursor(encodeListingCursor(listing, sort));
-			const query = dialect.sqlToQuery(listingAfter(cursor, sort)!);
-			expect(query.sql).not.toMatch(/"listing"\."starred"\s*</);
-			expect(query.sql).toMatch(/"listing"\."starred" = \$\d/);
-			expect(query.params).toContain(false);
-			expect(query.params).toContain(true);
-		}
-	);
+	it.each(LISTING_SORTS)('builds a cursor predicate for %s', (sort) => {
+		const cursor = decodeListingCursor(encodeListingCursor(listing, sort));
+		expect(dialect.sqlToQuery(listingAfter(cursor, sort)!).sql).toContain('"listing"');
+	});
 
-	it.each(['recommended', 'newest'] as const)(
+	it('uses explicit starred branches only for recommended ordering', () => {
+		const cursor = decodeListingCursor(encodeListingCursor(listing, 'recommended'));
+		const query = dialect.sqlToQuery(listingAfter(cursor, 'recommended')!);
+		expect(query.sql).not.toMatch(/"listing"\."starred"\s*</);
+		expect(query.sql).toMatch(/"listing"\."starred" = \$\d/);
+		expect(query.params).toContain(false);
+		expect(query.params).toContain(true);
+	});
+
+	it.each(['recommended', 'posted-asc', 'posted-desc'] as const)(
 		'serializes timestamp parameters through the column encoder for %s',
 		(sort) => {
 			const cursor = decodeListingCursor(encodeListingCursor(listing, sort));
 			const query = dialect.sqlToQuery(listingAfter(cursor, sort)!);
 			expect(query.params.some((param) => param instanceof Date)).toBe(false);
-			expect(query.params).toContain(listing.firstSeenAt.toISOString());
+			expect(query.params).toContain(
+				(sort === 'recommended' ? listing.firstSeenAt : listing.postedAt)!.toISOString()
+			);
 		}
 	);
 
@@ -104,8 +119,8 @@ describe('list filter parsing', () => {
 	it('rejects malformed cursors and ignores cursors from another sort', () => {
 		expect(decodeListingCursor('not-a-cursor')).toBeNull();
 		expect(decodeLeadCursor('not-a-cursor')).toBeNull();
-		const cursor = decodeListingCursor(encodeListingCursor(listing, 'newest'));
-		expect(listingAfter(cursor, 'score')).toBeUndefined();
+		const cursor = decodeListingCursor(encodeListingCursor(listing, 'posted-desc'));
+		expect(listingAfter(cursor, 'score-desc')).toBeUndefined();
 	});
 
 	it('keeps the intended default filters', () => {

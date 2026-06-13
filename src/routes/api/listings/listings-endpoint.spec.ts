@@ -24,6 +24,16 @@ describe('GET /api/listings', () => {
 		);
 	});
 
+	it('treats an empty search as an unfiltered request', async () => {
+		getListingPage.mockResolvedValue({ items: [], nextCursor: null, matchingTotal: 0, total: 0 });
+		const response = await GET({
+			url: new URL('http://localhost/api/listings?search=&sort=recommended')
+		} as never);
+
+		expect(response.status).toBe(200);
+		expect(getListingPage).toHaveBeenCalledWith(expect.objectContaining({ search: '' }), null);
+	});
+
 	it('logs server failures and returns a clear JSON error', async () => {
 		vi.spyOn(console, 'error').mockImplementation(() => undefined);
 		getListingPage.mockRejectedValue(new Error('database failed'));

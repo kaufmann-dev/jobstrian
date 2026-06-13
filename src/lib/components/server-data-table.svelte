@@ -3,17 +3,19 @@
 	import type { Snippet } from 'svelte';
 	import { Button } from '$lib/components/ui/button/index.js';
 	import { Input } from '$lib/components/ui/input/index.js';
-	import * as Select from '$lib/components/ui/select/index.js';
 	import { Spinner } from '$lib/components/ui/spinner/index.js';
 	import * as Table from '$lib/components/ui/table/index.js';
 	import { createSvelteTable } from '$lib/components/ui/data-table/data-table.svelte.js';
 	import FlexRender from '$lib/components/ui/data-table/flex-render.svelte';
+	import ArrowDown from '@lucide/svelte/icons/arrow-down';
+	import ArrowUp from '@lucide/svelte/icons/arrow-up';
+	import ChevronsUpDown from '@lucide/svelte/icons/chevrons-up-down';
 	import Search from '@lucide/svelte/icons/search';
 	import RotateCcw from '@lucide/svelte/icons/rotate-ccw';
 	import type { ServerListController } from './server-list-controller.svelte.js';
 
-	type SortOption = { value: string; label: string };
-	type ColumnMeta = { class?: string; headerClass?: string };
+	type ServerSort = { asc: string; desc: string; initial: 'asc' | 'desc' };
+	type ColumnMeta = { class?: string; headerClass?: string; sort?: ServerSort };
 
 	interface Props {
 		controller: ServerListController<TData>;
@@ -21,7 +23,6 @@
 		emptyText: string;
 		itemLabel: string;
 		searchPlaceholder: string;
-		sortOptions: SortOption[];
 		defaultSort: string;
 		filters?: Snippet;
 		onResetFilters?: () => void;
@@ -34,7 +35,6 @@
 		emptyText,
 		itemLabel,
 		searchPlaceholder,
-		sortOptions,
 		defaultSort,
 		filters,
 		onResetFilters,
@@ -44,9 +44,6 @@
 	let search = $state('');
 	let sort = $derived(defaultSort);
 	let debounce: ReturnType<typeof setTimeout> | undefined;
-	const sortLabel = $derived(
-		sortOptions.find((option) => option.value === sort)?.label ?? 'Sortierung'
-	);
 
 	const table = createSvelteTable({
 		get data() {
@@ -73,6 +70,19 @@
 		void controller.reset({ sort });
 	}
 
+	function toggleSort(config: ServerSort): void {
+		updateSort(
+			sort === config.asc ? config.desc : sort === config.desc ? config.asc : config[config.initial]
+		);
+	}
+
+	function sortDirection(config: ServerSort | undefined): 'ascending' | 'descending' | undefined {
+		if (!config) return undefined;
+		if (sort === config.asc) return 'ascending';
+		if (sort === config.desc) return 'descending';
+		return undefined;
+	}
+
 	function resetAll(): void {
 		clearTimeout(debounce);
 		search = '';
@@ -96,21 +106,6 @@
 		</div>
 		<div class="flex flex-wrap items-end gap-3">
 			{#if filters}{@render filters()}{/if}
-			<div class="space-y-1">
-				<span class="text-xs font-medium text-muted-foreground">Sortierung</span>
-				<Select.Root
-					type="single"
-					value={sort}
-					onValueChange={(value) => value && updateSort(value)}
-				>
-					<Select.Trigger class="w-40">{sortLabel}</Select.Trigger>
-					<Select.Content>
-						{#each sortOptions as option (option.value)}
-							<Select.Item value={option.value} label={option.label}>{option.label}</Select.Item>
-						{/each}
-					</Select.Content>
-				</Select.Root>
-			</div>
 			<Button variant="ghost" size="sm" onclick={resetAll}>
 				<RotateCcw class="size-4" />
 				Zurücksetzen
@@ -135,17 +130,40 @@
 				{#each table.getHeaderGroups() as headerGroup (headerGroup.id)}
 					<Table.Row class="hover:bg-transparent">
 						{#each headerGroup.headers as header (header.id)}
+							{@const columnMeta = meta(header.column.columnDef)}
+							{@const direction = sortDirection(columnMeta.sort)}
 							<Table.Head
 								colspan={header.colSpan}
+								aria-sort={direction}
 								class={[
 									'text-xs font-medium tracking-wide text-muted-foreground uppercase',
-									meta(header.column.columnDef).headerClass ?? meta(header.column.columnDef).class
+									columnMeta.headerClass ?? columnMeta.class
 								]}
 							>
-								<FlexRender
-									content={header.column.columnDef.header}
-									context={header.getContext()}
-								/>
+								{#if columnMeta.sort}
+									<button
+										type="button"
+										class="-ml-2 inline-flex h-8 items-center gap-1 rounded-md px-2 hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+										onclick={() => toggleSort(columnMeta.sort!)}
+									>
+										<FlexRender
+											content={header.column.columnDef.header}
+											context={header.getContext()}
+										/>
+										{#if direction === 'ascending'}
+											<ArrowUp class="size-3.5" />
+										{:else if direction === 'descending'}
+											<ArrowDown class="size-3.5" />
+										{:else}
+											<ChevronsUpDown class="size-3.5 opacity-50" />
+										{/if}
+									</button>
+								{:else}
+									<FlexRender
+										content={header.column.columnDef.header}
+										context={header.getContext()}
+									/>
+								{/if}
 							</Table.Head>
 						{/each}
 					</Table.Row>

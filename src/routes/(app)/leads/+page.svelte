@@ -112,19 +112,28 @@
 			id: 'score',
 			header: 'Score',
 			cell: ({ row }) => renderSnippet(scoreCell, { item: row.original }),
-			meta: { class: 'hidden w-16 sm:table-cell' }
+			meta: {
+				class: 'hidden w-16 sm:table-cell',
+				sort: { asc: 'score-asc', desc: 'score-desc', initial: 'desc' }
+			}
 		},
 		{
 			id: 'business',
 			header: 'Betrieb',
 			cell: ({ row }) => renderSnippet(businessCell, { item: row.original }),
-			meta: { class: 'w-auto whitespace-normal' }
+			meta: {
+				class: 'w-auto whitespace-normal',
+				sort: { asc: 'name-asc', desc: 'name-desc', initial: 'asc' }
+			}
 		},
 		{
 			id: 'distance',
 			header: 'Entfernung',
 			cell: ({ row }) => fmtDistance(row.original.distanceMeters),
-			meta: { class: 'w-24' }
+			meta: {
+				class: 'w-24',
+				sort: { asc: 'distance-asc', desc: 'distance-desc', initial: 'asc' }
+			}
 		},
 		{
 			id: 'contact',
@@ -136,7 +145,10 @@
 			id: 'status',
 			header: 'Status',
 			cell: ({ row }) => renderSnippet(statusCell, { item: row.original }),
-			meta: { class: 'hidden w-52 lg:table-cell' }
+			meta: {
+				class: 'hidden w-52 lg:table-cell',
+				sort: { asc: 'status-asc', desc: 'status-desc', initial: 'asc' }
+			}
 		},
 		{
 			id: 'actions',
@@ -243,11 +255,6 @@
 		onRowClick={(item) => (selected = item)}
 		onResetFilters={resetFilters}
 		searchPlaceholder="Betrieb, Kategorie, Adresse oder E-Mail suchen"
-		sortOptions={[
-			{ value: 'recommended', label: 'Empfohlen' },
-			{ value: 'nearest', label: 'Nächste' },
-			{ value: 'name', label: 'Name A–Z' }
-		]}
 		defaultSort="recommended"
 		itemLabel="Betrieben"
 		emptyText="Noch keine Betriebe. Trage deinen Wohnort in den Einstellungen ein und aktualisiere."

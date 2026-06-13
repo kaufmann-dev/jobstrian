@@ -22,14 +22,30 @@ describe('ServerListController', () => {
 			total: 100
 		});
 
-		await controller.reset({ search: 'Wien', sort: 'newest', source: 'ams' });
+		await controller.reset({ search: 'Wien', sort: 'posted-desc', source: 'ams' });
 		expect(controller.items).toEqual([10, 11]);
 		expect(controller.nextCursor).toBe('second');
 		await controller.reset({ search: 'Graz' });
 		expect(controller.items).toEqual([20]);
 		expect(controller.nextCursor).toBeNull();
 		expect(fetchMock.mock.calls[0]?.[0]).toContain('search=Wien');
-		expect(fetchMock.mock.calls[0]?.[0]).toContain('sort=newest');
+		expect(fetchMock.mock.calls[0]?.[0]).toContain('sort=posted-desc');
+	});
+
+	it('removes the search parameter and restores unfiltered rows when search is cleared', async () => {
+		const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(response([1, 2], null));
+		const controller = new ServerListController(
+			'/api/items',
+			{ items: [9], nextCursor: null, matchingTotal: 1, total: 100 },
+			{ search: 'Wien', sort: 'recommended' }
+		);
+
+		await controller.reset({ search: '' });
+
+		expect(fetchMock).toHaveBeenCalledOnce();
+		expect(fetchMock.mock.calls[0]?.[0]).toBe('/api/items?sort=recommended');
+		expect(controller.items).toEqual([1, 2]);
+		expect(controller.error).toBe('');
 	});
 
 	it('only fetches subsequent rows when loadMore is called', async () => {
