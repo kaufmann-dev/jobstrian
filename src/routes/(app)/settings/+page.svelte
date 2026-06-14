@@ -38,7 +38,8 @@
 			validators: zod4Client(settingsSchema),
 			dataType: 'json',
 			resetForm: false,
-			invalidateAll: 'pessimistic',
+			invalidateAll: false,
+			applyAction: false,
 			multipleSubmits: 'abort',
 			onChange: ({ paths }) => {
 				if (!paths.includes('llmApiKey')) scheduleAutosave();
@@ -60,6 +61,7 @@
 					toast.success('API-Key gespeichert');
 					const input = formElement.elements.namedItem('llmApiKey');
 					if (input instanceof HTMLInputElement) input.value = '';
+					void invalidateAll();
 				}
 			}
 		}

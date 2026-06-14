@@ -370,7 +370,7 @@
 	{#if visible('workExperience')}
 		<section class="space-y-3">
 			{@render heading('workExperience', 'Berufserfahrung')}
-			{#each profile.workExperience as item (item)}
+			{#each profile.workExperience as item, index (index)}
 				<div class="space-y-3 rounded-2xl border p-4">
 					<div class="grid gap-3 sm:grid-cols-2">
 						<Input
@@ -425,7 +425,7 @@
 	{#if visible('educationHistory')}
 		<section class="space-y-3">
 			{@render heading('educationHistory', 'Ausbildungsverlauf')}
-			{#each profile.educationHistory as item (item)}
+			{#each profile.educationHistory as item, index (index)}
 				<div class="space-y-3 rounded-2xl border p-4">
 					<div class="grid gap-3 sm:grid-cols-2">
 						<Input
@@ -484,7 +484,7 @@
 	{#if visible('certifications')}
 		<section class="space-y-3">
 			{@render heading('certifications', 'Zertifikate')}
-			{#each profile.certifications as item (item)}
+			{#each profile.certifications as item, index (index)}
 				<div class="space-y-3 rounded-2xl border p-4">
 					<div class="grid gap-3 sm:grid-cols-3">
 						<Input
