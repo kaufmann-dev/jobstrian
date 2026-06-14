@@ -532,15 +532,20 @@
 					{/if}
 				</div>
 				<div class="flex flex-wrap gap-2">
-					<Button
-						variant="outline"
-						onclick={() =>
-							setStatus(selected!, selected!.status === 'contacted' ? 'new' : 'contacted')}
-					>
-						{selected.status === 'contacted' ? 'Zurücksetzen' : 'Kontaktiert'}
-					</Button>
-					<Button variant="ghost" onclick={() => setStatus(selected!, 'ignored')}>Ignorieren</Button
-					>
+					{#if selected.status !== 'new'}
+						<Button variant="outline" onclick={() => setStatus(selected!, 'new')}
+							>Zurücksetzen</Button
+						>
+					{/if}
+					{#if selected.status !== 'contacted'}
+						<Button variant="outline" onclick={() => setStatus(selected!, 'contacted')}
+							>Kontaktiert</Button
+						>
+					{/if}
+					{#if selected.status !== 'ignored'}
+						<Button variant="ghost" onclick={() => setStatus(selected!, 'ignored')}>Ignorieren</Button
+						>
+					{/if}
 				</div>
 				{#if selected.draftBody}
 					<div class="space-y-3 border-t pt-4">
