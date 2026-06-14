@@ -26,6 +26,7 @@
 	let open = $state(false);
 	let suggestions = $state.raw<GeoSuggestion[]>([]);
 	let status = $state<'idle' | 'loading' | 'error'>('idle');
+	let errorMessage = $state('');
 	let timer: ReturnType<typeof setTimeout> | undefined;
 	let controller: AbortController | undefined;
 	let requestId = 0;
@@ -36,6 +37,7 @@
 		open = false;
 		suggestions = [];
 		status = 'idle';
+		errorMessage = '';
 	}
 
 	async function load(query: string, id: number, signal: AbortSignal): Promise<void> {
@@ -45,16 +47,22 @@
 				`/api/geo/suggestions?kind=${kind}&q=${encodeURIComponent(query)}`,
 				{ signal }
 			);
-			if (!response.ok) throw new Error('lookup failed');
-			const body = (await response.json()) as { suggestions?: GeoSuggestion[] };
+			const body = (await response.json()) as {
+				code?: string;
+				message?: string;
+				suggestions?: GeoSuggestion[];
+			};
+			if (!response.ok) throw new Error(body.message ?? 'Vorschläge sind nicht verfügbar.');
 			if (id !== requestId) return;
 			suggestions = body.suggestions ?? [];
 			status = 'idle';
 			open = true;
-		} catch {
+		} catch (error) {
 			if (signal.aborted || id !== requestId) return;
 			suggestions = [];
 			status = 'error';
+			errorMessage =
+				error instanceof Error ? error.message : 'Vorschläge sind vorübergehend nicht verfügbar.';
 			open = true;
 		}
 	}
@@ -122,7 +130,7 @@
 				<div class="px-2 py-1.5 text-sm text-muted-foreground">Vorschläge werden geladen …</div>
 			{:else if status === 'error'}
 				<div class="px-2 py-1.5 text-sm text-muted-foreground">
-					Vorschläge sind vorübergehend nicht verfügbar.
+					{errorMessage}
 				</div>
 			{:else if suggestions.length === 0}
 				<div class="px-2 py-1.5 text-sm text-muted-foreground">Keine Vorschläge gefunden.</div>

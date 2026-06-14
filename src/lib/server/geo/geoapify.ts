@@ -29,7 +29,12 @@ interface GeoapifyResponse {
 	results?: GeoapifyResult[];
 }
 
-export type GeoLookupErrorCode = 'not_configured' | 'invalid_query' | 'upstream_unavailable';
+export type GeoLookupErrorCode =
+	| 'not_configured'
+	| 'invalid_query'
+	| 'provider_auth_failed'
+	| 'rate_limited'
+	| 'upstream_unavailable';
 
 export class GeoLookupError extends Error {
 	constructor(
@@ -40,6 +45,17 @@ export class GeoLookupError extends Error {
 		super(message);
 		this.name = 'GeoLookupError';
 	}
+}
+
+export function isGeoLookupError(error: unknown): error is GeoLookupError {
+	return (
+		error instanceof Error &&
+		error.name === 'GeoLookupError' &&
+		'code' in error &&
+		typeof error.code === 'string' &&
+		'status' in error &&
+		typeof error.status === 'number'
+	);
 }
 
 type CacheEntry = { expiresAt: number; suggestions: GeoSuggestion[] };
@@ -140,6 +156,16 @@ async function fetchSuggestions(
 		const durationMs = Date.now() - started;
 		if (!response.ok) {
 			console.error('Geoapify lookup failed', { status: response.status, durationMs, kind });
+			if (response.status === 401 || response.status === 403) {
+				throw new GeoLookupError(
+					'provider_auth_failed',
+					'Der Geoapify API-Key wurde abgelehnt.',
+					502
+				);
+			}
+			if (response.status === 429) {
+				throw new GeoLookupError('rate_limited', 'Das Geoapify-Anfragelimit wurde erreicht.', 503);
+			}
 			throw new GeoLookupError('upstream_unavailable', 'Geo lookup is unavailable.', 502);
 		}
 		console.info('Geoapify lookup completed', { status: response.status, durationMs, kind });
@@ -152,7 +178,7 @@ async function fetchSuggestions(
 			return [suggestion];
 		});
 	} catch (error) {
-		if (error instanceof GeoLookupError) throw error;
+		if (isGeoLookupError(error)) throw error;
 		console.error('Geoapify lookup failed', {
 			status: 'network_error',
 			durationMs: Date.now() - started,
@@ -170,11 +196,18 @@ export async function geoSuggestions(
 	apiKey = env.GEOAPIFY_API_KEY
 ): Promise<GeoSuggestion[]> {
 	const trimmed = query.trim();
+	const trimmedApiKey = apiKey?.trim();
 	const minLength = kind === 'address' ? 3 : 2;
 	if (trimmed.length < minLength || trimmed.length > 200) {
 		throw new GeoLookupError('invalid_query', 'Invalid geo lookup query.', 400);
 	}
-	if (!apiKey) throw new GeoLookupError('not_configured', 'Geo lookup is not configured.', 503);
+	if (!trimmedApiKey) {
+		throw new GeoLookupError(
+			'not_configured',
+			'GEOAPIFY_API_KEY ist in der Deployment-Umgebung nicht konfiguriert.',
+			503
+		);
+	}
 
 	const key = `${kind}:${trimmed.toLocaleLowerCase('de-AT')}`;
 	const hit = cached(key);
@@ -182,7 +215,7 @@ export async function geoSuggestions(
 	const pending = inFlight.get(key);
 	if (pending) return pending;
 
-	const request = fetchSuggestions(trimmed, kind, apiKey)
+	const request = fetchSuggestions(trimmed, kind, trimmedApiKey)
 		.then((suggestions) => {
 			putCache(key, suggestions);
 			return suggestions;

@@ -1,5 +1,5 @@
 import { json } from '@sveltejs/kit';
-import { GeoLookupError, geoSuggestions } from '$lib/server/geo/geoapify';
+import { geoSuggestions, type GeoLookupErrorCode } from '$lib/server/geo/geoapify';
 import type { GeoSuggestionKind } from '$lib/geo';
 import type { RequestHandler } from './$types';
 
@@ -13,8 +13,17 @@ export const GET: RequestHandler = async ({ url }) => {
 	try {
 		return json({ suggestions: await geoSuggestions(q, rawKind as GeoSuggestionKind) });
 	} catch (error) {
-		if (error instanceof GeoLookupError) {
-			return json({ code: error.code, message: error.message }, { status: error.status });
+		if (
+			error instanceof Error &&
+			'code' in error &&
+			typeof error.code === 'string' &&
+			'status' in error &&
+			typeof error.status === 'number'
+		) {
+			return json(
+				{ code: error.code as GeoLookupErrorCode, message: error.message },
+				{ status: error.status }
+			);
 		}
 		console.error('Geo suggestion endpoint failed', error);
 		return json(

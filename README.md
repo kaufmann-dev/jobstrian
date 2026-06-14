@@ -67,8 +67,11 @@ DATABASE_URL="postgres://postgres:postgres@localhost:5432/jobstrian"
 ORIGIN="http://localhost:5173"
 BETTER_AUTH_SECRET="…"                   # openssl rand -hex 32
 BODY_SIZE_LIMIT="10M"                    # allows CV uploads up to the app's 10 MB limit
-GEOAPIFY_API_KEY="…"                     # Austrian address and city suggestions
+GEOAPIFY_API_KEY="…"                     # Geoapify Autocomplete API
 ```
+
+Create the key in Geoapify and select **Autocomplete API**. The server uses it
+for Austrian address and city suggestions.
 
 ### 3. Database (Podman)
 
@@ -131,13 +134,13 @@ post-deployment migration command is needed.
 | `BETTER_AUTH_SECRET` | Auth secret — generate with `openssl rand -hex 32`.                    |
 | `ORIGIN`             | Public URL of the deployed app (e.g. `https://jobstrian.example.com`). |
 | `BODY_SIZE_LIMIT`    | Request body limit for CV uploads. Use `10M` or higher.                |
+| `GEOAPIFY_API_KEY`   | Server-side Geoapify Autocomplete API key for Austrian suggestions.    |
 
 #### Optional
 
-| Variable           | Default | Purpose                                         |
-| ------------------ | ------- | ----------------------------------------------- |
-| `RESEND_API_KEY`   | —       | Only needed if sending e-mails via Resend.      |
-| `GEOAPIFY_API_KEY` | —       | Enables Austrian address and city autocomplete. |
+| Variable         | Default | Purpose                                    |
+| ---------------- | ------- | ------------------------------------------ |
+| `RESEND_API_KEY` | —       | Only needed if sending e-mails via Resend. |
 
 ## Notes
 

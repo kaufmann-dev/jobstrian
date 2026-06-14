@@ -59,12 +59,23 @@ describe('Geoapify suggestions', () => {
 	});
 
 	it('returns structured configuration and upstream errors', async () => {
-		await expect(geoSuggestions('Wien', 'city', '')).rejects.toMatchObject({
+		await expect(geoSuggestions('Wien', 'city', '   ')).rejects.toMatchObject({
 			code: 'not_configured',
 			status: 503
 		});
 		vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('', { status: 429 })));
-		await expect(geoSuggestions('Wien', 'city', 'key')).rejects.toBeInstanceOf(GeoLookupError);
+		await expect(geoSuggestions('Wien', 'city', 'key')).rejects.toMatchObject({
+			code: 'rate_limited',
+			status: 503
+		});
+	});
+
+	it('distinguishes rejected provider credentials', async () => {
+		vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('', { status: 403 })));
+		await expect(geoSuggestions('Wien', 'city', 'bad-key')).rejects.toMatchObject({
+			code: 'provider_auth_failed',
+			status: 502
+		});
 	});
 
 	it('times out unavailable upstream requests after five seconds', async () => {

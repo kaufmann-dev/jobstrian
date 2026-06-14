@@ -1,6 +1,6 @@
 import { page } from 'vitest/browser';
 import { render } from 'vitest-browser-svelte';
-import { expect, it } from 'vitest';
+import { afterEach, expect, it, vi } from 'vitest';
 import ProfileEditor from './profile-editor.svelte';
 
 const profile = {
@@ -20,6 +20,8 @@ const profile = {
 	certifications: []
 };
 
+afterEach(() => vi.unstubAllGlobals());
+
 it('keeps manual scalar edits after blur', async () => {
 	render(ProfileEditor, { profile });
 	const input = page.getByRole('textbox', { name: 'Ausbildung / Status' });
@@ -38,4 +40,25 @@ it('does not overwrite the typed address on blur', async () => {
 	(await input.element()).blur();
 
 	await expect.element(input).toHaveValue('Fuhrmannsgasse 18');
+});
+
+it('shows the deployment configuration error returned by the server', async () => {
+	vi.stubGlobal(
+		'fetch',
+		vi.fn().mockResolvedValue(
+			Response.json(
+				{
+					code: 'not_configured',
+					message: 'GEOAPIFY_API_KEY ist in der Deployment-Umgebung nicht konfiguriert.'
+				},
+				{ status: 503 }
+			)
+		)
+	);
+	render(ProfileEditor, { profile });
+
+	await page.getByRole('combobox', { name: 'Adresse' }).fill('Herrengasse');
+	await expect
+		.element(page.getByText('GEOAPIFY_API_KEY ist in der Deployment-Umgebung nicht konfiguriert.'))
+		.toBeVisible();
 });
