@@ -1,15 +1,7 @@
 import { eq } from 'drizzle-orm';
+import { DEFAULT_BUSINESS_OSM_TAGS, DEFAULT_JOB_SEARCH_KEYWORDS } from '$lib/search-config';
 import { db } from './db';
 import { settings, type Settings } from './db/schema';
-
-export const DEFAULT_ROLE_KEYWORDS = [
-	'Barista',
-	'Kellner',
-	'Kellnerin',
-	'Servicekraft',
-	'Servicemitarbeiter',
-	'Service Hilfskraft'
-];
 
 export const ALL_SOURCES = ['hokify', 'willhaben', 'karriere', 'ams'] as const;
 
@@ -24,9 +16,10 @@ export async function getSettings(): Promise<Settings> {
 		.insert(settings)
 		.values({
 			id: 1,
-			roleKeywords: DEFAULT_ROLE_KEYWORDS,
+			jobSearchKeywords: DEFAULT_JOB_SEARCH_KEYWORDS,
+			businessOsmTags: DEFAULT_BUSINESS_OSM_TAGS,
 			enabledSources: [...DEFAULT_SOURCES],
-			radiusMeters: 2000
+			businessRadiusMeters: 5000
 		})
 		.onConflictDoNothing()
 		.returning();

@@ -23,18 +23,31 @@ interface AmsResult {
 	company?: { name?: string; address?: AmsAddress };
 }
 
-function isVienna(addr?: AmsAddress): boolean {
-	const fields = [addr?.federalState, addr?.town, addr?.municipality, addr?.zipCode].filter(
-		Boolean
-	) as string[];
-	return fields.some((f) => /wien|vienna/i.test(f) || /^1\d{3}$/.test(f));
+function normalizeLocation(value: string): string {
+	return value
+		.normalize('NFKD')
+		.replace(/\p{Diacritic}/gu, '')
+		.toLowerCase()
+		.replace(/[^a-z0-9]+/g, ' ')
+		.trim();
 }
 
-function toListing(r: AmsResult): RawListing | null {
+function addressMatchesCities(addr: AmsAddress | undefined, cities: readonly string[]): boolean {
+	const fields = [addr?.town, addr?.municipality].filter(Boolean) as string[];
+	return fields.some((field) => {
+		const normalized = normalizeLocation(field);
+		return cities.some((city) => {
+			const normalizedCity = normalizeLocation(city);
+			return normalizedCity.length > 0 && normalized.includes(normalizedCity);
+		});
+	});
+}
+
+function toListing(r: AmsResult, cities: readonly string[]): RawListing | null {
 	const id = r.id ?? r.uuid;
 	if (id == null || !r.title) return null;
 	const addr = r.company?.address;
-	if (!isVienna(addr)) return null; // keep Vienna-area postings only
+	if (!addressMatchesCities(addr, cities)) return null;
 	const location = [addr?.town ?? addr?.municipality, addr?.federalState]
 		.filter(Boolean)
 		.join(', ');
@@ -48,7 +61,11 @@ function toListing(r: AmsResult): RawListing | null {
 	};
 }
 
-async function searchKeyword(keyword: string, signal?: AbortSignal): Promise<RawListing[]> {
+async function searchKeyword(
+	keyword: string,
+	cities: readonly string[],
+	signal?: AbortSignal
+): Promise<RawListing[]> {
 	return withPage(async (page) => {
 		const captured: AmsResult[] = [];
 		page.on('response', async (res) => {
@@ -78,7 +95,7 @@ async function searchKeyword(keyword: string, signal?: AbortSignal): Promise<Raw
 
 		const byId = new Map<string, RawListing>();
 		for (const result of captured) {
-			const listing = toListing(result);
+			const listing = toListing(result, cities);
 			if (listing) byId.set(listing.externalId, listing);
 		}
 		return [...byId.values()];
@@ -93,7 +110,7 @@ export const ams: SourceAdapter = {
 		for (const keyword of profile.keywords) {
 			if (signal?.aborted) throw signal.reason;
 			try {
-				for (const listing of await searchKeyword(keyword, signal)) {
+				for (const listing of await searchKeyword(keyword, profile.locations, signal)) {
 					byId.set(listing.externalId, listing);
 				}
 			} catch (err) {

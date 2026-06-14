@@ -30,6 +30,7 @@ import { mapLimit } from '../util/concurrency';
 import { closeBrowser } from './browser';
 import { getEnabledAdapters, BROWSER_ADAPTERS } from './registry';
 import type { ProfileQuery, RawListing } from './types';
+import { DEFAULT_JOB_SEARCH_KEYWORDS } from '$lib/search-config';
 
 const PROGRESS_FLUSH_INTERVAL_MS = 1000;
 
@@ -185,6 +186,28 @@ async function ensureHomeCoords(settings: Settings, signal: AbortSignal): Promis
 	return updateSettings({ homeLat: point.lat, homeLon: point.lon });
 }
 
+function cityFromAddress(address: string): string | null {
+	const cleaned = address.trim();
+	if (!cleaned) return null;
+	const lastPart = cleaned
+		.split(',')
+		.map((part) => part.trim())
+		.filter(Boolean)
+		.at(-1);
+	if (!lastPart) return null;
+	const city = lastPart
+		.replace(/\b\d{4}\b/g, '')
+		.replace(/\s+/g, ' ')
+		.trim();
+	return city || null;
+}
+
+function jobSearchLocations(settings: Settings): string[] {
+	if (settings.jobSearchLocations.length) return settings.jobSearchLocations;
+	const city = cityFromAddress(settings.homeAddress);
+	return city ? [city] : [];
+}
+
 /** Flag leads whose business name matches an active listing's company. */
 async function markLeadsWithPostings(): Promise<void> {
 	await db.execute(sql`
@@ -215,8 +238,10 @@ export async function runRefresh(
 		});
 		writer.setLimiter(limiter);
 		const profile: ProfileQuery = {
-			keywords: settings.roleKeywords.length ? settings.roleKeywords : ['Barista', 'Kellner'],
-			location: 'Wien'
+			keywords: settings.jobSearchKeywords.length
+				? settings.jobSearchKeywords
+				: DEFAULT_JOB_SEARCH_KEYWORDS,
+			locations: jobSearchLocations(settings)
 		};
 		throwIfAborted(signal);
 

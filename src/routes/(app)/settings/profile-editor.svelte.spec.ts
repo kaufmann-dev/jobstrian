@@ -5,12 +5,10 @@ import ProfileEditor from './profile-editor.svelte';
 
 const profile = {
 	profileText: '',
-	roleKeywords: [],
 	languages: [],
 	germanLevel: '',
 	experienceYears: null,
 	educationStatus: 'Matura',
-	workPermit: false,
 	availability: '',
 	homeAddress: '',
 	skills: [],

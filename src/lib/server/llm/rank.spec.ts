@@ -17,15 +17,17 @@ it('includes skills and detailed CV history in the ranking profile', () => {
 		],
 		educationHistory: [],
 		certifications: [{ name: 'HACCP', issuer: 'Test', date: '2025', description: '' }],
-		roleKeywords: [],
 		languages: [],
 		profileText: '',
 		germanLevel: '',
 		experienceYears: null,
 		educationStatus: '',
-		workPermit: false,
 		availability: '',
 		homeAddress: '',
+		jobSearchKeywords: [],
+		jobSearchLocations: [],
+		businessOsmTags: [],
+		businessRadiusMeters: 5000,
 		rankingNotes: ''
 	} as unknown as Settings);
 

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Lead, Listing, Settings } from '../db/schema';
+import { DEFAULT_BUSINESS_OSM_TAGS } from '$lib/search-config';
 import type { LlmConfig } from './client';
 import {
 	draftContextHash,
@@ -16,7 +17,6 @@ function settings(patch: Partial<Settings> = {}): Settings {
 	return {
 		id: 1,
 		profileText: 'Servicekraft mit Barista-Erfahrung',
-		roleKeywords: ['Barista'],
 		languages: ['Deutsch (B1)', 'Englisch (C1)'],
 		skills: [],
 		workExperience: [],
@@ -25,13 +25,15 @@ function settings(patch: Partial<Settings> = {}): Settings {
 		germanLevel: 'B1',
 		experienceYears: 2,
 		educationStatus: 'Studium laufend',
-		workPermit: true,
 		availability: 'ab sofort',
 		rankingNotes: 'Kurze Anfahrt bevorzugen',
 		homeAddress: 'Wien',
 		homeLat: 48.2,
 		homeLon: 16.37,
-		radiusMeters: 2000,
+		jobSearchKeywords: ['Barista'],
+		jobSearchLocations: ['Wien'],
+		businessOsmTags: DEFAULT_BUSINESS_OSM_TAGS,
+		businessRadiusMeters: 5000,
 		enabledSources: ['willhaben'],
 		llmBaseUrl: 'https://llm.example.test/v1',
 		llmApiKey: 'secret',

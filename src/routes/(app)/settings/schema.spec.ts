@@ -27,6 +27,44 @@ describe('settingsSchema', () => {
 		expect(form.errors.llmMaxConcurrent).toBeDefined();
 	});
 
+	it('validates the business radius bounds', () => {
+		expect(settingsSchema.safeParse({ businessRadiusMeters: 249 }).success).toBe(false);
+		expect(settingsSchema.safeParse({ businessRadiusMeters: 20001 }).success).toBe(false);
+		expect(settingsSchema.safeParse({ businessRadiusMeters: 250 }).success).toBe(true);
+	});
+
+	it('rejects OSM tags outside the local catalog', () => {
+		const result = settingsSchema.safeParse({
+			businessOsmTags: [{ key: 'amenity', value: 'not_in_catalog' }]
+		});
+
+		expect(result.success).toBe(false);
+	});
+
+	it('normalizes duplicate keywords, cities, and OSM tags consistently', () => {
+		const result = settingsSchema.safeParse({
+			jobSearchKeywords: [' Pflege ', 'Pflege', 'Verkauf'],
+			jobSearchLocations: [' Wien ', 'Wien', 'Graz'],
+			businessOsmTags: [
+				{ key: 'amenity', value: 'cafe' },
+				{ key: 'amenity', value: 'cafe' },
+				{ key: 'shop', value: 'bakery' }
+			]
+		});
+
+		expect(result).toMatchObject({
+			success: true,
+			data: {
+				jobSearchKeywords: ['Pflege', 'Verkauf'],
+				jobSearchLocations: ['Wien', 'Graz'],
+				businessOsmTags: [
+					{ key: 'amenity', value: 'cafe' },
+					{ key: 'shop', value: 'bakery' }
+				]
+			}
+		});
+	});
+
 	it('validates the API key independently from other settings', () => {
 		const result = apiKeySchema.safeParse({ llmApiKey: 'sk-test' });
 

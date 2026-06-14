@@ -1,8 +1,8 @@
 export interface ProfileQuery {
-	/** Role keywords to search for, e.g. ["Barista", "Kellner"]. */
+	/** Job keywords to search for, e.g. ["Pflegeassistenz", "Verkauf"]. */
 	keywords: string[];
-	/** Location term, e.g. "Wien". */
-	location: string;
+	/** Austrian city names to search/filter by, e.g. ["Wien", "Graz"]. */
+	locations: string[];
 }
 
 export interface RawListing {

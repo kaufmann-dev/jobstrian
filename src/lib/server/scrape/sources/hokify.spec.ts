@@ -38,7 +38,7 @@ describe('hokify scraper', () => {
 
 		const listings = await hokify.search({
 			keywords: ['Service Hilfskraft'],
-			location: 'Wien'
+			locations: ['Wien']
 		});
 
 		expect(fetchTextMock).toHaveBeenCalledWith(
@@ -71,10 +71,25 @@ describe('hokify scraper', () => {
 
 		const listings = await hokify.search({
 			keywords: ['Barista', 'Kellner'],
-			location: 'Wien'
+			locations: ['Wien']
 		});
 
 		expect(fetchTextMock).toHaveBeenCalledTimes(2);
 		expect(listings).toHaveLength(2);
+	});
+
+	it('searches every configured city for every keyword', async () => {
+		fetchTextMock.mockResolvedValue(resultHtml);
+
+		await hokify.search({
+			keywords: ['Barista', 'Kellner'],
+			locations: ['Wien', 'Graz']
+		});
+
+		expect(fetchTextMock).toHaveBeenCalledTimes(4);
+		expect(fetchTextMock).toHaveBeenCalledWith(
+			'https://hokify.at/jobs/m/barista/graz',
+			expect.any(Object)
+		);
 	});
 });

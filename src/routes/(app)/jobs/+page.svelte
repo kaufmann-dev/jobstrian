@@ -297,7 +297,7 @@
 				<Sheet.Title>{selected.title}</Sheet.Title>
 				<Sheet.Description>
 					{selected.company ?? 'Unbekanntes Unternehmen'} · {fmtLocation(
-						selected.location ?? 'Wien'
+						selected.location ?? 'unbekannt'
 					)}
 				</Sheet.Description>
 			</Sheet.Header>

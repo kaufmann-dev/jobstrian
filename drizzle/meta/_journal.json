@@ -71,6 +71,13 @@
       "when": 1781430219369,
       "tag": "0009_new_mentallo",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1781431916299,
+      "tag": "0010_messy_ikaris",
+      "breakpoints": true
     }
   ]
 }

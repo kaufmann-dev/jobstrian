@@ -17,15 +17,15 @@ export function profileBlock(s: Settings): string {
 			: null;
 	const parts = [
 		s.profileText && `Profil: ${s.profileText}`,
-		s.roleKeywords.length && `Gesuchte Rollen: ${s.roleKeywords.join(', ')}`,
+		s.jobSearchKeywords.length && `Gesuchte Stellen-Keywords: ${s.jobSearchKeywords.join(', ')}`,
 		exp,
 		s.germanLevel && `Deutschniveau: ${s.germanLevel}`,
 		s.languages.length && `Sprachen gesamt: ${s.languages.join(', ')}`,
 		s.skills.length && `Kenntnisse: ${s.skills.join(', ')}`,
 		s.educationStatus && `Ausbildung: ${s.educationStatus}`,
-		s.workPermit && `Arbeitsberechtigung für Österreich: ja`,
 		s.availability && `Verfügbarkeit: ${s.availability}`,
 		s.homeAddress && `Wohnort: ${s.homeAddress} (kurze Anfahrt ist ein Plus)`,
+		s.jobSearchLocations.length && `Job-Suchorte: ${s.jobSearchLocations.join(', ')}`,
 		s.workExperience.length &&
 			`Berufserfahrung:\n${s.workExperience
 				.map(
@@ -56,7 +56,7 @@ const SYSTEM = `Du bist ein Recruiting-Assistent. Bewerte, wie gut eine konkrete
 Gleiche die ANFORDERUNGEN der Stelle gegen das Profil ab und gewichte vor allem:
 - Sprachniveau: Verlangt die Stelle ein höheres Deutschniveau als der Bewerber hat (z.B. Stelle "Deutsch C1/fließend", Bewerber A2), senke den Score deutlich und nenne es. Andere Sprachen als Plus werten.
 - Erfahrung: Vergleiche geforderte Berufsjahre mit der vorhandenen Erfahrung. Weniger Erfahrung als gefordert => niedriger.
-- Ausbildung/Status: Studium/Schulabschluss und Verfügbarkeit/Arbeitsberechtigung berücksichtigen.
+- Ausbildung/Status: Studium/Schulabschluss und Verfügbarkeit berücksichtigen.
 - Kenntnisse und detaillierter Verlauf: Relevante Skills, konkrete Berufsstationen, Ausbildung und Zertifikate gegen die Anforderungen abgleichen.
 - Rolle & Ort: Passt die Rolle zu den gesuchten Rollen? Ist die Stelle in/nahe dem Wohnort?
 Wenn die Stellenbeschreibung keine Anforderung nennt, nimm an, dass sie erfüllbar ist (nicht bestrafen).
@@ -105,10 +105,10 @@ export async function rankLead(
 ): Promise<RankResult> {
 	const user = `BEWERBER:\n${profileBlock(settings)}\n\nBETRIEB (potenzielle Initiativbewerbung):
 Name: ${lead.name}
-Art: ${lead.category ?? 'Gastronomie'}
+Art: ${lead.category ?? 'Betrieb'}
 Adresse: ${lead.address ?? 'unbekannt'}
 Entfernung: ${lead.distanceMeters} m
-Bewerte, wie gut eine Initiativbewerbung als Service-/Barista-Kraft hier passt.`;
+Bewerte, wie gut eine Initiativbewerbung mit den konfigurierten Stellen-Keywords und dem Profil bei diesem Betrieb passt.`;
 	const raw = await chatJson<Partial<RankResult>>(
 		cfg,
 		[

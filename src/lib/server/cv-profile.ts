@@ -25,7 +25,7 @@ const STRING_FIELDS = [
 	'availability',
 	'homeAddress'
 ] as const;
-const STRING_LIST_FIELDS = ['roleKeywords', 'languages', 'skills'] as const;
+const STRING_LIST_FIELDS = ['languages', 'skills'] as const;
 const WORK_FIELDS = [
 	'position',
 	'employer',
@@ -125,8 +125,6 @@ export function normalizeProfilePreview(raw: unknown): unknown {
 	) {
 		normalized.experienceYears = Number(source.experienceYears);
 	}
-	if (typeof source.workPermit === 'boolean') normalized.workPermit = source.workPermit;
-
 	const workExperience = normalizedEntries(source.workExperience, WORK_FIELDS);
 	if (workExperience?.length) normalized.workExperience = workExperience;
 	const educationHistory = normalizedEntries(source.educationHistory, EDUCATION_FIELDS);
@@ -173,7 +171,7 @@ export async function extractPdfText(data: Buffer): Promise<string> {
 
 const EXTRACTION_SYSTEM = `Du extrahierst ein bewerbungsrelevantes Profil aus einem Lebenslauf.
 Antworte ausschließlich mit einem JSON-Objekt. Erlaubte Felder:
-profileText, roleKeywords, languages, germanLevel, experienceYears, educationStatus, workPermit,
+profileText, languages, germanLevel, experienceYears, educationStatus,
 availability, homeAddress, skills, workExperience, educationHistory, certifications.
 
 Regeln:

@@ -349,7 +349,7 @@
 	<div>
 		<h1 class="text-2xl font-semibold tracking-tight">Betriebe in der Nähe</h1>
 		<p class="text-sm text-muted-foreground">
-			Gastronomie im Umkreis deines Wohnorts · ideal für Initiativbewerbungen.
+			Konfigurierte Betriebe im Umkreis deines Wohnorts · ideal für Initiativbewerbungen.
 		</p>
 	</div>
 

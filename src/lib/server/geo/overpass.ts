@@ -1,4 +1,9 @@
 import { USER_AGENT } from '../util/http';
+import {
+	isValidOsmBusinessTag,
+	type OsmBusinessTag,
+	type OsmBusinessTagKey
+} from '$lib/search-config';
 
 export interface OverpassPlace {
 	osmId: string; // e.g. "node/123"
@@ -27,8 +32,7 @@ const OVERPASS_ATTEMPT_TIMEOUT_MS = 70_000;
 const OVERPASS_RETRY_BASE_MS = 250;
 const RETRYABLE_STATUSES = new Set([429, 502, 503, 504]);
 
-// Gastronomy amenities we treat as potential employers.
-const AMENITIES = 'cafe|restaurant|bar|pub|fast_food|biergarten|ice_cream|food_court';
+const OSM_QUERY_CHUNK_SIZE = 12;
 
 export class OverpassUnavailableError extends Error {
 	constructor(
@@ -153,41 +157,96 @@ async function postOverpass(query: string, signal?: AbortSignal): Promise<Respon
 	);
 }
 
-/** Query gastronomy POIs within `radius` metres of (lat, lon). */
-export async function findNearbyGastronomy(
+function escapeOverpassRegex(value: string): string {
+	return value.replace(/[\\^$.*+?()[\]{}|]/g, '\\$&');
+}
+
+function chunkTags(tags: readonly OsmBusinessTag[]): OsmBusinessTag[][] {
+	const chunks: OsmBusinessTag[][] = [];
+	for (let index = 0; index < tags.length; index += OSM_QUERY_CHUNK_SIZE) {
+		chunks.push(tags.slice(index, index + OSM_QUERY_CHUNK_SIZE));
+	}
+	return chunks;
+}
+
+export function compileBusinessOverpassQueries(
 	lat: number,
 	lon: number,
 	radius: number,
-	signal?: AbortSignal
-): Promise<OverpassPlace[]> {
-	const query = `[out:json][timeout:60];
+	tags: readonly OsmBusinessTag[]
+): string[] {
+	for (const tag of tags) {
+		const valid = isValidOsmBusinessTag({ key: tag.key, value: tag.value });
+		if (!valid) {
+			throw new Error(`Invalid OSM business tag: ${tag.key}=${tag.value}`);
+		}
+	}
+
+	return chunkTags(tags).map((chunk) => {
+		const grouped = new Map<OsmBusinessTagKey, string[]>();
+		for (const tag of chunk) {
+			grouped.set(tag.key, [...(grouped.get(tag.key) ?? []), tag.value]);
+		}
+
+		const blocks = [...grouped.entries()].flatMap(([key, values]) => {
+			const regex = values.map(escapeOverpassRegex).join('|');
+			return [
+				`  node["${key}"~"^(${regex})$"](around:${radius},${lat},${lon});`,
+				`  way["${key}"~"^(${regex})$"](around:${radius},${lat},${lon});`
+			];
+		});
+
+		return `[out:json][timeout:60];
 (
-  node["amenity"~"${AMENITIES}"](around:${radius},${lat},${lon});
-  way["amenity"~"${AMENITIES}"](around:${radius},${lat},${lon});
+${blocks.join('\n')}
 );
 out center tags;`;
+	});
+}
 
-	const response = await postOverpass(query, signal);
-	const data = (await response.json()) as { elements: OverpassElement[] };
-
-	const places: OverpassPlace[] = [];
-	for (const el of data.elements) {
-		const tags = el.tags ?? {};
-		const name = tags.name;
-		if (!name) continue;
-		const coord = el.lat != null && el.lon != null ? { lat: el.lat, lon: el.lon } : el.center;
-		if (!coord) continue;
-		places.push({
-			osmId: `${el.type}/${el.id}`,
-			name,
-			category: tags.amenity ?? 'gastronomy',
-			lat: coord.lat,
-			lon: coord.lon,
-			address: buildAddress(tags),
-			website: tags.website ?? tags['contact:website'],
-			phone: tags.phone ?? tags['contact:phone'],
-			email: tags.email ?? tags['contact:email']
-		});
+function categoryFor(
+	tags: Record<string, string>,
+	configuredTags: readonly OsmBusinessTag[]
+): string {
+	for (const tag of configuredTags) {
+		if (tags[tag.key] === tag.value) return tag.value;
 	}
-	return places;
+	return tags.amenity ?? tags.shop ?? tags.craft ?? tags.office ?? tags.tourism ?? 'business';
+}
+
+/** Query configured business POIs within `radius` metres of (lat, lon). */
+export async function findNearbyBusinesses(
+	lat: number,
+	lon: number,
+	radius: number,
+	tags: readonly OsmBusinessTag[],
+	signal?: AbortSignal
+): Promise<OverpassPlace[]> {
+	const queries = compileBusinessOverpassQueries(lat, lon, radius, tags);
+	const byOsmId = new Map<string, OverpassPlace>();
+
+	for (const query of queries) {
+		const response = await postOverpass(query, signal);
+		const data = (await response.json()) as { elements: OverpassElement[] };
+		for (const el of data.elements) {
+			const elementTags = el.tags ?? {};
+			const name = elementTags.name;
+			if (!name) continue;
+			const coord = el.lat != null && el.lon != null ? { lat: el.lat, lon: el.lon } : el.center;
+			if (!coord) continue;
+			const osmId = `${el.type}/${el.id}`;
+			byOsmId.set(osmId, {
+				osmId,
+				name,
+				category: categoryFor(elementTags, tags),
+				lat: coord.lat,
+				lon: coord.lon,
+				address: buildAddress(elementTags),
+				website: elementTags.website ?? elementTags['contact:website'],
+				phone: elementTags.phone ?? elementTags['contact:phone'],
+				email: elementTags.email ?? elementTags['contact:email']
+			});
+		}
+	}
+	return [...byOsmId.values()];
 }

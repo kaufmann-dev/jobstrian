@@ -132,18 +132,6 @@
 		</div>
 	{/if}
 
-	{#if visible('roleKeywords')}
-		<div class="space-y-2">
-			{@render heading('roleKeywords', 'Gesuchte Rollen')}
-			<Input
-				value={profile.roleKeywords.join(', ')}
-				onchange={(event) =>
-					setField('roleKeywords', parseList((event.currentTarget as HTMLInputElement).value))}
-				placeholder="Barista, Servicekraft"
-			/>
-		</div>
-	{/if}
-
 	{#if visible('skills')}
 		<div class="space-y-2">
 			{@render heading('skills', 'Kenntnisse')}
@@ -214,19 +202,6 @@
 				value={profile.educationStatus}
 				oninput={(event) => setField('educationStatus', event.currentTarget.value)}
 			/>
-		</div>
-	{/if}
-
-	{#if visible('workPermit')}
-		<div class="space-y-2">
-			{@render heading('workPermit', 'Arbeitsberechtigung')}
-			<label class="flex items-center gap-2 text-sm">
-				<Checkbox
-					checked={profile.workPermit}
-					onCheckedChange={(checked) => setField('workPermit', checked === true)}
-				/>
-				Arbeitsberechtigung für Österreich vorhanden
-			</label>
 		</div>
 	{/if}
 

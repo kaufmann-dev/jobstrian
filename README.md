@@ -1,11 +1,11 @@
 # Jobstrian
 
-> Automated job search for gastronomy / service positions in Vienna.
+> Automated job search and business lead discovery for Austria.
 
-Jobstrian searches Austrian job portals for openings (barista, waiter/waitress,
-service staff, service assistant …), finds gastronomy businesses near your home
-for speculative applications, and rates each job / business using a
-user-configured OpenAI-compatible LLM.
+Jobstrian searches Austrian job portals for configured role keywords and cities,
+finds configured business categories near your home for speculative
+applications, and rates each job / business using a user-configured
+OpenAI-compatible LLM.
 
 ## Features
 
@@ -13,10 +13,11 @@ user-configured OpenAI-compatible LLM.
   - `hokify`, `willhaben` Jobs (embedded JSON), `karriere.at` (HTML), and
     `AMS eJob-Room` (browser-driven, because the search API requires an SPA
     token).
-- **Nearby businesses**: OpenStreetMap (Overpass) finds gastronomy within a
-  radius; missing e-mail addresses are extracted from the respective website
-  (imprint / contact page). If Overpass is temporarily overloaded, the update
-  skips this business sync and still completes the job scraping / ranking run.
+- **Nearby businesses**: OpenStreetMap (Overpass) finds configured business
+  categories within a radius; missing e-mail addresses are extracted from the
+  respective website (imprint / contact page). If Overpass is temporarily
+  overloaded, the update skips this business sync and still completes the job
+  scraping / ranking run.
   Websites, phone numbers and e-mail addresses can be manually added, edited,
   or deleted; manual changes remain authoritative during later updates.
 - **LLM ranking**: jobs receive a score + verdict + reasoning; for businesses

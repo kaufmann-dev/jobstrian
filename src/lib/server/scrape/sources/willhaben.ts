@@ -1,9 +1,6 @@
 import { fetchText } from '../../util/http';
 import type { ProfileQuery, RawListing, SourceAdapter } from '../types';
 
-// willhaben area id for Vienna.
-const VIENNA_AREA_ID = 900;
-
 interface WhEntry {
 	id: number;
 	title: string;
@@ -45,6 +42,24 @@ function toListing(e: WhEntry): RawListing | null {
 	};
 }
 
+function normalizeLocation(value: string): string {
+	return value
+		.normalize('NFKD')
+		.replace(/\p{Diacritic}/gu, '')
+		.toLowerCase()
+		.replace(/[^a-z0-9]+/g, ' ')
+		.trim();
+}
+
+function matchesConfiguredCity(location: string | undefined, cities: readonly string[]): boolean {
+	if (!location) return false;
+	const normalized = normalizeLocation(location);
+	return cities.some((city) => {
+		const normalizedCity = normalizeLocation(city);
+		return normalizedCity.length > 0 && normalized.includes(normalizedCity);
+	});
+}
+
 export const willhaben: SourceAdapter = {
 	id: 'willhaben',
 	label: 'willhaben Jobs',
@@ -53,15 +68,13 @@ export const willhaben: SourceAdapter = {
 		for (const keyword of profile.keywords) {
 			if (signal?.aborted) throw signal.reason;
 			try {
-				const url =
-					'https://www.willhaben.at/jobs/suche?areaId=' +
-					VIENNA_AREA_ID +
-					'&keyword=' +
-					encodeURIComponent(keyword);
+				const url = 'https://www.willhaben.at/jobs/suche?keyword=' + encodeURIComponent(keyword);
 				const html = await fetchText(url, { timeoutMs: 20_000, signal });
 				for (const entry of parseNextData(html)) {
 					const listing = toListing(entry);
-					if (listing) byId.set(listing.externalId, listing);
+					if (listing && matchesConfiguredCity(listing.location, profile.locations)) {
+						byId.set(listing.externalId, listing);
+					}
 				}
 			} catch (err) {
 				console.error(`[willhaben] "${keyword}" failed:`, err);

@@ -44,19 +44,22 @@ export const hokify: SourceAdapter = {
 	label: 'hokify',
 	async search(profile: ProfileQuery, signal?: AbortSignal): Promise<RawListing[]> {
 		const byId = new Map<string, RawListing>();
-		const location = slug(profile.location);
-		for (const keyword of profile.keywords) {
-			if (signal?.aborted) throw signal.reason;
-			try {
-				const url = `https://hokify.at/jobs/m/${slug(keyword)}/${location}`;
-				const html = await fetchText(url, {
-					timeoutMs: 20_000,
-					headers: { 'accept-language': 'de-AT,de;q=0.9' },
-					signal
-				});
-				for (const listing of parse(html)) byId.set(listing.externalId, listing);
-			} catch (err) {
-				console.error(`[hokify] "${keyword}" failed:`, err);
+		for (const locationName of profile.locations) {
+			const location = slug(locationName);
+			if (!location) continue;
+			for (const keyword of profile.keywords) {
+				if (signal?.aborted) throw signal.reason;
+				try {
+					const url = `https://hokify.at/jobs/m/${slug(keyword)}/${location}`;
+					const html = await fetchText(url, {
+						timeoutMs: 20_000,
+						headers: { 'accept-language': 'de-AT,de;q=0.9' },
+						signal
+					});
+					for (const listing of parse(html)) byId.set(listing.externalId, listing);
+				} catch (err) {
+					console.error(`[hokify] "${keyword}" in "${locationName}" failed:`, err);
+				}
 			}
 		}
 		return [...byId.values()];

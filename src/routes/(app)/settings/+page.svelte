@@ -8,6 +8,7 @@
 	import type { ProfileField, ProfilePreview } from '$lib/profile';
 	import { settingsSchema } from './schema';
 	import ProfileEditor from './profile-editor.svelte';
+	import SearchConfigEditor from './search-config-editor.svelte';
 	import * as Form from '$lib/components/ui/form/index.js';
 	import * as Card from '$lib/components/ui/card/index.js';
 	import * as Dialog from '$lib/components/ui/dialog/index.js';
@@ -77,12 +78,10 @@
 	let selectedFields = $state<ProfileField[]>([]);
 	let preview = $state<Required<ProfilePreview>>({
 		profileText: '',
-		roleKeywords: [],
 		languages: [],
 		germanLevel: '',
 		experienceYears: null,
 		educationStatus: '',
-		workPermit: false,
 		availability: '',
 		homeAddress: '',
 		skills: [],
@@ -226,21 +225,6 @@
 		<Card.Content class="space-y-6">
 			<ProfileEditor bind:profile={$formData} />
 
-			<div class="grid gap-4 border-t pt-6 sm:grid-cols-3">
-				<p class="text-sm text-muted-foreground sm:col-span-2">
-					Der Suchradius steuert, welche Betriebe rund um deine Adresse gefunden werden.
-				</p>
-				<Form.Field {form} name="radiusMeters">
-					<Form.Control>
-						{#snippet children({ props })}
-							<Form.Label>Suchradius (m)</Form.Label>
-							<Input {...props} type="number" bind:value={$formData.radiusMeters} />
-						{/snippet}
-					</Form.Control>
-					<Form.FieldErrors />
-				</Form.Field>
-			</div>
-
 			<div class="space-y-4 border-t pt-6">
 				<div>
 					<h3 class="text-sm font-medium">Lebenslauf</h3>
@@ -294,6 +278,26 @@
 						Speichere die offenen Änderungen, bevor du das Profil importierst.
 					</p>
 				{/if}
+			</div>
+		</Card.Content>
+	</Card.Root>
+
+	<Card.Root>
+		<Card.Header>
+			<Card.Title>Suchkonfiguration</Card.Title>
+			<Card.Description>
+				Keywords, Suchorte und Betriebskategorien für Portale und Initiativbewerbungen.
+			</Card.Description>
+		</Card.Header>
+		<Card.Content class="space-y-4">
+			<SearchConfigEditor bind:config={$formData} />
+			<div class="grid gap-2 sm:grid-cols-2">
+				<Form.Field {form} name="businessRadiusMeters">
+					<Form.FieldErrors />
+				</Form.Field>
+				<Form.Field {form} name="businessOsmTags">
+					<Form.FieldErrors />
+				</Form.Field>
 			</div>
 		</Card.Content>
 	</Card.Root>

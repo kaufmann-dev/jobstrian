@@ -5,10 +5,10 @@ import {
 	skillsSchema,
 	workExperienceListSchema
 } from '$lib/profile';
+import { businessOsmTagsSchema, stringListSchema } from '$lib/search-config';
 
 export const settingsSchema = z.object({
 	profileText: z.string().max(5000).default(''),
-	roleKeywords: z.array(z.string().max(200)).max(100).default([]),
 	languages: z.array(z.string().max(200)).max(50).default([]),
 	skills: skillsSchema.default([]),
 	workExperience: workExperienceListSchema.default([]),
@@ -17,11 +17,13 @@ export const settingsSchema = z.object({
 	germanLevel: z.string().max(20).default(''),
 	experienceYears: z.number().int().min(0).max(60).nullable().default(null),
 	educationStatus: z.string().max(500).default(''),
-	workPermit: z.boolean().default(false),
 	availability: z.string().max(500).default(''),
 	rankingNotes: z.string().max(2000).default(''),
 	homeAddress: z.string().max(500).default(''),
-	radiusMeters: z.number().int().min(100).max(20000).default(2000),
+	jobSearchKeywords: stringListSchema.default([]),
+	jobSearchLocations: stringListSchema.default([]),
+	businessOsmTags: businessOsmTagsSchema.default([]),
+	businessRadiusMeters: z.number().int().min(250).max(20000).default(5000),
 	sourceHokify: z.boolean().default(false),
 	sourceWillhaben: z.boolean().default(false),
 	sourceKarriere: z.boolean().default(false),

@@ -1,5 +1,10 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { findNearbyGastronomy, OverpassUnavailableError } from './overpass';
+import { DEFAULT_BUSINESS_OSM_TAGS, type OsmBusinessTag } from '$lib/search-config';
+import {
+	compileBusinessOverpassQueries,
+	findNearbyBusinesses,
+	OverpassUnavailableError
+} from './overpass';
 
 function jsonResponse(body: unknown, status = 200): Response {
 	return new Response(JSON.stringify(body), {
@@ -51,7 +56,47 @@ function overpassBody() {
 	};
 }
 
-describe('findNearbyGastronomy', () => {
+describe('business Overpass queries', () => {
+	it('compiles the gastronomy defaults into amenity searches', () => {
+		const [query] = compileBusinessOverpassQueries(
+			48.2082,
+			16.3738,
+			500,
+			DEFAULT_BUSINESS_OSM_TAGS
+		);
+
+		expect(query).toContain(
+			'node["amenity"~"^(cafe|restaurant|bar|pub|fast_food|biergarten|ice_cream|food_court)$"]'
+		);
+		expect(query).toContain(
+			'way["amenity"~"^(cafe|restaurant|bar|pub|fast_food|biergarten|ice_cream|food_court)$"]'
+		);
+	});
+
+	it('compiles multiple OSM keys into node and way blocks', () => {
+		const tags: OsmBusinessTag[] = [
+			{ key: 'amenity', value: 'cafe' },
+			{ key: 'shop', value: 'bakery' }
+		];
+
+		const [query] = compileBusinessOverpassQueries(48.2082, 16.3738, 500, tags);
+
+		expect(query).toContain('node["amenity"~"^(cafe)$"]');
+		expect(query).toContain('way["amenity"~"^(cafe)$"]');
+		expect(query).toContain('node["shop"~"^(bakery)$"]');
+		expect(query).toContain('way["shop"~"^(bakery)$"]');
+	});
+
+	it('rejects invalid tags before query generation', () => {
+		expect(() =>
+			compileBusinessOverpassQueries(48.2082, 16.3738, 500, [
+				{ key: 'amenity', value: 'not_in_catalog' } as OsmBusinessTag
+			])
+		).toThrow('Invalid OSM business tag: amenity=not_in_catalog');
+	});
+});
+
+describe('findNearbyBusinesses', () => {
 	afterEach(() => {
 		vi.unstubAllGlobals();
 	});
@@ -61,7 +106,7 @@ describe('findNearbyGastronomy', () => {
 		const fetchMock = vi.fn().mockResolvedValue(jsonResponse(overpassBody()));
 		vi.stubGlobal('fetch', fetchMock);
 
-		const places = await findNearbyGastronomy(48.2082, 16.3738, 500);
+		const places = await findNearbyBusinesses(48.2082, 16.3738, 500, DEFAULT_BUSINESS_OSM_TAGS);
 
 		expect(fetchMock).toHaveBeenCalledOnce();
 		expect(places).toEqual([
@@ -98,7 +143,7 @@ describe('findNearbyGastronomy', () => {
 			.mockResolvedValueOnce(jsonResponse(overpassBody()));
 		vi.stubGlobal('fetch', fetchMock);
 
-		const places = await findNearbyGastronomy(48.2082, 16.3738, 500);
+		const places = await findNearbyBusinesses(48.2082, 16.3738, 500, DEFAULT_BUSINESS_OSM_TAGS);
 
 		expect(fetchMock).toHaveBeenCalledTimes(2);
 		expect(places.map((place) => place.osmId)).toEqual(['node/123', 'way/456']);
@@ -109,7 +154,9 @@ describe('findNearbyGastronomy', () => {
 		const fetchMock = vi.fn().mockResolvedValue(new Response('', { status: 504 }));
 		vi.stubGlobal('fetch', fetchMock);
 
-		await expect(findNearbyGastronomy(48.2082, 16.3738, 500)).rejects.toMatchObject({
+		await expect(
+			findNearbyBusinesses(48.2082, 16.3738, 500, DEFAULT_BUSINESS_OSM_TAGS)
+		).rejects.toMatchObject({
 			name: 'OverpassUnavailableError',
 			message: 'Overpass -> 504',
 			attempts: 3
@@ -124,7 +171,7 @@ describe('findNearbyGastronomy', () => {
 
 		let error: unknown;
 		try {
-			await findNearbyGastronomy(48.2082, 16.3738, 500);
+			await findNearbyBusinesses(48.2082, 16.3738, 500, DEFAULT_BUSINESS_OSM_TAGS);
 		} catch (err) {
 			error = err;
 		}

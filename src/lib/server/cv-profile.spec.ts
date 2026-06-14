@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Settings } from './db/schema';
+import { DEFAULT_BUSINESS_OSM_TAGS } from '$lib/search-config';
 
 const { getCvData, getSettings } = vi.hoisted(() => ({
 	getCvData: vi.fn(),
@@ -19,7 +20,6 @@ function settings(patch: Partial<Settings> = {}): Settings {
 	return {
 		id: 1,
 		profileText: 'Bestehend',
-		roleKeywords: ['Barista'],
 		languages: ['Deutsch (B1)'],
 		skills: ['Service'],
 		workExperience: [],
@@ -28,13 +28,15 @@ function settings(patch: Partial<Settings> = {}): Settings {
 		germanLevel: 'B1',
 		experienceYears: 2,
 		educationStatus: '',
-		workPermit: true,
 		availability: '',
 		rankingNotes: '',
 		homeAddress: 'Alte Adresse',
 		homeLat: 48.2,
 		homeLon: 16.3,
-		radiusMeters: 2000,
+		jobSearchKeywords: ['Barista'],
+		jobSearchLocations: ['Wien'],
+		businessOsmTags: DEFAULT_BUSINESS_OSM_TAGS,
+		businessRadiusMeters: 5000,
 		enabledSources: [],
 		llmBaseUrl: '',
 		llmApiKey: '',

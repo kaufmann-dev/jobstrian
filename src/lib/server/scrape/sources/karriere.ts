@@ -48,19 +48,22 @@ export const karriere: SourceAdapter = {
 	label: 'karriere.at',
 	async search(profile: ProfileQuery, signal?: AbortSignal): Promise<RawListing[]> {
 		const byId = new Map<string, RawListing>();
-		const loc = slugify(profile.location);
-		for (const keyword of profile.keywords) {
-			if (signal?.aborted) throw signal.reason;
-			try {
-				const url = `https://www.karriere.at/jobs/${slugify(keyword)}/${loc}`;
-				const html = await fetchText(url, {
-					timeoutMs: 20_000,
-					headers: { 'accept-language': 'de-AT,de;q=0.9' },
-					signal
-				});
-				for (const listing of parse(html)) byId.set(listing.externalId, listing);
-			} catch (err) {
-				console.error(`[karriere] "${keyword}" failed:`, err);
+		for (const locationName of profile.locations) {
+			const loc = slugify(locationName);
+			if (!loc) continue;
+			for (const keyword of profile.keywords) {
+				if (signal?.aborted) throw signal.reason;
+				try {
+					const url = `https://www.karriere.at/jobs/${slugify(keyword)}/${loc}`;
+					const html = await fetchText(url, {
+						timeoutMs: 20_000,
+						headers: { 'accept-language': 'de-AT,de;q=0.9' },
+						signal
+					});
+					for (const listing of parse(html)) byId.set(listing.externalId, listing);
+				} catch (err) {
+					console.error(`[karriere] "${keyword}" in "${locationName}" failed:`, err);
+				}
 			}
 		}
 		return [...byId.values()];

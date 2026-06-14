@@ -13,6 +13,7 @@ import {
 } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
 import type { Certification, EducationHistory, WorkExperience } from '$lib/profile';
+import type { OsmBusinessTag } from '$lib/search-config';
 
 /** PostgreSQL bytea, surfaced as a Node Buffer. */
 const bytea = customType<{ data: Buffer; default: false }>({
@@ -111,7 +112,6 @@ export const settings = pgTable('settings', {
 	id: integer('id').primaryKey().default(1),
 	// Profile the user defines for LLM ranking.
 	profileText: text('profile_text').notNull().default(''),
-	roleKeywords: jsonb('role_keywords').$type<string[]>().notNull().default([]),
 	// Languages with levels, e.g. "Deutsch (A2)", "Englisch (B2)".
 	languages: jsonb('languages').$type<string[]>().notNull().default([]),
 	skills: jsonb('skills').$type<string[]>().notNull().default([]),
@@ -121,7 +121,6 @@ export const settings = pgTable('settings', {
 	germanLevel: text('german_level').notNull().default(''), // e.g. "A2", "B1"
 	experienceYears: integer('experience_years'), // years of relevant experience
 	educationStatus: text('education_status').notNull().default(''),
-	workPermit: boolean('work_permit').notNull().default(false),
 	availability: text('availability').notNull().default(''),
 	// Extra free-text instructions steering how the LLM weighs the ranking.
 	rankingNotes: text('ranking_notes').notNull().default(''),
@@ -129,7 +128,11 @@ export const settings = pgTable('settings', {
 	homeAddress: text('home_address').notNull().default(''),
 	homeLat: doublePrecision('home_lat'),
 	homeLon: doublePrecision('home_lon'),
-	radiusMeters: integer('radius_meters').notNull().default(2000),
+	// Manual search configuration.
+	jobSearchKeywords: jsonb('job_search_keywords').$type<string[]>().notNull().default([]),
+	jobSearchLocations: jsonb('job_search_locations').$type<string[]>().notNull().default([]),
+	businessOsmTags: jsonb('business_osm_tags').$type<OsmBusinessTag[]>().notNull().default([]),
+	businessRadiusMeters: integer('business_radius_meters').notNull().default(5000),
 	// Which scrape adapters are enabled.
 	enabledSources: jsonb('enabled_sources').$type<string[]>().notNull().default([]),
 	// OpenAI-compatible LLM config.

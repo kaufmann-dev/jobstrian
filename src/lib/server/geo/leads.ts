@@ -6,7 +6,7 @@ import { fetchText } from '../util/http';
 import { haversineMeters } from '../util/distance';
 import { mapLimit } from '../util/concurrency';
 import { leadContentHash } from '../llm/fingerprints';
-import { findNearbyGastronomy, type OverpassPlace } from './overpass';
+import { findNearbyBusinesses, type OverpassPlace } from './overpass';
 
 const EMAIL_RE = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g;
 const BAD_EMAIL_SUFFIX = /\.(png|jpg|jpeg|gif|webp|svg|css|js)$/i;
@@ -74,7 +74,7 @@ export interface LeadSyncResult {
 }
 
 /**
- * Discover nearby gastronomy businesses, enrich missing emails from their
+ * Discover nearby configured businesses, enrich missing emails from their
  * websites, and upsert them as leads. Returns ids of newly inserted leads.
  */
 export async function syncLeads(
@@ -85,10 +85,11 @@ export async function syncLeads(
 	if (settings.homeLat == null || settings.homeLon == null) {
 		throw new Error('Home coordinates not set — cannot search nearby businesses.');
 	}
-	const places = await findNearbyGastronomy(
+	const places = await findNearbyBusinesses(
 		settings.homeLat,
 		settings.homeLon,
-		settings.radiusMeters,
+		settings.businessRadiusMeters,
+		settings.businessOsmTags,
 		signal
 	);
 

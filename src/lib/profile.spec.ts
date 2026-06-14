@@ -6,6 +6,7 @@ describe('profile import schemas', () => {
 		const result = profilePreviewSchema.parse({
 			skills: ['Latte Art'],
 			experienceYears: null,
+			jobSearchKeywords: ['Barista'],
 			rankingNotes: 'must not be imported'
 		});
 

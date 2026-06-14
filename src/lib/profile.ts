@@ -37,12 +37,10 @@ export const certificationsSchema = z.array(certificationSchema).max(50);
 
 export const importableProfileFields = {
 	profileText: z.string().max(5000),
-	roleKeywords: z.array(z.string().max(200)).max(100),
 	languages: z.array(z.string().max(200)).max(50),
 	germanLevel: z.string().max(20),
 	experienceYears: z.number().int().min(0).max(60).nullable(),
 	educationStatus: z.string().max(500),
-	workPermit: z.boolean(),
 	availability: z.string().max(500),
 	homeAddress: z.string().max(500),
 	skills: skillsSchema,
