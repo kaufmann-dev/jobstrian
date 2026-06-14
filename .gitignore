@@ -27,3 +27,6 @@ project.inlang/cache/
 
 # CV / Documents
 *.pdf
+
+# Playwright MCP
+.playwright-mcp/

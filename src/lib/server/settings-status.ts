@@ -7,11 +7,10 @@ export function hasSavedHomeLocation(
 	>
 ): boolean {
 	return Boolean(
-		settings.homeAddress.trim() ||
-		(settings.homeLocationProvider &&
+		settings.homeLocationProvider &&
 			settings.homeLocationId &&
 			settings.homeCity.trim() &&
 			settings.homeLat != null &&
-			settings.homeLon != null)
+			settings.homeLon != null
 	);
 }

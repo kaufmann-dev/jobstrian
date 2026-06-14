@@ -15,13 +15,13 @@ describe('settings status', () => {
 		expect(hasSavedHomeLocation(base)).toBe(false);
 	});
 
-	it('counts saved address text as a home location for overview readiness', () => {
+	it('does not count unverified address text without coordinates', () => {
 		expect(
 			hasSavedHomeLocation({
 				...base,
-				homeAddress: 'Fuhrmannsgasse 18a, 1080 Wien, Österreich'
+				homeAddress: '555'
 			})
-		).toBe(true);
+		).toBe(false);
 	});
 
 	it('counts verified provider metadata even when the address text is empty', () => {
