@@ -349,13 +349,15 @@
 	{#if run}
 		<Card.Root>
 			<Card.Header class="gap-2 py-4">
-				<div class="flex flex-wrap items-center justify-between gap-3">
-					<div class="flex min-w-0 flex-wrap items-center gap-2">
-						{#if isActive}<Spinner class="size-4 text-primary" />{/if}
-						<Badge variant={statusVariant(run.status)}>{statusLabel(run.status)}</Badge>
-						<Card.Title class="text-base">{progress.headline}</Card.Title>
+				<div class="flex items-center justify-between gap-3">
+					<div class="flex min-w-0 flex-1 items-center gap-2">
+						{#if isActive}<Spinner class="size-4 shrink-0 text-primary" />{/if}
+						<Badge class="shrink-0" variant={statusVariant(run.status)}
+							>{statusLabel(run.status)}</Badge
+						>
+						<Card.Title class="truncate text-base">{progress.headline}</Card.Title>
 					</div>
-					<div class="flex items-center gap-2">
+					<div class="flex shrink-0 items-center gap-2">
 						<span class="text-xs whitespace-nowrap text-muted-foreground">{elapsedLabel(run)}</span>
 						<Button
 							variant="ghost"

@@ -13,7 +13,6 @@
 	import { renderSnippet } from '$lib/components/ui/data-table/render-helpers.js';
 	import ExternalLink from '@lucide/svelte/icons/external-link';
 	import Star from '@lucide/svelte/icons/star';
-	import Eye from '@lucide/svelte/icons/eye';
 	import type { Listing } from '$lib/server/db/schema';
 
 	let { data } = $props();
@@ -42,6 +41,18 @@
 		selected = null;
 	}
 
+	/** Client-side mirror of the server's "recommended" order, for instant reordering on star. */
+	function recommendedCompare(a: Listing, b: Listing): number {
+		if (a.starred !== b.starred) return a.starred ? -1 : 1;
+		if (a.rankScore !== b.rankScore) {
+			if (a.rankScore == null) return 1;
+			if (b.rankScore == null) return -1;
+			return b.rankScore - a.rankScore;
+		}
+		const seenDiff = new Date(b.firstSeenAt).getTime() - new Date(a.firstSeenAt).getTime();
+		return seenDiff !== 0 ? seenDiff : b.id - a.id;
+	}
+
 	async function toggleStar(job: Listing): Promise<void> {
 		const starred = !job.starred;
 		controller.patch(
@@ -49,6 +60,7 @@
 			(item) => ({ ...item, starred })
 		);
 		if (selected?.id === job.id) selected = { ...selected, starred };
+		if (controller.sort === 'recommended') controller.reorder(recommendedCompare);
 		const response = await fetch(`/api/listings/${job.id}/star`, {
 			method: 'PATCH',
 			headers: { 'content-type': 'application/json' },
@@ -60,6 +72,7 @@
 				(item) => ({ ...item, starred: !starred })
 			);
 			if (selected?.id === job.id) selected = { ...selected, starred: !starred };
+			if (controller.sort === 'recommended') controller.reorder(recommendedCompare);
 			toast.error('Markierung konnte nicht gespeichert werden.');
 		}
 	}
@@ -102,7 +115,7 @@
 			header: 'Score',
 			cell: ({ row }) => renderSnippet(scoreCell, { job: row.original }),
 			meta: {
-				class: 'hidden w-16 sm:table-cell',
+				class: 'w-16',
 				sort: { asc: 'score-asc', desc: 'score-desc', initial: 'desc' }
 			}
 		},
@@ -150,12 +163,6 @@
 				class: 'hidden w-20 xl:table-cell',
 				sort: { asc: 'posted-asc', desc: 'posted-desc', initial: 'desc' }
 			}
-		},
-		{
-			id: 'actions',
-			header: '',
-			cell: ({ row }) => renderSnippet(actionCell, { job: row.original }),
-			meta: { class: 'w-24 text-right' }
 		}
 	];
 </script>
@@ -198,13 +205,6 @@
 
 {#snippet sourceCell({ job }: { job: Listing })}
 	<div class="truncate">{SOURCE_LABELS[job.source] ?? job.source}</div>
-{/snippet}
-
-{#snippet actionCell({ job }: { job: Listing })}
-	<Button variant="ghost" size="sm" class="text-muted-foreground" onclick={() => (selected = job)}>
-		<Eye class="size-4" />
-		<span class="sr-only sm:not-sr-only">Details</span>
-	</Button>
 {/snippet}
 
 <div class="space-y-5">

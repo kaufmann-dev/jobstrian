@@ -12,13 +12,13 @@ This is a **reference/technique** skill (not discipline-enforcing), so tests foc
 
 ## Test Scenarios
 
-| # | Scenario | Tests | Key Resource(s) |
-|---|----------|-------|-----------------|
-| 1 | Emails going to spam | Retrieval + Application | deliverability.md |
-| 2 | Multi-region compliance | Retrieval + Application | compliance.md |
-| 3 | Retry logic + idempotency | Application | sending-reliability.md |
-| 4 | Webhook bounce/complaint handling | Application | webhooks-events.md, list-management.md |
-| 5 | New SaaS email infrastructure | Retrieval + Application + Gap | All resources |
+| #   | Scenario                          | Tests                         | Key Resource(s)                        |
+| --- | --------------------------------- | ----------------------------- | -------------------------------------- |
+| 1   | Emails going to spam              | Retrieval + Application       | deliverability.md                      |
+| 2   | Multi-region compliance           | Retrieval + Application       | compliance.md                          |
+| 3   | Retry logic + idempotency         | Application                   | sending-reliability.md                 |
+| 4   | Webhook bounce/complaint handling | Application                   | webhooks-events.md, list-management.md |
+| 5   | New SaaS email infrastructure     | Retrieval + Application + Gap | All resources                          |
 
 ## Running Tests
 

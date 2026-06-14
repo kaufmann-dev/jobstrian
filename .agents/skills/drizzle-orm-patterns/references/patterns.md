@@ -30,12 +30,12 @@ export const rolesEnum = pgEnum('roles', ['guest', 'user', 'admin']);
 
 // Table with all column types
 export const users = pgTable('users', {
-  id: serial('id').primaryKey(),
-  name: text('name').notNull(),
-  email: text('email').notNull().unique(),
-  role: rolesEnum().default('user'),
-  verified: boolean('verified').notNull().default(false),
-  createdAt: timestamp('created_at').notNull().defaultNow(),
+	id: serial('id').primaryKey(),
+	name: text('name').notNull(),
+	email: text('email').notNull().unique(),
+	role: rolesEnum().default('user'),
+	verified: boolean('verified').notNull().default(false),
+	createdAt: timestamp('created_at').notNull().defaultNow()
 });
 ```
 
@@ -45,11 +45,11 @@ export const users = pgTable('users', {
 import { mysqlTable, serial, text, int, tinyint, datetime } from 'drizzle-orm/mysql-core';
 
 export const users = mysqlTable('users', {
-  id: serial('id').primaryKey(),
-  name: text('name').notNull(),
-  email: text('email').notNull().unique(),
-  verified: tinyint('verified').notNull().default(0),
-  createdAt: datetime('created_at').notNull().defaultNow(),
+	id: serial('id').primaryKey(),
+	name: text('name').notNull(),
+	email: text('email').notNull().unique(),
+	verified: tinyint('verified').notNull().default(0),
+	createdAt: datetime('created_at').notNull().defaultNow()
 });
 ```
 
@@ -59,9 +59,9 @@ export const users = mysqlTable('users', {
 import { sqliteTable, integer, text } from 'drizzle-orm/sqlite-core';
 
 export const users = sqliteTable('users', {
-  id: integer('id').primaryKey({ autoIncrement: true }),
-  name: text('name').notNull(),
-  email: text('email').notNull().unique(),
+	id: integer('id').primaryKey({ autoIncrement: true }),
+	name: text('name').notNull(),
+	email: text('email').notNull().unique()
 });
 ```
 
@@ -70,28 +70,38 @@ export const users = sqliteTable('users', {
 ```typescript
 import { uniqueIndex, index, primaryKey } from 'drizzle-orm/pg-core';
 
-export const posts = pgTable('posts', {
-  id: serial('id').primaryKey(),
-  title: text('title').notNull(),
-  slug: text('slug').notNull(),
-  authorId: integer('author_id').references(() => users.id),
-  createdAt: timestamp('created_at').notNull().defaultNow(),
-}, (table) => [
-  uniqueIndex('slug_idx').on(table.slug),
-  index('author_idx').on(table.authorId),
-  index('created_idx').on(table.createdAt),
-]);
+export const posts = pgTable(
+	'posts',
+	{
+		id: serial('id').primaryKey(),
+		title: text('title').notNull(),
+		slug: text('slug').notNull(),
+		authorId: integer('author_id').references(() => users.id),
+		createdAt: timestamp('created_at').notNull().defaultNow()
+	},
+	(table) => [
+		uniqueIndex('slug_idx').on(table.slug),
+		index('author_idx').on(table.authorId),
+		index('created_idx').on(table.createdAt)
+	]
+);
 ```
 
 ### Composite Primary Key
 
 ```typescript
-export const usersToGroups = pgTable('users_to_groups', {
-  userId: integer('user_id').notNull().references(() => users.id),
-  groupId: integer('group_id').notNull().references(() => groups.id),
-}, (table) => [
-  primaryKey({ columns: [table.userId, table.groupId] }),
-]);
+export const usersToGroups = pgTable(
+	'users_to_groups',
+	{
+		userId: integer('user_id')
+			.notNull()
+			.references(() => users.id),
+		groupId: integer('group_id')
+			.notNull()
+			.references(() => groups.id)
+	},
+	(table) => [primaryKey({ columns: [table.userId, table.groupId] })]
+);
 ```
 
 ---
@@ -104,25 +114,25 @@ export const usersToGroups = pgTable('users_to_groups', {
 import { relations } from 'drizzle-orm';
 
 export const users = pgTable('users', {
-  id: serial('id').primaryKey(),
-  name: text('name').notNull(),
+	id: serial('id').primaryKey(),
+	name: text('name').notNull()
 });
 
 export const usersRelations = relations(users, ({ many }) => ({
-  posts: many(posts),
+	posts: many(posts)
 }));
 
 export const posts = pgTable('posts', {
-  id: serial('id').primaryKey(),
-  content: text('content').notNull(),
-  authorId: integer('author_id').references(() => users.id),
+	id: serial('id').primaryKey(),
+	content: text('content').notNull(),
+	authorId: integer('author_id').references(() => users.id)
 });
 
 export const postsRelations = relations(posts, ({ one }) => ({
-  author: one(users, {
-    fields: [posts.authorId],
-    references: [users.id],
-  }),
+	author: one(users, {
+		fields: [posts.authorId],
+		references: [users.id]
+	})
 }));
 ```
 
@@ -130,16 +140,18 @@ export const postsRelations = relations(posts, ({ one }) => ({
 
 ```typescript
 export const profiles = pgTable('profiles', {
-  id: serial('id').primaryKey(),
-  userId: integer('user_id').references(() => users.id).unique(),
-  bio: text('bio'),
+	id: serial('id').primaryKey(),
+	userId: integer('user_id')
+		.references(() => users.id)
+		.unique(),
+	bio: text('bio')
 });
 
 export const profilesRelations = relations(profiles, ({ one }) => ({
-  user: one(users, {
-    fields: [profiles.userId],
-    references: [users.id],
-  }),
+	user: one(users, {
+		fields: [profiles.userId],
+		references: [users.id]
+	})
 }));
 ```
 
@@ -149,30 +161,38 @@ export const profilesRelations = relations(profiles, ({ one }) => ({
 import { defineRelations } from 'drizzle-orm';
 
 export const users = pgTable('users', {
-  id: serial('id').primaryKey(),
-  name: text('name').notNull(),
+	id: serial('id').primaryKey(),
+	name: text('name').notNull()
 });
 
 export const groups = pgTable('groups', {
-  id: serial('id').primaryKey(),
-  name: text('name').notNull(),
+	id: serial('id').primaryKey(),
+	name: text('name').notNull()
 });
 
-export const usersToGroups = pgTable('users_to_groups', {
-  userId: integer('user_id').notNull().references(() => users.id),
-  groupId: integer('group_id').notNull().references(() => groups.id),
-}, (t) => [primaryKey({ columns: [t.userId, t.groupId] })]);
+export const usersToGroups = pgTable(
+	'users_to_groups',
+	{
+		userId: integer('user_id')
+			.notNull()
+			.references(() => users.id),
+		groupId: integer('group_id')
+			.notNull()
+			.references(() => groups.id)
+	},
+	(t) => [primaryKey({ columns: [t.userId, t.groupId] })]
+);
 
 export const relations = defineRelations({ users, groups, usersToGroups }, (r) => ({
-  users: {
-    groups: r.many.groups({
-      from: r.users.id.through(r.usersToGroups.userId),
-      to: r.groups.id.through(r.usersToGroups.groupId),
-    }),
-  },
-  groups: {
-    participants: r.many.users(),
-  },
+	users: {
+		groups: r.many.groups({
+			from: r.users.id.through(r.usersToGroups.userId),
+			to: r.groups.id.through(r.usersToGroups.groupId)
+		})
+	},
+	groups: {
+		participants: r.many.users()
+	}
 }));
 ```
 
@@ -180,16 +200,16 @@ export const relations = defineRelations({ users, groups, usersToGroups }, (r) =
 
 ```typescript
 export const users = pgTable('users', {
-  id: serial('id').primaryKey(),
-  name: text('name').notNull(),
-  invitedBy: integer('invited_by').references((): AnyPgColumn => users.id),
+	id: serial('id').primaryKey(),
+	name: text('name').notNull(),
+	invitedBy: integer('invited_by').references((): AnyPgColumn => users.id)
 });
 
 export const usersRelations = relations(users, ({ one }) => ({
-  invitee: one(users, {
-    fields: [users.invitedBy],
-    references: [users.id],
-  }),
+	invitee: one(users, {
+		fields: [users.invitedBy],
+		references: [users.id]
+	})
 }));
 ```
 
@@ -204,21 +224,24 @@ import { eq } from 'drizzle-orm';
 
 // Single insert
 await db.insert(users).values({
-  name: 'John',
-  email: 'john@example.com',
+	name: 'John',
+	email: 'john@example.com'
 });
 
 // Multiple inserts
 await db.insert(users).values([
-  { name: 'John', email: 'john@example.com' },
-  { name: 'Jane', email: 'jane@example.com' },
+	{ name: 'John', email: 'john@example.com' },
+	{ name: 'Jane', email: 'jane@example.com' }
 ]);
 
 // Returning inserted row
-const [newUser] = await db.insert(users).values({
-  name: 'John',
-  email: 'john@example.com',
-}).returning();
+const [newUser] = await db
+	.insert(users)
+	.values({
+		name: 'John',
+		email: 'john@example.com'
+	})
+	.returning();
 ```
 
 ### Select
@@ -228,10 +251,12 @@ const [newUser] = await db.insert(users).values({
 const allUsers = await db.select().from(users);
 
 // Select specific columns
-const result = await db.select({
-  id: users.id,
-  name: users.name,
-}).from(users);
+const result = await db
+	.select({
+		id: users.id,
+		name: users.name
+	})
+	.from(users);
 
 // Select with where
 const user = await db.select().from(users).where(eq(users.id, 1));
@@ -247,15 +272,14 @@ const activeCount = await db.$count(users, eq(users.verified, true));
 ### Update
 
 ```typescript
-await db.update(users)
-  .set({ name: 'John Updated' })
-  .where(eq(users.id, 1));
+await db.update(users).set({ name: 'John Updated' }).where(eq(users.id, 1));
 
 // With returning
-const [updatedUser] = await db.update(users)
-  .set({ verified: true })
-  .where(eq(users.email, 'john@example.com'))
-  .returning();
+const [updatedUser] = await db
+	.update(users)
+	.set({ verified: true })
+	.where(eq(users.email, 'john@example.com'))
+	.returning();
 ```
 
 ### Delete
@@ -264,9 +288,7 @@ const [updatedUser] = await db.update(users)
 await db.delete(users).where(eq(users.id, 1));
 
 // With returning
-const [deletedUser] = await db.delete(users)
-  .where(eq(users.email, 'john@example.com'))
-  .returning();
+const [deletedUser] = await db.delete(users).where(eq(users.email, 'john@example.com')).returning();
 ```
 
 ---
@@ -274,40 +296,51 @@ const [deletedUser] = await db.delete(users)
 ## Query Operators
 
 ```typescript
-import { eq, ne, gt, gte, lt, lte, like, ilike, inArray, isNull, isNotNull, and, or, between, exists, notExists } from 'drizzle-orm';
+import {
+	eq,
+	ne,
+	gt,
+	gte,
+	lt,
+	lte,
+	like,
+	ilike,
+	inArray,
+	isNull,
+	isNotNull,
+	and,
+	or,
+	between,
+	exists,
+	notExists
+} from 'drizzle-orm';
 
 // Comparison
-eq(users.id, 1)
-ne(users.name, 'John')
-gt(users.age, 18)
-gte(users.age, 18)
-lt(users.age, 65)
-lte(users.age, 65)
+eq(users.id, 1);
+ne(users.name, 'John');
+gt(users.age, 18);
+gte(users.age, 18);
+lt(users.age, 65);
+lte(users.age, 65);
 
 // String matching
-like(users.name, '%John%')      // case-sensitive
-ilike(users.name, '%john%')     // case-insensitive
+like(users.name, '%John%'); // case-sensitive
+ilike(users.name, '%john%'); // case-insensitive
 
 // Null checks
-isNull(users.deletedAt)
-isNotNull(users.deletedAt)
+isNull(users.deletedAt);
+isNotNull(users.deletedAt);
 
 // Array
-inArray(users.id, [1, 2, 3])
+inArray(users.id, [1, 2, 3]);
 
 // Range
-between(users.createdAt, startDate, endDate)
+between(users.createdAt, startDate, endDate);
 
 // Combining conditions
-and(
-  gte(users.age, 18),
-  eq(users.verified, true)
-)
+and(gte(users.age, 18), eq(users.verified, true));
 
-or(
-  eq(users.role, 'admin'),
-  eq(users.role, 'moderator')
-)
+or(eq(users.role, 'admin'), eq(users.role, 'moderator'));
 ```
 
 ---
@@ -322,20 +355,20 @@ const page = 1;
 const pageSize = 10;
 
 const users = await db
-  .select()
-  .from(users)
-  .orderBy(asc(users.id))
-  .limit(pageSize)
-  .offset((page - 1) * pageSize);
+	.select()
+	.from(users)
+	.orderBy(asc(users.id))
+	.limit(pageSize)
+	.offset((page - 1) * pageSize);
 
 // Cursor-based pagination (more efficient)
 const lastId = 100;
 const users = await db
-  .select()
-  .from(users)
-  .where(gt(users.id, lastId))
-  .orderBy(asc(users.id))
-  .limit(10);
+	.select()
+	.from(users)
+	.where(gt(users.id, lastId))
+	.orderBy(asc(users.id))
+	.limit(10);
 ```
 
 ---
@@ -346,41 +379,32 @@ const users = await db
 import { eq } from 'drizzle-orm';
 
 // Left join
-const result = await db
-  .select()
-  .from(users)
-  .leftJoin(posts, eq(users.id, posts.authorId));
+const result = await db.select().from(users).leftJoin(posts, eq(users.id, posts.authorId));
 
 // Inner join
-const result = await db
-  .select()
-  .from(users)
-  .innerJoin(posts, eq(users.id, posts.authorId));
+const result = await db.select().from(users).innerJoin(posts, eq(users.id, posts.authorId));
 
 // Multiple joins
 const result = await db
-  .select()
-  .from(users)
-  .leftJoin(posts, eq(users.id, posts.authorId))
-  .leftJoin(comments, eq(posts.id, comments.postId));
+	.select()
+	.from(users)
+	.leftJoin(posts, eq(users.id, posts.authorId))
+	.leftJoin(comments, eq(posts.id, comments.postId));
 
 // Partial select with join
 const usersWithPosts = await db
-  .select({
-    userId: users.id,
-    userName: users.name,
-    postTitle: posts.title,
-  })
-  .from(users)
-  .leftJoin(posts, eq(users.id, posts.authorId));
+	.select({
+		userId: users.id,
+		userName: users.name,
+		postTitle: posts.title
+	})
+	.from(users)
+	.leftJoin(posts, eq(users.id, posts.authorId));
 
 // Self-join with alias
 import { alias } from 'drizzle-orm';
 const parent = alias(users, 'parent');
-const result = await db
-  .select()
-  .from(users)
-  .leftJoin(parent, eq(parent.id, users.parentId));
+const result = await db.select().from(users).leftJoin(parent, eq(parent.id, users.parentId));
 ```
 
 ---
@@ -395,35 +419,35 @@ const [{ value }] = await db.select({ value: count() }).from(users);
 
 // Count with condition
 const [{ value }] = await db
-  .select({ value: count(users.id) })
-  .from(users)
-  .where(gt(users.age, 18));
+	.select({ value: count(users.id) })
+	.from(users)
+	.where(gt(users.age, 18));
 
 // Sum, Avg
 const [stats] = await db
-  .select({
-    totalAge: sum(users.age),
-    avgAge: avg(users.age),
-  })
-  .from(users);
+	.select({
+		totalAge: sum(users.age),
+		avgAge: avg(users.age)
+	})
+	.from(users);
 
 // Min, Max
 const [extremes] = await db
-  .select({
-    oldest: min(users.age),
-    youngest: max(users.age),
-  })
-  .from(users);
+	.select({
+		oldest: min(users.age),
+		youngest: max(users.age)
+	})
+	.from(users);
 
 // Group by with having
 const ageGroups = await db
-  .select({
-    age: users.age,
-    count: sql<number>`cast(count(${users.id}) as int)`,
-  })
-  .from(users)
-  .groupBy(users.age)
-  .having(({ count }) => gt(count, 1));
+	.select({
+		age: users.age,
+		count: sql<number>`cast(count(${users.id}) as int)`
+	})
+	.from(users)
+	.groupBy(users.age)
+	.having(({ count }) => gt(count, 1));
 ```
 
 ---
@@ -433,50 +457,50 @@ const ageGroups = await db
 ```typescript
 // Basic transaction
 await db.transaction(async (tx) => {
-  await tx.update(accounts)
-    .set({ balance: sql`${accounts.balance} - 100` })
-    .where(eq(accounts.userId, 1));
+	await tx
+		.update(accounts)
+		.set({ balance: sql`${accounts.balance} - 100` })
+		.where(eq(accounts.userId, 1));
 
-  await tx.update(accounts)
-    .set({ balance: sql`${accounts.balance} + 100` })
-    .where(eq(accounts.userId, 2));
+	await tx
+		.update(accounts)
+		.set({ balance: sql`${accounts.balance} + 100` })
+		.where(eq(accounts.userId, 2));
 });
 
 // Transaction with rollback
 await db.transaction(async (tx) => {
-  const [account] = await tx.select()
-    .from(accounts)
-    .where(eq(accounts.userId, 1));
+	const [account] = await tx.select().from(accounts).where(eq(accounts.userId, 1));
 
-  if (account.balance < 100) {
-    tx.rollback(); // Throws exception
-  }
+	if (account.balance < 100) {
+		tx.rollback(); // Throws exception
+	}
 
-  await tx.update(accounts)
-    .set({ balance: sql`${accounts.balance} - 100` })
-    .where(eq(accounts.userId, 1));
+	await tx
+		.update(accounts)
+		.set({ balance: sql`${accounts.balance} - 100` })
+		.where(eq(accounts.userId, 1));
 });
 
 // Transaction with return value
 const newBalance = await db.transaction(async (tx) => {
-  await tx.update(accounts)
-    .set({ balance: sql`${accounts.balance} - 100` })
-    .where(eq(accounts.userId, 1));
+	await tx
+		.update(accounts)
+		.set({ balance: sql`${accounts.balance} - 100` })
+		.where(eq(accounts.userId, 1));
 
-  const [account] = await tx.select()
-    .from(accounts)
-    .where(eq(accounts.userId, 1));
+	const [account] = await tx.select().from(accounts).where(eq(accounts.userId, 1));
 
-  return account.balance;
+	return account.balance;
 });
 
 // Nested transactions (savepoints)
 await db.transaction(async (tx) => {
-  await tx.insert(users).values({ name: 'John' });
+	await tx.insert(users).values({ name: 'John' });
 
-  await tx.transaction(async (tx2) => {
-    await tx2.insert(posts).values({ title: 'Hello', authorId: 1 });
-  });
+	await tx.transaction(async (tx2) => {
+		await tx2.insert(posts).values({ title: 'Hello', authorId: 1 });
+	});
 });
 ```
 
@@ -490,12 +514,12 @@ await db.transaction(async (tx) => {
 import { defineConfig } from 'drizzle-kit';
 
 export default defineConfig({
-  schema: './src/db/schema.ts',
-  out: './drizzle',
-  dialect: 'postgresql',
-  dbCredentials: {
-    url: process.env.DATABASE_URL!,
-  },
+	schema: './src/db/schema.ts',
+	out: './drizzle',
+	dialect: 'postgresql',
+	dbCredentials: {
+		url: process.env.DATABASE_URL!
+	}
 });
 ```
 
@@ -503,12 +527,12 @@ export default defineConfig({
 
 ```json
 {
-  "scripts": {
-    "generate": "drizzle-kit generate",
-    "migrate": "drizzle-kit migrate",
-    "push": "drizzle-kit push",
-    "pull": "drizzle-kit pull"
-  }
+	"scripts": {
+		"generate": "drizzle-kit generate",
+		"migrate": "drizzle-kit migrate",
+		"push": "drizzle-kit push",
+		"pull": "drizzle-kit pull"
+	}
 }
 ```
 
@@ -553,12 +577,12 @@ type User = typeof users.$inferSelect;
 
 // Use in functions
 async function createUser(data: typeof users.$inferInsert) {
-  return db.insert(users).values(data).returning();
+	return db.insert(users).values(data).returning();
 }
 
 async function getUser(id: number): Promise<typeof users.$inferSelect> {
-  const [user] = await db.select().from(users).where(eq(users.id, id));
-  return user;
+	const [user] = await db.select().from(users).where(eq(users.id, id));
+	return user;
 }
 ```
 
@@ -570,22 +594,16 @@ async function getUser(id: number): Promise<typeof users.$inferSelect> {
 
 ```typescript
 export const users = pgTable('users', {
-  id: serial('id').primaryKey(),
-  name: text('name').notNull(),
-  deletedAt: timestamp('deleted_at'),
+	id: serial('id').primaryKey(),
+	name: text('name').notNull(),
+	deletedAt: timestamp('deleted_at')
 });
 
 // Query non-deleted only
-const activeUsers = await db
-  .select()
-  .from(users)
-  .where(isNull(users.deletedAt));
+const activeUsers = await db.select().from(users).where(isNull(users.deletedAt));
 
 // Soft delete
-await db
-  .update(users)
-  .set({ deletedAt: new Date() })
-  .where(eq(users.id, id));
+await db.update(users).set({ deletedAt: new Date() }).where(eq(users.id, id));
 ```
 
 ### Upsert
@@ -594,11 +612,13 @@ await db
 import { onConflict } from 'drizzle-orm';
 
 await db
-  .insert(users)
-  .values({ id: 1, name: 'John', email: 'john@example.com' })
-  .onConflict(onConflict(users.email).doUpdateSet({
-    name: excluded.name,
-  }));
+	.insert(users)
+	.values({ id: 1, name: 'John', email: 'john@example.com' })
+	.onConflict(
+		onConflict(users.email).doUpdateSet({
+			name: excluded.name
+		})
+	);
 ```
 
 ### Batch Operations
@@ -608,9 +628,9 @@ await db
 await db.insert(users).values(batch).returning();
 
 // Batch update
-const updates = batch.map(item => ({
-  id: item.id,
-  name: item.name,
+const updates = batch.map((item) => ({
+	id: item.id,
+	name: item.name
 }));
 await db.insert(users).values(updates).onConflictDoNothing();
 ```

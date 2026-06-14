@@ -12,7 +12,10 @@ const ALLOWED_EXTENSIONS = new Set(['.pdf', '.doc', '.docx']);
 const GENERIC_MIME_TYPES = new Set(['', 'application/octet-stream']);
 
 function sanitize(name: string): string {
-	const base = name.replace(/[/\\]/g, '').replace(/[^A-Za-z0-9._ -]/g, '_').trim();
+	const base = name
+		.replace(/[/\\]/g, '')
+		.replace(/[^A-Za-z0-9._ -]/g, '_')
+		.trim();
 	return base || 'lebenslauf.pdf';
 }
 
@@ -33,7 +36,8 @@ function mimeTypeFor(file: File): string {
 
 	const ext = extension(file.name);
 	if (ext === '.doc') return 'application/msword';
-	if (ext === '.docx') return 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+	if (ext === '.docx')
+		return 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
 	return 'application/pdf';
 }
 

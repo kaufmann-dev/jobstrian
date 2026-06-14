@@ -6,25 +6,25 @@
 import { relations } from 'drizzle-orm';
 
 export const users = pgTable('users', {
-  id: serial('id').primaryKey(),
-  name: text('name').notNull(),
+	id: serial('id').primaryKey(),
+	name: text('name').notNull()
 });
 
 export const usersRelations = relations(users, ({ many }) => ({
-  posts: many(posts),
+	posts: many(posts)
 }));
 
 export const posts = pgTable('posts', {
-  id: serial('id').primaryKey(),
-  content: text('content').notNull(),
-  authorId: integer('author_id').references(() => users.id),
+	id: serial('id').primaryKey(),
+	content: text('content').notNull(),
+	authorId: integer('author_id').references(() => users.id)
 });
 
 export const postsRelations = relations(posts, ({ one }) => ({
-  author: one(users, {
-    fields: [posts.authorId],
-    references: [users.id],
-  }),
+	author: one(users, {
+		fields: [posts.authorId],
+		references: [users.id]
+	})
 }));
 ```
 
@@ -32,20 +32,22 @@ export const postsRelations = relations(posts, ({ one }) => ({
 
 ```typescript
 export const profiles = pgTable('profiles', {
-  id: serial('id').primaryKey(),
-  userId: integer('user_id').references(() => users.id).unique(),
-  bio: text('bio'),
+	id: serial('id').primaryKey(),
+	userId: integer('user_id')
+		.references(() => users.id)
+		.unique(),
+	bio: text('bio')
 });
 
 export const profilesRelations = relations(profiles, ({ one }) => ({
-  user: one(users, {
-    fields: [profiles.userId],
-    references: [users.id],
-  }),
+	user: one(users, {
+		fields: [profiles.userId],
+		references: [users.id]
+	})
 }));
 
 export const usersRelations = relations(users, ({ one }) => ({
-  profile: one(profiles),
+	profile: one(profiles)
 }));
 ```
 
@@ -55,30 +57,38 @@ export const usersRelations = relations(users, ({ one }) => ({
 import { defineRelations } from 'drizzle-orm';
 
 export const users = pgTable('users', {
-  id: serial('id').primaryKey(),
-  name: text('name').notNull(),
+	id: serial('id').primaryKey(),
+	name: text('name').notNull()
 });
 
 export const groups = pgTable('groups', {
-  id: serial('id').primaryKey(),
-  name: text('name').notNull(),
+	id: serial('id').primaryKey(),
+	name: text('name').notNull()
 });
 
-export const usersToGroups = pgTable('users_to_groups', {
-  userId: integer('user_id').notNull().references(() => users.id),
-  groupId: integer('group_id').notNull().references(() => groups.id),
-}, (t) => [primaryKey({ columns: [t.userId, t.groupId] })]);
+export const usersToGroups = pgTable(
+	'users_to_groups',
+	{
+		userId: integer('user_id')
+			.notNull()
+			.references(() => users.id),
+		groupId: integer('group_id')
+			.notNull()
+			.references(() => groups.id)
+	},
+	(t) => [primaryKey({ columns: [t.userId, t.groupId] })]
+);
 
 export const relations = defineRelations({ users, groups, usersToGroups }, (r) => ({
-  users: {
-    groups: r.many.groups({
-      from: r.users.id.through(r.usersToGroups.userId),
-      to: r.groups.id.through(r.usersToGroups.groupId),
-    }),
-  },
-  groups: {
-    participants: r.many.users(),
-  },
+	users: {
+		groups: r.many.groups({
+			from: r.users.id.through(r.usersToGroups.userId),
+			to: r.groups.id.through(r.usersToGroups.groupId)
+		})
+	},
+	groups: {
+		participants: r.many.users()
+	}
 }));
 ```
 
@@ -88,22 +98,22 @@ export const relations = defineRelations({ users, groups, usersToGroups }, (r) =
 import { relations } from 'drizzle-orm';
 
 export const usersRelations = relations(users, ({ many }) => ({
-  usersToGroups: many(usersToGroups),
+	usersToGroups: many(usersToGroups)
 }));
 
 export const groupsRelations = relations(groups, ({ many }) => ({
-  usersToGroups: many(usersToGroups),
+	usersToGroups: many(usersToGroups)
 }));
 
 export const usersToGroupsRelations = relations(usersToGroups, ({ one }) => ({
-  user: one(users, {
-    fields: [usersToGroups.userId],
-    references: [users.id],
-  }),
-  group: one(groups, {
-    fields: [usersToGroups.groupId],
-    references: [groups.id],
-  }),
+	user: one(users, {
+		fields: [usersToGroups.userId],
+		references: [users.id]
+	}),
+	group: one(groups, {
+		fields: [usersToGroups.groupId],
+		references: [groups.id]
+	})
 }));
 ```
 
@@ -111,17 +121,17 @@ export const usersToGroupsRelations = relations(usersToGroups, ({ one }) => ({
 
 ```typescript
 export const users = pgTable('users', {
-  id: serial('id').primaryKey(),
-  name: text('name').notNull(),
-  invitedBy: integer('invited_by').references((): AnyPgColumn => users.id),
+	id: serial('id').primaryKey(),
+	name: text('name').notNull(),
+	invitedBy: integer('invited_by').references((): AnyPgColumn => users.id)
 });
 
 export const usersRelations = relations(users, ({ one, many }) => ({
-  invitee: one(users, {
-    fields: [users.invitedBy],
-    references: [users.id],
-  }),
-  invitedUsers: many(users),
+	invitee: one(users, {
+		fields: [users.invitedBy],
+		references: [users.id]
+	}),
+	invitedUsers: many(users)
 }));
 ```
 
@@ -130,31 +140,31 @@ export const usersRelations = relations(users, ({ one, many }) => ({
 ```typescript
 // Query with nested relations
 const usersWithPosts = await db.query.users.findMany({
-  with: {
-    posts: true,
-  },
+	with: {
+		posts: true
+	}
 });
 
 // Query with specific fields
 const usersWithPostCount = await db.query.users.findMany({
-  with: {
-    posts: {
-      columns: {
-        id: true,
-        title: true,
-      },
-    },
-  },
+	with: {
+		posts: {
+			columns: {
+				id: true,
+				title: true
+			}
+		}
+	}
 });
 
 // Nested relations
 const usersWithPostsAndComments = await db.query.users.findMany({
-  with: {
-    posts: {
-      with: {
-        comments: true,
-      },
-    },
-  },
+	with: {
+		posts: {
+			with: {
+				comments: true
+			}
+		}
+	}
 });
 ```

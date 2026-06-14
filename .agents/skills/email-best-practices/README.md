@@ -23,15 +23,18 @@ pnpm dlx skills add resend/email-best-practices
 ## What This Skill Covers
 
 **Getting Started**
+
 - Planning which emails your app needs (password reset, verification, order confirmations)
 - Setting up email authentication (SPF, DKIM, DMARC) so emails reach inboxes
 
 **Sending Emails**
+
 - Transactional email design (subject lines, content structure, mobile-first)
 - Marketing email best practices (consent, segmentation, unsubscribe)
 - Compliance requirements by region (CAN-SPAM, GDPR, CASL)
 
 **Production Infrastructure**
+
 - Idempotency and retry logic to prevent duplicates
 - Webhook processing for delivery events
 - Suppression lists and list hygiene automation

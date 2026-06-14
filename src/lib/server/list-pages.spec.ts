@@ -36,7 +36,8 @@ const lead = {
 	rankScore: null,
 	distanceMeters: 350,
 	status: 'new',
-	hasActivePosting: false
+	hasActivePosting: false,
+	starred: false
 } as Lead;
 const dialect = new PgDialect();
 

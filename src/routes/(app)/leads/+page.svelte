@@ -19,7 +19,7 @@
 	import Copy from '@lucide/svelte/icons/copy';
 	import Download from '@lucide/svelte/icons/download';
 	import Paperclip from '@lucide/svelte/icons/paperclip';
-	import Eye from '@lucide/svelte/icons/eye';
+	import Star from '@lucide/svelte/icons/star';
 	import type { Lead } from '$lib/server/db/schema';
 
 	let { data } = $props();
@@ -39,6 +39,42 @@
 		onlyOpen = true;
 		hideIgnored = true;
 		selected = null;
+	}
+
+	/** Client-side mirror of the server's "recommended" order, for instant reordering on star. */
+	function recommendedCompare(a: Lead, b: Lead): number {
+		if (a.starred !== b.starred) return a.starred ? -1 : 1;
+		if (a.rankScore !== b.rankScore) {
+			if (a.rankScore == null) return 1;
+			if (b.rankScore == null) return -1;
+			return b.rankScore - a.rankScore;
+		}
+		if (a.distanceMeters !== b.distanceMeters) return a.distanceMeters - b.distanceMeters;
+		return a.id - b.id;
+	}
+
+	async function toggleStar(item: Lead): Promise<void> {
+		const starred = !item.starred;
+		controller.patch(
+			(row) => row.id === item.id,
+			(row) => ({ ...row, starred })
+		);
+		if (selected?.id === item.id) selected = { ...selected, starred };
+		if (controller.sort === 'recommended') controller.reorder(recommendedCompare);
+		const response = await fetch(`/api/leads/${item.id}/star`, {
+			method: 'PATCH',
+			headers: { 'content-type': 'application/json' },
+			body: JSON.stringify({ starred })
+		});
+		if (!response.ok) {
+			controller.patch(
+				(row) => row.id === item.id,
+				(row) => ({ ...row, starred: !starred })
+			);
+			if (selected?.id === item.id) selected = { ...selected, starred: !starred };
+			if (controller.sort === 'recommended') controller.reorder(recommendedCompare);
+			toast.error('Markierung konnte nicht gespeichert werden.');
+		}
 	}
 
 	async function copy(text: string, what: string): Promise<void> {
@@ -109,11 +145,17 @@
 
 	const columns: ColumnDef<Lead>[] = [
 		{
+			id: 'star',
+			header: '',
+			cell: ({ row }) => renderSnippet(starCell, { item: row.original }),
+			meta: { class: 'w-10 px-1' }
+		},
+		{
 			id: 'score',
 			header: 'Score',
 			cell: ({ row }) => renderSnippet(scoreCell, { item: row.original }),
 			meta: {
-				class: 'hidden w-16 sm:table-cell',
+				class: 'w-16',
 				sort: { asc: 'score-asc', desc: 'score-desc', initial: 'desc' }
 			}
 		},
@@ -149,12 +191,6 @@
 				class: 'hidden w-52 lg:table-cell',
 				sort: { asc: 'status-asc', desc: 'status-desc', initial: 'asc' }
 			}
-		},
-		{
-			id: 'actions',
-			header: '',
-			cell: ({ row }) => renderSnippet(actionCell, { item: row.original }),
-			meta: { class: 'w-24 text-right' }
 		}
 	];
 </script>
@@ -197,10 +233,17 @@
 	</div>
 {/snippet}
 
-{#snippet actionCell({ item }: { item: Lead })}
-	<Button variant="ghost" size="sm" class="text-muted-foreground" onclick={() => (selected = item)}>
-		<Eye class="size-4" />
-		<span class="sr-only sm:not-sr-only">Details</span>
+{#snippet starCell({ item }: { item: Lead })}
+	<Button
+		variant="ghost"
+		size="icon-sm"
+		aria-label={item.starred ? 'Markierung entfernen' : 'Betrieb markieren'}
+		onclick={(event) => {
+			event.stopPropagation();
+			toggleStar(item);
+		}}
+	>
+		<Star class={['size-4', item.starred && 'fill-amber-400 text-amber-500']} />
 	</Button>
 {/snippet}
 

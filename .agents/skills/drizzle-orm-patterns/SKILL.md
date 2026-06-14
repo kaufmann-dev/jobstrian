@@ -22,20 +22,20 @@ Expert guide for building type-safe database applications with Drizzle ORM. Cove
 
 ## Quick Reference
 
-| Database | Table Function | Import |
-|----------|---------------|--------|
-| PostgreSQL | `pgTable()` | `drizzle-orm/pg-core` |
-| MySQL | `mysqlTable()` | `drizzle-orm/mysql-core` |
-| SQLite | `sqliteTable()` | `drizzle-orm/sqlite-core` |
-| MSSQL | `mssqlTable()` | `drizzle-orm/mssql-core` |
+| Database   | Table Function  | Import                    |
+| ---------- | --------------- | ------------------------- |
+| PostgreSQL | `pgTable()`     | `drizzle-orm/pg-core`     |
+| MySQL      | `mysqlTable()`  | `drizzle-orm/mysql-core`  |
+| SQLite     | `sqliteTable()` | `drizzle-orm/sqlite-core` |
+| MSSQL      | `mssqlTable()`  | `drizzle-orm/mssql-core`  |
 
-| Operation | Method | Example |
-|-----------|--------|---------|
-| Insert | `db.insert()` | `db.insert(users).values({...})` |
-| Select | `db.select()` | `db.select().from(users).where(eq(...))` |
-| Update | `db.update()` | `db.update(users).set({...}).where(...)` |
-| Delete | `db.delete()` | `db.delete(users).where(...)` |
-| Transaction | `db.transaction()` | `db.transaction(async (tx) => {...})` |
+| Operation   | Method             | Example                                  |
+| ----------- | ------------------ | ---------------------------------------- |
+| Insert      | `db.insert()`      | `db.insert(users).values({...})`         |
+| Select      | `db.select()`      | `db.select().from(users).where(eq(...))` |
+| Update      | `db.update()`      | `db.update(users).set({...}).where(...)` |
+| Delete      | `db.delete()`      | `db.delete(users).where(...)`            |
+| Transaction | `db.transaction()` | `db.transaction(async (tx) => {...})`    |
 
 ## Instructions
 
@@ -57,9 +57,9 @@ import { drizzle } from 'drizzle-orm/node-postgres';
 import { eq } from 'drizzle-orm';
 
 export const users = pgTable('users', {
-  id: serial('id').primaryKey(),
-  name: text('name').notNull(),
-  email: text('email').notNull().unique(),
+	id: serial('id').primaryKey(),
+	name: text('name').notNull(),
+	email: text('email').notNull().unique()
 });
 
 const db = drizzle(process.env.DATABASE_URL);
@@ -73,15 +73,16 @@ const [user] = await db.select().from(users).where(eq(users.id, 1));
 import { eq } from 'drizzle-orm';
 
 // Insert
-const [newUser] = await db.insert(users).values({
-  name: 'John',
-  email: 'john@example.com',
-}).returning();
+const [newUser] = await db
+	.insert(users)
+	.values({
+		name: 'John',
+		email: 'john@example.com'
+	})
+	.returning();
 
 // Update
-await db.update(users)
-  .set({ name: 'John Updated' })
-  .where(eq(users.id, 1));
+await db.update(users).set({ name: 'John Updated' }).where(eq(users.id, 1));
 
 // Delete
 await db.delete(users).where(eq(users.id, 1));
@@ -91,16 +92,16 @@ await db.delete(users).where(eq(users.id, 1));
 
 ```typescript
 await db.transaction(async (tx) => {
-  const [from] = await tx.select().from(accounts)
-    .where(eq(accounts.userId, fromId));
+	const [from] = await tx.select().from(accounts).where(eq(accounts.userId, fromId));
 
-  if (from.balance < amount) {
-    tx.rollback();
-  }
+	if (from.balance < amount) {
+		tx.rollback();
+	}
 
-  await tx.update(accounts)
-    .set({ balance: sql`${accounts.balance} - ${amount}` })
-    .where(eq(accounts.userId, fromId));
+	await tx
+		.update(accounts)
+		.set({ balance: sql`${accounts.balance} - ${amount}` })
+		.where(eq(accounts.userId, fromId));
 });
 ```
 
@@ -128,11 +129,13 @@ See [references/transactions.md](references/transactions.md) for advanced transa
 ## References
 
 ### Core Concepts
+
 - **[references/schema-definition.md](references/schema-definition.md)** - Complete schema definition for all databases (PostgreSQL, MySQL, SQLite), column types, indexes, and constraints
 - **[references/relations.md](references/relations.md)** - One-to-one, one-to-many, many-to-many relations with v1 and v2 syntax
 - **[references/queries-joins-aggregations.md](references/queries-joins-aggregations.md)** - CRUD operations, query operators, joins, aggregations, and pagination
 
 ### Advanced Topics
+
 - **[references/transactions.md](references/transactions.md)** - Transaction patterns, rollback handling, nested transactions
 - **[references/migrations.md](references/migrations.md)** - Drizzle Kit configuration, CLI commands, migration workflow
 - **[references/common-patterns.md](references/common-patterns.md)** - Soft delete, upsert, batch operations, full-text search, audit trails

@@ -1,6 +1,6 @@
 <script lang="ts">
-	import { Accordion as AccordionPrimitive } from "bits-ui";
-	import { cn } from "$lib/utils.js";
+	import { Accordion as AccordionPrimitive } from 'bits-ui';
+	import { cn } from '$lib/utils.js';
 
 	let {
 		ref = $bindable(null),
@@ -14,6 +14,6 @@
 	bind:ref
 	bind:value={value as never}
 	data-slot="accordion"
-	class={cn("overflow-hidden rounded-2xl border flex w-full flex-col", className)}
+	class={cn('flex w-full flex-col overflow-hidden rounded-2xl border', className)}
 	{...restProps}
 />

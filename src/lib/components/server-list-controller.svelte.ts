@@ -23,9 +23,19 @@ export class ServerListController<T> {
 		return this.nextCursor !== null;
 	}
 
+	/** The currently active sort key, if any. */
+	get sort(): string | null {
+		return this.params.get('sort');
+	}
+
 	/** Update items in place without refetching (e.g. optimistic updates). */
 	patch(match: (item: T) => boolean, update: (item: T) => T): void {
 		this.items = this.items.map((item) => (match(item) ? update(item) : item));
+	}
+
+	/** Re-sort the loaded items in place (e.g. after an optimistic update changes order). */
+	reorder(compare: (a: T, b: T) => number): void {
+		this.items = [...this.items].sort(compare);
 	}
 
 	private apply(page: CursorPage<T>, append = false): void {

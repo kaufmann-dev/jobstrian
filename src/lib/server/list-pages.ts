@@ -63,6 +63,7 @@ const leadCursorSchema = z.discriminatedUnion('sort', [
 	z.object({
 		sort: z.literal('recommended'),
 		score: z.number().int().nullable(),
+		starred: z.boolean(),
 		distanceMeters: z.number().int(),
 		id: z.number().int()
 	}),
@@ -157,6 +158,7 @@ export function encodeLeadCursor(row: Lead, sort: LeadSort): string {
 		return encodeCursor({
 			sort,
 			score: row.rankScore,
+			starred: row.starred,
 			distanceMeters: row.distanceMeters,
 			id: row.id
 		});
@@ -352,6 +354,11 @@ function leadWhere(filters: LeadFilters): SQL | undefined {
 	);
 }
 
+function leadAfterStarred(cursorStarred: boolean, withinStarred: SQL): SQL {
+	return cursorStarred
+		? or(eq(lead.starred, false), and(eq(lead.starred, true), withinStarred))!
+		: and(eq(lead.starred, false), withinStarred)!;
+}
 export function leadAfter(
 	cursor: ReturnType<typeof decodeLeadCursor>,
 	sort: LeadSort
@@ -362,13 +369,16 @@ export function leadAfter(
 			${lead.distanceMeters} > ${cursor.distanceMeters}
 			or (${lead.distanceMeters} = ${cursor.distanceMeters} and ${lead.id} > ${cursor.id})
 		)`;
-		return cursor.score === null
-			? sql`${lead.rankScore} is null and ${laterWithinScore}`
-			: sql`(
+		return leadAfterStarred(
+			cursor.starred,
+			cursor.score === null
+				? sql`${lead.rankScore} is null and ${laterWithinScore}`
+				: sql`(
 				${lead.rankScore} < ${cursor.score}
 				or ${lead.rankScore} is null
 				or (${lead.rankScore} = ${cursor.score} and ${laterWithinScore})
-			)`;
+			)`
+		);
 	}
 	const direction = cursor.sort.endsWith('-asc') ? sql`>` : sql`<`;
 	if (cursor.sort.startsWith('score-')) {
@@ -395,7 +405,12 @@ export function leadAfter(
 
 function leadOrder(sort: LeadSort): SQL[] {
 	if (sort === 'recommended')
-		return [sql`${lead.rankScore} desc nulls last`, asc(lead.distanceMeters), asc(lead.id)];
+		return [
+			desc(lead.starred),
+			sql`${lead.rankScore} desc nulls last`,
+			asc(lead.distanceMeters),
+			asc(lead.id)
+		];
 	const direction = sort.endsWith('-asc') ? sql`asc` : sql`desc`;
 	if (sort.startsWith('score-'))
 		return [sql`${lead.rankScore} ${direction} nulls last`, asc(lead.id)];

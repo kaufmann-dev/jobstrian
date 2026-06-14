@@ -242,12 +242,14 @@ export const lead = pgTable(
 		rankContentHash: text('rank_content_hash'),
 		rankContextHash: text('rank_context_hash'),
 		draftContentHash: text('draft_content_hash'),
-		draftContextHash: text('draft_context_hash')
+		draftContextHash: text('draft_context_hash'),
+		starred: boolean('starred').notNull().default(false)
 	},
 	(table) => [
 		uniqueIndex('lead_osm_id_idx').on(table.osmId),
 		index('lead_distance_idx').on(table.distanceMeters),
 		index('lead_order_idx').on(
+			table.starred.desc(),
 			table.rankScore.desc().nullsLast(),
 			table.distanceMeters.asc(),
 			table.id.asc()

@@ -59,6 +59,7 @@ Always treat this as a Svelte 5 project. Use runes, snippets, and fine-grained r
 Never use `$effect` unless absolutely necessary (e.g., syncing with external non-Svelte libraries). Using `$effect` is almost always a sign the code should be refactored.
 
 **❌ Wrong: `$effect` for computed state**
+
 ```svelte
 let rowsPerPageValue = $state(String(data.query.rows));
 $effect(() => {
@@ -67,11 +68,13 @@ $effect(() => {
 ```
 
 **✅ Right: Use `$derived`**
+
 ```svelte
 let rowsPerPageValue = $derived(String(data.query.rows));
 ```
 
 **❌ Wrong: `$effect` to react to state changes**
+
 ```svelte
 let currentPage = $state(data.query.page);
 $effect(() => {
@@ -81,15 +84,14 @@ $effect(() => {
 ```
 
 **✅ Right: React to events at the boundary**
+
 ```svelte
 let currentPage = $state(data.query.page);
-<Select
-  bind:value={currentPage}
-  onValueChange={(value) => navUpdate({ page: value })}
-/>
+<Select bind:value={currentPage} onValueChange={(value) => navUpdate({ page: value })} />
 ```
 
 **❌ Wrong: `$effect` for type conversion with `bind:`**
+
 ```svelte
 let query = $state({ rowsPerPage: 10 });
 let rowsPerPageValue = $state(String(query.rowsPerPage));
@@ -102,6 +104,7 @@ $effect(() => {
 ```
 
 **✅ Right: Use getter/setter bindings**
+
 ```svelte
 let query = $state({ rowsPerPage: 10 });
 <Select
@@ -173,9 +176,10 @@ Avoid these legacy Svelte features in new or refactored code:
 - **Theming**: Use `setMode("light" | "dark" | "system")` or `toggleMode` from `mode-watcher` for controls. Add `ModeWatcher` once in the root layout:
   ```svelte
   <script lang="ts">
-    import { ModeWatcher } from "mode-watcher";
-    let { children } = $props();
+  	import { ModeWatcher } from 'mode-watcher';
+  	let { children } = $props();
   </script>
+
   <ModeWatcher />
   {@render children()}
   ```
@@ -183,14 +187,14 @@ Avoid these legacy Svelte features in new or refactored code:
 ## Backend and Services
 
 - **Authentication**: Check current Better Auth documentation before implementing providers, plugins, adapters, session handling, or account flows.
-  - *Server*: `export const auth = betterAuth({ ... });`
-  - *Hook*: `return svelteKitHandler({ event, resolve, auth, building });`
-  - *Client*: `export const authClient = createAuthClient();`
-  - *Cookies*: `plugins: [sveltekitCookies(getRequestEvent)]`
+  - _Server_: `export const auth = betterAuth({ ... });`
+  - _Hook_: `return svelteKitHandler({ event, resolve, auth, building });`
+  - _Client_: `export const authClient = createAuthClient();`
+  - _Cookies_: `plugins: [sveltekitCookies(getRequestEvent)]`
 - **Forms**: Always use Superforms with Zod. Follow the chain: `zod schema -> superforms -> formsnap -> shadcn-svelte form components`. Use `Form.Field`, `Form.Control`, and shadcn error components rather than ad hoc markup.
 - **Email**: Use `better-svelte-email` for templates and Resend for delivery. Render components in server-only code, and send both HTML and plain text.
   ```ts
-  import Renderer, { toPlainText } from "better-svelte-email/render";
+  import Renderer, { toPlainText } from 'better-svelte-email/render';
   const html = await new Renderer().render(EmailTemplate, { props });
   const text = toPlainText(html);
   ```
@@ -201,6 +205,7 @@ Avoid these legacy Svelte features in new or refactored code:
 - **Debugging**: Keep deployment fixes scoped to the exact failing layer. Identify the failing command first in Coolify or Nixpacks before fixing it.
 
 For Coolify and Nixpacks:
+
 - If `pnpm-workspace.yaml` exists in a single-package app, keep a non-empty `packages` list with `.` included.
 - Use `engines.node` and `nixpacks.toml` to pin compatible Node behavior when dependencies require a minimum patch version.
 - Read deployment environment variables from `process.env`. Load `.env` only after checking that the file exists.

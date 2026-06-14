@@ -98,6 +98,7 @@ function leadRow(patch: Partial<Lead> = {}): Lead {
 		rankContextHash: null,
 		draftContentHash: null,
 		draftContextHash: null,
+		starred: false,
 		...patch
 	};
 }
