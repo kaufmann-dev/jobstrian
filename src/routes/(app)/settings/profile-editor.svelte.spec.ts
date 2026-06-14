@@ -136,6 +136,32 @@ it('passes verified suggestion metadata when an address suggestion is selected',
 	);
 });
 
+it('persists a non-verifiable suggestion instead of discarding the click', async () => {
+	const streetLevelSuggestion = {
+		...verifiedAddressSuggestion,
+		id: 'geoapify-street-1',
+		label: 'Fuhrmannsgasse, 1080 Wien, Österreich',
+		verifiable: false
+	};
+	vi.stubGlobal(
+		'fetch',
+		vi.fn().mockResolvedValue(jsonResponse({ suggestions: [streetLevelSuggestion] }))
+	);
+	const onHomeAddressChange = vi.fn();
+	render(ProfileEditor, { profile: { ...profile }, onHomeAddressChange });
+
+	const input = page.getByRole('combobox', { name: 'Adresse' });
+	await input.fill('Fuhrmannsgasse');
+	await waitForDebounce();
+	await page.getByRole('option', { name: /Fuhrmannsgasse, 1080 Wien/ }).click();
+
+	expect(onHomeAddressChange).toHaveBeenLastCalledWith(
+		'Fuhrmannsgasse, 1080 Wien, Österreich',
+		expect.objectContaining({ id: 'geoapify-street-1', verifiable: false })
+	);
+	await expect.element(input).toHaveValue('Fuhrmannsgasse, 1080 Wien, Österreich');
+});
+
 it('selects an address suggestion from pointerdown before blur can commit typed text', async () => {
 	vi.stubGlobal(
 		'fetch',

@@ -14,7 +14,7 @@ const complete = {
 	postcode: '1010',
 	country_code: 'at',
 	street: 'Herrengasse',
-	house_number: '14',
+	housenumber: '14',
 	lat: 48.2101,
 	lon: 16.3652
 };
@@ -37,7 +37,7 @@ describe('Geoapify suggestions', () => {
 		});
 		expect(
 			normalizeGeoapifyResult(
-				{ ...complete, place_id: 'place-2', house_number: undefined },
+				{ ...complete, place_id: 'place-2', housenumber: undefined },
 				'address'
 			)
 		).toMatchObject({ verifiable: false });

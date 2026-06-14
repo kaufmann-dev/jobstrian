@@ -22,7 +22,7 @@ interface GeoapifyResult {
 	lon?: number;
 	result_type?: string;
 	street?: string;
-	house_number?: string;
+	housenumber?: string;
 }
 
 interface GeoapifyResponse {
@@ -85,7 +85,7 @@ export function normalizeGeoapifyResult(
 	const completeAddress =
 		kind === 'address' &&
 		Boolean(result.street?.trim()) &&
-		Boolean(result.house_number?.trim()) &&
+		Boolean(result.housenumber?.trim()) &&
 		Boolean(city) &&
 		Boolean(postcode);
 

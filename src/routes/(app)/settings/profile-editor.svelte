@@ -69,8 +69,7 @@
 	}
 
 	function selectAddressSuggestion(suggestion: GeoSuggestion) {
-		if (!suggestion.verifiable) return;
-		addressVerified = true;
+		addressVerified = suggestion.verifiable;
 		addressCommitted = true;
 		setField('homeAddress', suggestion.label);
 		onHomeAddressChange?.(suggestion.label, suggestion);

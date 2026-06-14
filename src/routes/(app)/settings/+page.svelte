@@ -173,7 +173,7 @@
 				}
 			: { address: value, verified: false };
 		autosave.enqueueHomeLocation(homeLocation);
-		if (homeLocation.verified) void autosave.flush();
+		if (suggestion) void autosave.flush();
 	}
 
 	function commitHomeAddress(value: string) {
