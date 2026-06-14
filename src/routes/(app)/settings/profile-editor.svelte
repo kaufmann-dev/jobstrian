@@ -21,6 +21,7 @@
 		homeAddressErrors = [],
 		homeAddressVerified = false,
 		onHomeAddressChange,
+		onHomeAddressCommit,
 		collapsibleHistory = false
 	}: {
 		profile: EditableProfile;
@@ -29,6 +30,7 @@
 		homeAddressErrors?: string[];
 		homeAddressVerified?: boolean;
 		onHomeAddressChange?: (value: string, suggestion?: GeoSuggestion) => void;
+		onHomeAddressCommit?: (value: string) => void;
 		collapsibleHistory?: boolean;
 	} = $props();
 
@@ -506,6 +508,7 @@
 				value={profile.homeAddress}
 				onInput={onHomeAddressInput}
 				onSelect={selectAddressSuggestion}
+				onBlur={() => onHomeAddressCommit?.(profile.homeAddress)}
 				label="Adresse"
 				placeholder="Straße Hausnr, PLZ Ort"
 			/>

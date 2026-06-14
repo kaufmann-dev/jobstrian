@@ -100,17 +100,15 @@
 	}
 
 	function handleBlur(): void {
-		setTimeout(() => {
-			const exactSuggestion = suggestions.find(
-				(suggestion) => suggestion.verifiable && suggestion.label.trim() === value.trim()
-			);
-			if (exactSuggestion) {
-				selectSuggestion(exactSuggestion);
-				return;
-			}
-			close();
-			onBlur?.();
-		});
+		const exactSuggestion = suggestions.find(
+			(suggestion) => suggestion.verifiable && suggestion.label.trim() === value.trim()
+		);
+		if (exactSuggestion) {
+			selectSuggestion(exactSuggestion);
+			return;
+		}
+		close();
+		onBlur?.();
 	}
 </script>
 

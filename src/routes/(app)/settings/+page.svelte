@@ -176,6 +176,11 @@
 		if (homeLocation.verified) void autosave.flush();
 	}
 
+	function commitHomeAddress(value: string) {
+		saveHomeAddress(value);
+		void autosave.flush();
+	}
+
 	function fmtSize(bytes: number): string {
 		return bytes < 1024 * 1024
 			? `${Math.round(bytes / 1024)} KB`
@@ -389,6 +394,7 @@
 				homeAddressErrors={$errors.homeAddress}
 				homeAddressVerified={homeLocationVerified}
 				onHomeAddressChange={saveHomeAddress}
+				onHomeAddressCommit={commitHomeAddress}
 				collapsibleHistory
 			/>
 

@@ -91,6 +91,17 @@ it('does not overwrite the typed address on blur', async () => {
 	await expect.element(input).toHaveValue('Fuhrmannsgasse 18');
 });
 
+it('commits typed address text when the address field blurs', async () => {
+	const onHomeAddressCommit = vi.fn();
+	render(ProfileEditor, { profile: { ...profile }, onHomeAddressCommit });
+	const input = page.getByRole('combobox', { name: 'Adresse' });
+
+	await input.fill('Fuhrmannsgasse 18a');
+	(await input.element()).blur();
+
+	expect(onHomeAddressCommit).toHaveBeenCalledWith('Fuhrmannsgasse 18a');
+});
+
 it('passes verified suggestion metadata when an address suggestion is selected', async () => {
 	vi.stubGlobal(
 		'fetch',
