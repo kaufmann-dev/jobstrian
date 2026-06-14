@@ -1,5 +1,6 @@
 <script lang="ts">
 	import type { ProfileField, ProfilePreview } from '$lib/profile';
+	import { anchoredDropdown } from '$lib/actions/anchored-dropdown';
 	import { Input } from '$lib/components/ui/input/index.js';
 	import { Textarea } from '$lib/components/ui/textarea/index.js';
 	import { Checkbox } from '$lib/components/ui/checkbox/index.js';
@@ -41,6 +42,7 @@
 	let addressValidationController: AbortController | undefined;
 	let addressSuggestionRequest = 0;
 	let addressValidationRequest = 0;
+	let addressAnchor = $state<HTMLElement>();
 
 	function visible(field: ProfileField): boolean {
 		return visibleFields.includes(field);
@@ -358,7 +360,7 @@
 	{#if visible('homeAddress')}
 		<div class="space-y-2">
 			{@render heading('homeAddress', 'Adresse')}
-			<div class="relative">
+			<div class="relative" bind:this={addressAnchor}>
 				<Input
 					value={profile.homeAddress}
 					oninput={(event) => onHomeAddressInput(event.currentTarget.value)}
@@ -366,12 +368,13 @@
 					aria-invalid={Boolean(addressError)}
 					aria-expanded={addressSuggestions.length > 0}
 					aria-label="Adresse"
-					autocomplete="street-address"
+					autocomplete="off"
 					placeholder="Straße Hausnr, PLZ Ort"
 				/>
-				{#if addressSuggestions.length > 0}
+				{#if addressSuggestions.length > 0 && addressAnchor}
 					<div
-						class="absolute z-20 mt-1 max-h-60 w-full overflow-auto rounded-xl border bg-popover p-1 text-popover-foreground shadow-md"
+						use:anchoredDropdown={addressAnchor}
+						class="z-50 max-h-60 overflow-auto rounded-xl border bg-popover p-1 text-popover-foreground shadow-md"
 					>
 						{#each addressSuggestions as suggestion (suggestion.placeId ?? suggestion.label)}
 							<button

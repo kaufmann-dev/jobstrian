@@ -13,6 +13,7 @@
 	import { Checkbox } from '$lib/components/ui/checkbox/index.js';
 	import { Badge } from '$lib/components/ui/badge/index.js';
 	import { Button } from '$lib/components/ui/button/index.js';
+	import { anchoredDropdown } from '$lib/actions/anchored-dropdown';
 	import X from '@lucide/svelte/icons/x';
 
 	type CitySuggestion = {
@@ -46,6 +47,7 @@
 	let citySuggestionTimer: ReturnType<typeof setTimeout> | undefined;
 	let citySuggestionController: AbortController | undefined;
 	let citySuggestionRequest = 0;
+	let cityAnchor = $state<HTMLElement>();
 	let tagInput = $state('');
 	let tagInputError = $state('');
 	let tagSuggestions = $state.raw<OsmBusinessTagSuggestion[]>([]);
@@ -53,6 +55,7 @@
 	let tagSuggestionTimer: ReturnType<typeof setTimeout> | undefined;
 	let tagSuggestionController: AbortController | undefined;
 	let tagSuggestionRequest = 0;
+	let tagAnchor = $state<HTMLElement>();
 
 	function visible(field: SearchConfigField): boolean {
 		return visibleFields.includes(field);
@@ -263,7 +266,7 @@
 					</Badge>
 				{/each}
 			</div>
-			<div class="relative">
+			<div class="relative" bind:this={cityAnchor}>
 				<Input
 					value={cityInput}
 					oninput={(event) => onCityInput(event.currentTarget.value)}
@@ -273,9 +276,10 @@
 					aria-label="Job-Suchort hinzufügen"
 					placeholder="Graz, Linz, Salzburg"
 				/>
-				{#if citySuggestions.length > 0}
+				{#if citySuggestions.length > 0 && cityAnchor}
 					<div
-						class="absolute z-20 mt-1 max-h-60 w-full overflow-auto rounded-xl border bg-popover p-1 text-popover-foreground shadow-md"
+						use:anchoredDropdown={cityAnchor}
+						class="z-50 max-h-60 overflow-auto rounded-xl border bg-popover p-1 text-popover-foreground shadow-md"
 					>
 						{#each citySuggestions as suggestion (suggestion.placeId ?? suggestion.label)}
 							<button
@@ -322,7 +326,7 @@
 					</Badge>
 				{/each}
 			</div>
-			<div class="relative">
+			<div class="relative" bind:this={tagAnchor}>
 				<Input
 					value={tagInput}
 					oninput={(event) => onTagInput(event.currentTarget.value)}
@@ -333,9 +337,10 @@
 					aria-label="OSM-Kategorie hinzufügen"
 					placeholder="amenity=cafe"
 				/>
-				{#if tagSuggestions.length > 0}
+				{#if tagSuggestions.length > 0 && tagAnchor}
 					<div
-						class="absolute z-20 mt-1 max-h-60 w-full overflow-auto rounded-xl border bg-popover p-1 text-popover-foreground shadow-md"
+						use:anchoredDropdown={tagAnchor}
+						class="z-50 max-h-60 overflow-auto rounded-xl border bg-popover p-1 text-popover-foreground shadow-md"
 					>
 						{#each tagSuggestions as suggestion (suggestion.raw)}
 							<button
