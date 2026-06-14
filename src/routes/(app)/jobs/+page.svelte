@@ -190,13 +190,15 @@
 {/snippet}
 
 {#snippet titleCell({ job }: { job: Listing })}
-	<div class={['max-w-md font-medium whitespace-normal', job.status === 'closed' && 'opacity-50']}>
+	<div
+		class={['max-w-md font-medium break-words whitespace-normal', job.status === 'closed' && 'opacity-50']}
+	>
 		{job.title}
 	</div>
 {/snippet}
 
 {#snippet companyCell({ job }: { job: Listing })}
-	<div class="max-w-64 whitespace-normal">{job.company ?? '—'}</div>
+	<div class="max-w-64 break-words whitespace-normal">{job.company ?? '—'}</div>
 {/snippet}
 
 {#snippet locationCell({ job }: { job: Listing })}
