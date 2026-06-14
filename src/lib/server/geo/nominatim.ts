@@ -15,6 +15,8 @@ export interface AustrianGeoSuggestion extends GeoPoint {
 
 interface NominatimAddress {
 	country_code?: string;
+	road?: string;
+	house_number?: string;
 	city?: string;
 	town?: string;
 	village?: string;
@@ -45,6 +47,18 @@ function cityOrMunicipality(address: NominatimAddress | undefined): string | nul
 	return value?.trim() || null;
 }
 
+/** Build a concise label like "Fuhrmannsgasse 18, 1080 Wien" from address parts. */
+function buildLabel(address: NominatimAddress | undefined, fallback: string): string {
+	const street = [address?.road, address?.house_number]
+		.map((part) => part?.trim())
+		.filter(Boolean)
+		.join(' ');
+	const locality = [address?.postcode?.trim(), cityOrMunicipality(address)]
+		.filter(Boolean)
+		.join(' ');
+	return [street, locality].filter(Boolean).join(', ') || fallback;
+}
+
 function normalizeResult(result: NominatimResult): AustrianGeoSuggestion | null {
 	if (result.address?.country_code?.toLowerCase() !== AUSTRIA_COUNTRY_CODE) return null;
 
@@ -52,8 +66,9 @@ function normalizeResult(result: NominatimResult): AustrianGeoSuggestion | null 
 	const lon = Number(result.lon);
 	if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null;
 
-	const label = result.display_name?.trim();
-	if (!label) return null;
+	const displayName = result.display_name?.trim();
+	if (!displayName) return null;
+	const label = buildLabel(result.address, displayName);
 
 	return {
 		label,

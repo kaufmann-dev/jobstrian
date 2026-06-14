@@ -25,14 +25,20 @@ describe('Austria-only Nominatim normalization', () => {
 					display_name: 'Herrengasse 14, 1010 Wien, Österreich',
 					lat: '48.2101',
 					lon: '16.3652',
-					address: { country_code: 'at', city: 'Wien', postcode: '1010' }
+					address: {
+						country_code: 'at',
+						road: 'Herrengasse',
+						house_number: '14',
+						city: 'Wien',
+						postcode: '1010'
+					}
 				}
 			])
 		);
 		vi.stubGlobal('fetch', fetchMock);
 
 		await expect(validateAustrianAddress('Herrengasse 14 Wien')).resolves.toEqual({
-			label: 'Herrengasse 14, 1010 Wien, Österreich',
+			label: 'Herrengasse 14, 1010 Wien',
 			lat: 48.2101,
 			lon: 16.3652,
 			city: 'Wien',

@@ -149,10 +149,6 @@
 			if (requestId !== addressValidationRequest) return;
 			if (!body.valid || !body.suggestion) {
 				addressValidationError = 'Adresse konnte in Österreich nicht gefunden werden.';
-				return;
-			}
-			if (body.suggestion.label !== profile.homeAddress) {
-				setField('homeAddress', body.suggestion.label);
 			}
 		} catch (error) {
 			if (addressValidationController.signal.aborted) return;

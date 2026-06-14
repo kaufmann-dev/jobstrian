@@ -29,3 +29,13 @@ it('keeps manual scalar edits after blur', async () => {
 
 	await expect.element(input).toHaveValue('Studium laufend');
 });
+
+it('does not overwrite the typed address on blur', async () => {
+	render(ProfileEditor, { profile });
+	const input = page.getByRole('textbox', { name: 'Adresse' });
+
+	await input.fill('Fuhrmannsgasse 18');
+	(await input.element()).blur();
+
+	await expect.element(input).toHaveValue('Fuhrmannsgasse 18');
+});
