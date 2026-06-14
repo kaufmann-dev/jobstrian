@@ -3,10 +3,12 @@
 	import type { GeoSuggestion } from '$lib/geo';
 	import { untrack } from 'svelte';
 	import RemoteAutocomplete from './remote-autocomplete.svelte';
+	import * as Accordion from '$lib/components/ui/accordion/index.js';
 	import { Input } from '$lib/components/ui/input/index.js';
 	import { Textarea } from '$lib/components/ui/textarea/index.js';
 	import { Checkbox } from '$lib/components/ui/checkbox/index.js';
 	import { Button } from '$lib/components/ui/button/index.js';
+	import { Label } from '$lib/components/ui/label/index.js';
 	import Plus from '@lucide/svelte/icons/plus';
 	import Trash2 from '@lucide/svelte/icons/trash-2';
 
@@ -17,7 +19,8 @@
 		selected = $bindable([]),
 		homeAddressErrors = [],
 		homeAddressVerified = false,
-		onHomeAddressChange
+		onHomeAddressChange,
+		collapsibleHistory = false
 	}: {
 		profile: EditableProfile;
 		fields?: ProfileField[];
@@ -25,6 +28,7 @@
 		homeAddressErrors?: string[];
 		homeAddressVerified?: boolean;
 		onHomeAddressChange?: (value: string, suggestion?: GeoSuggestion) => void;
+		collapsibleHistory?: boolean;
 	} = $props();
 
 	const allFields = Object.keys(profile) as ProfileField[];
@@ -140,6 +144,234 @@
 			/>
 		{/if}
 		<h3 class="text-sm font-medium">{label}</h3>
+	</div>
+{/snippet}
+
+{#snippet entryField(label: string, children: import('svelte').Snippet)}
+	<Label class="flex flex-col items-stretch gap-2">
+		<span>{label}</span>
+		{@render children()}
+	</Label>
+{/snippet}
+
+{#snippet workExperienceEditor()}
+	<div class="space-y-3">
+		{#each profile.workExperience as item, index (index)}
+			<div class="space-y-4 rounded-2xl border p-4">
+				<div class="grid gap-4 sm:grid-cols-2">
+					{@render entryField('Position', positionInput)}
+					{#snippet positionInput()}
+						<Input
+							value={item.position}
+							oninput={(event) =>
+								updateEntry('workExperience', item, 'position', event.currentTarget.value)}
+							placeholder="Position"
+						/>
+					{/snippet}
+					{@render entryField('Arbeitgeber', employerInput)}
+					{#snippet employerInput()}
+						<Input
+							value={item.employer}
+							oninput={(event) =>
+								updateEntry('workExperience', item, 'employer', event.currentTarget.value)}
+							placeholder="Arbeitgeber"
+						/>
+					{/snippet}
+					{@render entryField('Ort', locationInput)}
+					{#snippet locationInput()}
+						<Input
+							value={item.location}
+							oninput={(event) =>
+								updateEntry('workExperience', item, 'location', event.currentTarget.value)}
+							placeholder="Ort"
+						/>
+					{/snippet}
+					<div class="grid grid-cols-2 gap-3">
+						{@render entryField('Von', startInput)}
+						{#snippet startInput()}
+							<Input
+								value={item.startDate}
+								oninput={(event) =>
+									updateEntry('workExperience', item, 'startDate', event.currentTarget.value)}
+								placeholder="Von"
+							/>
+						{/snippet}
+						{@render entryField('Bis', endInput)}
+						{#snippet endInput()}
+							<Input
+								value={item.endDate}
+								oninput={(event) =>
+									updateEntry('workExperience', item, 'endDate', event.currentTarget.value)}
+								placeholder="Bis"
+							/>
+						{/snippet}
+					</div>
+				</div>
+				{@render entryField('Aufgaben und Erfolge', descriptionInput)}
+				{#snippet descriptionInput()}
+					<Textarea
+						value={item.description}
+						oninput={(event) =>
+							updateEntry('workExperience', item, 'description', event.currentTarget.value)}
+						rows={3}
+						placeholder="Aufgaben und Erfolge"
+					/>
+				{/snippet}
+				<div class="flex justify-end">
+					<Button
+						variant="destructive"
+						size="sm"
+						onclick={() => removeEntry('workExperience', item)}
+					>
+						<Trash2 /> Entfernen
+					</Button>
+				</div>
+			</div>
+		{/each}
+		<Button variant="outline" size="sm" onclick={addWorkExperience}><Plus /> Station</Button>
+	</div>
+{/snippet}
+
+{#snippet educationEditor()}
+	<div class="space-y-3">
+		{#each profile.educationHistory as item, index (index)}
+			<div class="space-y-4 rounded-2xl border p-4">
+				<div class="grid gap-4 sm:grid-cols-2">
+					{@render entryField('Abschluss', qualificationInput)}
+					{#snippet qualificationInput()}
+						<Input
+							value={item.qualification}
+							oninput={(event) =>
+								updateEntry('educationHistory', item, 'qualification', event.currentTarget.value)}
+							placeholder="Abschluss"
+						/>
+					{/snippet}
+					{@render entryField('Institution', institutionInput)}
+					{#snippet institutionInput()}
+						<Input
+							value={item.institution}
+							oninput={(event) =>
+								updateEntry('educationHistory', item, 'institution', event.currentTarget.value)}
+							placeholder="Institution"
+						/>
+					{/snippet}
+					{@render entryField('Fachrichtung', fieldInput)}
+					{#snippet fieldInput()}
+						<Input
+							value={item.field}
+							oninput={(event) =>
+								updateEntry('educationHistory', item, 'field', event.currentTarget.value)}
+							placeholder="Fachrichtung"
+						/>
+					{/snippet}
+					{@render entryField('Ort', educationLocationInput)}
+					{#snippet educationLocationInput()}
+						<Input
+							value={item.location}
+							oninput={(event) =>
+								updateEntry('educationHistory', item, 'location', event.currentTarget.value)}
+							placeholder="Ort"
+						/>
+					{/snippet}
+					{@render entryField('Von', educationStartInput)}
+					{#snippet educationStartInput()}
+						<Input
+							value={item.startDate}
+							oninput={(event) =>
+								updateEntry('educationHistory', item, 'startDate', event.currentTarget.value)}
+							placeholder="Von"
+						/>
+					{/snippet}
+					{@render entryField('Bis', educationEndInput)}
+					{#snippet educationEndInput()}
+						<Input
+							value={item.endDate}
+							oninput={(event) =>
+								updateEntry('educationHistory', item, 'endDate', event.currentTarget.value)}
+							placeholder="Bis"
+						/>
+					{/snippet}
+				</div>
+				{@render entryField('Details', educationDescriptionInput)}
+				{#snippet educationDescriptionInput()}
+					<Textarea
+						value={item.description}
+						oninput={(event) =>
+							updateEntry('educationHistory', item, 'description', event.currentTarget.value)}
+						rows={3}
+						placeholder="Details"
+					/>
+				{/snippet}
+				<div class="flex justify-end">
+					<Button
+						variant="destructive"
+						size="sm"
+						onclick={() => removeEntry('educationHistory', item)}
+					>
+						<Trash2 /> Entfernen
+					</Button>
+				</div>
+			</div>
+		{/each}
+		<Button variant="outline" size="sm" onclick={addEducation}><Plus /> Ausbildung</Button>
+	</div>
+{/snippet}
+
+{#snippet certificationsEditor()}
+	<div class="space-y-3">
+		{#each profile.certifications as item, index (index)}
+			<div class="space-y-4 rounded-2xl border p-4">
+				<div class="grid gap-4 sm:grid-cols-3">
+					{@render entryField('Zertifikat', certificationNameInput)}
+					{#snippet certificationNameInput()}
+						<Input
+							value={item.name}
+							oninput={(event) =>
+								updateEntry('certifications', item, 'name', event.currentTarget.value)}
+							placeholder="Zertifikat"
+						/>
+					{/snippet}
+					{@render entryField('Aussteller', issuerInput)}
+					{#snippet issuerInput()}
+						<Input
+							value={item.issuer}
+							oninput={(event) =>
+								updateEntry('certifications', item, 'issuer', event.currentTarget.value)}
+							placeholder="Aussteller"
+						/>
+					{/snippet}
+					{@render entryField('Datum', certificationDateInput)}
+					{#snippet certificationDateInput()}
+						<Input
+							value={item.date}
+							oninput={(event) =>
+								updateEntry('certifications', item, 'date', event.currentTarget.value)}
+							placeholder="Datum"
+						/>
+					{/snippet}
+				</div>
+				{@render entryField('Details', certificationDescriptionInput)}
+				{#snippet certificationDescriptionInput()}
+					<Textarea
+						value={item.description}
+						oninput={(event) =>
+							updateEntry('certifications', item, 'description', event.currentTarget.value)}
+						rows={2}
+						placeholder="Details"
+					/>
+				{/snippet}
+				<div class="flex justify-end">
+					<Button
+						variant="destructive"
+						size="sm"
+						onclick={() => removeEntry('certifications', item)}
+					>
+						<Trash2 /> Entfernen
+					</Button>
+				</div>
+			</div>
+		{/each}
+		<Button variant="outline" size="sm" onclick={addCertification}><Plus /> Zertifikat</Button>
 	</div>
 {/snippet}
 
@@ -291,158 +523,60 @@
 		</div>
 	{/if}
 
-	{#if visible('workExperience')}
-		<section class="space-y-3">
-			{@render heading('workExperience', 'Berufserfahrung')}
-			{#each profile.workExperience as item, index (index)}
-				<div class="space-y-3 rounded-2xl border p-4">
-					<div class="grid gap-3 sm:grid-cols-2">
-						<Input
-							value={item.position}
-							oninput={(event) =>
-								updateEntry('workExperience', item, 'position', event.currentTarget.value)}
-							placeholder="Position"
-						/>
-						<Input
-							value={item.employer}
-							oninput={(event) =>
-								updateEntry('workExperience', item, 'employer', event.currentTarget.value)}
-							placeholder="Arbeitgeber"
-						/>
-						<Input
-							value={item.location}
-							oninput={(event) =>
-								updateEntry('workExperience', item, 'location', event.currentTarget.value)}
-							placeholder="Ort"
-						/>
-						<div class="grid grid-cols-2 gap-3">
-							<Input
-								value={item.startDate}
-								oninput={(event) =>
-									updateEntry('workExperience', item, 'startDate', event.currentTarget.value)}
-								placeholder="Von"
-							/>
-							<Input
-								value={item.endDate}
-								oninput={(event) =>
-									updateEntry('workExperience', item, 'endDate', event.currentTarget.value)}
-								placeholder="Bis"
-							/>
-						</div>
-					</div>
-					<Textarea
-						value={item.description}
-						oninput={(event) =>
-							updateEntry('workExperience', item, 'description', event.currentTarget.value)}
-						rows={3}
-						placeholder="Aufgaben und Erfolge"
-					/>
-					<Button variant="ghost" size="sm" onclick={() => removeEntry('workExperience', item)}>
-						<Trash2 /> Entfernen
-					</Button>
-				</div>
-			{/each}
-			<Button variant="outline" size="sm" onclick={addWorkExperience}><Plus /> Station</Button>
-		</section>
-	{/if}
-
-	{#if visible('educationHistory')}
-		<section class="space-y-3">
-			{@render heading('educationHistory', 'Ausbildungsverlauf')}
-			{#each profile.educationHistory as item, index (index)}
-				<div class="space-y-3 rounded-2xl border p-4">
-					<div class="grid gap-3 sm:grid-cols-2">
-						<Input
-							value={item.qualification}
-							oninput={(event) =>
-								updateEntry('educationHistory', item, 'qualification', event.currentTarget.value)}
-							placeholder="Abschluss"
-						/>
-						<Input
-							value={item.institution}
-							oninput={(event) =>
-								updateEntry('educationHistory', item, 'institution', event.currentTarget.value)}
-							placeholder="Institution"
-						/>
-						<Input
-							value={item.field}
-							oninput={(event) =>
-								updateEntry('educationHistory', item, 'field', event.currentTarget.value)}
-							placeholder="Fachrichtung"
-						/>
-						<Input
-							value={item.location}
-							oninput={(event) =>
-								updateEntry('educationHistory', item, 'location', event.currentTarget.value)}
-							placeholder="Ort"
-						/>
-						<Input
-							value={item.startDate}
-							oninput={(event) =>
-								updateEntry('educationHistory', item, 'startDate', event.currentTarget.value)}
-							placeholder="Von"
-						/>
-						<Input
-							value={item.endDate}
-							oninput={(event) =>
-								updateEntry('educationHistory', item, 'endDate', event.currentTarget.value)}
-							placeholder="Bis"
-						/>
-					</div>
-					<Textarea
-						value={item.description}
-						oninput={(event) =>
-							updateEntry('educationHistory', item, 'description', event.currentTarget.value)}
-						rows={3}
-						placeholder="Details"
-					/>
-					<Button variant="ghost" size="sm" onclick={() => removeEntry('educationHistory', item)}>
-						<Trash2 /> Entfernen
-					</Button>
-				</div>
-			{/each}
-			<Button variant="outline" size="sm" onclick={addEducation}><Plus /> Ausbildung</Button>
-		</section>
-	{/if}
-
-	{#if visible('certifications')}
-		<section class="space-y-3">
-			{@render heading('certifications', 'Zertifikate')}
-			{#each profile.certifications as item, index (index)}
-				<div class="space-y-3 rounded-2xl border p-4">
-					<div class="grid gap-3 sm:grid-cols-3">
-						<Input
-							value={item.name}
-							oninput={(event) =>
-								updateEntry('certifications', item, 'name', event.currentTarget.value)}
-							placeholder="Zertifikat"
-						/>
-						<Input
-							value={item.issuer}
-							oninput={(event) =>
-								updateEntry('certifications', item, 'issuer', event.currentTarget.value)}
-							placeholder="Aussteller"
-						/>
-						<Input
-							value={item.date}
-							oninput={(event) =>
-								updateEntry('certifications', item, 'date', event.currentTarget.value)}
-							placeholder="Datum"
-						/>
-					</div>
-					<Textarea
-						value={item.description}
-						oninput={(event) =>
-							updateEntry('certifications', item, 'description', event.currentTarget.value)}
-						rows={2}
-						placeholder="Details"
-					/>
-					<Button variant="ghost" size="sm" onclick={() => removeEntry('certifications', item)}>
-						<Trash2 /> Entfernen
-					</Button>
-				</div>
-			{/each}
-			<Button variant="outline" size="sm" onclick={addCertification}><Plus /> Zertifikat</Button>
-		</section>
+	{#if collapsibleHistory}
+		<Accordion.Root type="multiple">
+			{#if visible('workExperience')}
+				<Accordion.Item value="work-experience">
+					<Accordion.Trigger>
+						<span>Berufserfahrung</span>
+						<span class="ml-auto text-xs font-normal text-muted-foreground">
+							{profile.workExperience.length}
+						</span>
+					</Accordion.Trigger>
+					<Accordion.Content>{@render workExperienceEditor()}</Accordion.Content>
+				</Accordion.Item>
+			{/if}
+			{#if visible('educationHistory')}
+				<Accordion.Item value="education-history">
+					<Accordion.Trigger>
+						<span>Ausbildungsverlauf</span>
+						<span class="ml-auto text-xs font-normal text-muted-foreground">
+							{profile.educationHistory.length}
+						</span>
+					</Accordion.Trigger>
+					<Accordion.Content>{@render educationEditor()}</Accordion.Content>
+				</Accordion.Item>
+			{/if}
+			{#if visible('certifications')}
+				<Accordion.Item value="certifications">
+					<Accordion.Trigger>
+						<span>Zertifikate</span>
+						<span class="ml-auto text-xs font-normal text-muted-foreground">
+							{profile.certifications.length}
+						</span>
+					</Accordion.Trigger>
+					<Accordion.Content>{@render certificationsEditor()}</Accordion.Content>
+				</Accordion.Item>
+			{/if}
+		</Accordion.Root>
+	{:else}
+		{#if visible('workExperience')}
+			<section class="space-y-3">
+				{@render heading('workExperience', 'Berufserfahrung')}
+				{@render workExperienceEditor()}
+			</section>
+		{/if}
+		{#if visible('educationHistory')}
+			<section class="space-y-3">
+				{@render heading('educationHistory', 'Ausbildungsverlauf')}
+				{@render educationEditor()}
+			</section>
+		{/if}
+		{#if visible('certifications')}
+			<section class="space-y-3">
+				{@render heading('certifications', 'Zertifikate')}
+				{@render certificationsEditor()}
+			</section>
+		{/if}
 	{/if}
 </div>

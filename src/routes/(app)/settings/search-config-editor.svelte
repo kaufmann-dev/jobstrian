@@ -21,11 +21,13 @@
 	let {
 		config = $bindable(),
 		fields,
-		selected = $bindable([])
+		selected = $bindable([]),
+		errors = {}
 	}: {
 		config: SearchConfig;
 		fields?: SearchConfigField[];
 		selected?: SearchConfigField[];
+		errors?: Partial<Record<SearchConfigField, string[] | undefined>>;
 	} = $props();
 
 	const allFields: SearchConfigField[] = [
@@ -185,6 +187,9 @@
 				label="Job-Suchort hinzufügen"
 				placeholder="Graz, Linz, Salzburg"
 			/>
+			{#each errors.jobSearchLocations ?? [] as error (error)}
+				<p class="text-sm font-medium text-destructive">{error}</p>
+			{/each}
 		</div>
 	{/if}
 
@@ -246,9 +251,9 @@
 					</div>
 				{/if}
 			</div>
-			{#if tagInputError}
-				<p class="text-sm font-medium text-destructive">{tagInputError}</p>
-			{/if}
+			{#each [tagInputError, ...(errors.businessOsmTags ?? [])].filter(Boolean) as error (error)}
+				<p class="text-sm font-medium text-destructive">{error}</p>
+			{/each}
 		</section>
 	{/if}
 
@@ -265,6 +270,9 @@
 					setField('businessRadiusMeters', Number.isFinite(value) ? value : 5000);
 				}}
 			/>
+			{#each errors.businessRadiusMeters ?? [] as error (error)}
+				<p class="text-sm font-medium text-destructive">{error}</p>
+			{/each}
 		</div>
 	{/if}
 </div>

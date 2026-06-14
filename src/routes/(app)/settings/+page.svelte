@@ -20,7 +20,7 @@
 	import * as Dialog from '$lib/components/ui/dialog/index.js';
 	import { Input } from '$lib/components/ui/input/index.js';
 	import { Textarea } from '$lib/components/ui/textarea/index.js';
-	import { Checkbox } from '$lib/components/ui/checkbox/index.js';
+	import { Switch } from '$lib/components/ui/switch/index.js';
 	import { Button } from '$lib/components/ui/button/index.js';
 	import { Spinner } from '$lib/components/ui/spinner/index.js';
 	import Save from '@lucide/svelte/icons/save';
@@ -173,6 +173,16 @@
 	async function responseMessage(response: Response, fallback: string): Promise<string> {
 		const body = (await response.json().catch(() => ({}))) as { message?: string };
 		return body.message ?? fallback;
+	}
+
+	function fieldErrors(value: unknown): string[] {
+		if (Array.isArray(value))
+			return value.filter((error): error is string => typeof error === 'string');
+		if (!value || typeof value !== 'object' || !('_errors' in value)) return [];
+		const errors = value._errors;
+		return Array.isArray(errors)
+			? errors.filter((error): error is string => typeof error === 'string')
+			: [];
 	}
 
 	async function onCvSelected(event: Event) {
@@ -334,7 +344,7 @@
 			<h1 class="text-2xl font-semibold tracking-tight">Einstellungen</h1>
 			<p class="text-sm text-muted-foreground">Profil, Portale und KI-Konfiguration.</p>
 		</div>
-		<p class="pt-1 text-xs text-muted-foreground" aria-live="polite">
+		<p class="min-h-5 shrink-0 pt-1 text-right text-xs text-muted-foreground" aria-live="polite">
 			{#if saveStatus === 'saving'}
 				Wird gespeichert …
 			{:else if saveStatus === 'saved'}
@@ -360,6 +370,7 @@
 				homeAddressErrors={$errors.homeAddress}
 				homeAddressVerified={homeLocationVerified}
 				onHomeAddressChange={saveHomeAddress}
+				collapsibleHistory
 			/>
 
 			<div class="space-y-4 border-t pt-6">
@@ -441,17 +452,6 @@
 					class="sr-only"
 					onchange={onCvSelected}
 				/>
-				<div class="flex flex-wrap gap-2">
-					<Button
-						variant="outline"
-						disabled={!canImport || importBusy}
-						onclick={createPreview}
-						title={hasUnsavedChanges ? 'Speichere zuerst die offenen Profiländerungen.' : undefined}
-					>
-						{#if importBusy}<Spinner />{:else}<Sparkles />{/if}
-						Profil aus Lebenslauf aktualisieren
-					</Button>
-				</div>
 				{#if data.cv && !data.hasLlmConfig}
 					<p class="text-sm text-muted-foreground">
 						Für den Profilimport müssen Base URL und Modell gespeichert sein.
@@ -459,6 +459,18 @@
 				{/if}
 			</div>
 		</Card.Content>
+		<Card.Footer class="border-t">
+			<Button
+				variant="outline"
+				class="w-full sm:w-auto"
+				disabled={!canImport || importBusy}
+				onclick={createPreview}
+				title={hasUnsavedChanges ? 'Speichere zuerst die offenen Profiländerungen.' : undefined}
+			>
+				{#if importBusy}<Spinner />{:else}<Sparkles />{/if}
+				Profil aus Lebenslauf aktualisieren
+			</Button>
+		</Card.Footer>
 	</Card.Root>
 
 	<Card.Root>
@@ -469,35 +481,32 @@
 			</Card.Description>
 		</Card.Header>
 		<Card.Content class="space-y-4">
-			<SearchConfigEditor bind:config={$formData} />
-			<div class="flex flex-wrap gap-2 border-t pt-4">
-				<Button
-					variant="outline"
-					disabled={!canGenerateSearchConfig || searchPreviewBusy}
-					onclick={() => (searchIntentOpen = true)}
-					title={hasUnsavedChanges ? 'Speichere zuerst die offenen Änderungen.' : undefined}
-				>
-					{#if searchPreviewBusy}<Spinner />{:else}<Sparkles />{/if}
-					Suchkonfiguration mit KI erstellen
-				</Button>
-			</div>
+			<SearchConfigEditor
+				bind:config={$formData}
+				errors={{
+					jobSearchLocations: fieldErrors($errors.jobSearchLocations),
+					businessOsmTags: fieldErrors($errors.businessOsmTags),
+					businessRadiusMeters: fieldErrors($errors.businessRadiusMeters)
+				}}
+			/>
 			{#if !data.hasLlmConfig}
 				<p class="text-sm text-muted-foreground">
 					Für die KI-Suchkonfiguration müssen Base URL und Modell gespeichert sein.
 				</p>
 			{/if}
-			<div class="grid gap-2 sm:grid-cols-2">
-				<Form.Field {form} name="jobSearchLocations">
-					<Form.FieldErrors />
-				</Form.Field>
-				<Form.Field {form} name="businessRadiusMeters">
-					<Form.FieldErrors />
-				</Form.Field>
-				<Form.Field {form} name="businessOsmTags">
-					<Form.FieldErrors />
-				</Form.Field>
-			</div>
 		</Card.Content>
+		<Card.Footer class="border-t">
+			<Button
+				variant="outline"
+				class="w-full sm:w-auto"
+				disabled={!canGenerateSearchConfig || searchPreviewBusy}
+				onclick={() => (searchIntentOpen = true)}
+				title={hasUnsavedChanges ? 'Speichere zuerst die offenen Änderungen.' : undefined}
+			>
+				{#if searchPreviewBusy}<Spinner />{:else}<Sparkles />{/if}
+				Suchkonfiguration mit KI erstellen
+			</Button>
+		</Card.Footer>
 	</Card.Root>
 
 	<Card.Root>
@@ -507,11 +516,15 @@
 		</Card.Header>
 		<Card.Content class="grid gap-3 sm:grid-cols-2">
 			{#each sources as source (source.name)}
-				<Form.Field {form} name={source.name} class="flex flex-row items-center gap-2 space-y-0">
+				<Form.Field
+					{form}
+					name={source.name}
+					class="flex flex-row items-center justify-between gap-4 rounded-2xl border p-4"
+				>
 					<Form.Control>
 						{#snippet children({ props })}
-							<Checkbox {...props} bind:checked={$formData[source.name]} />
 							<Form.Label class="font-normal">{source.label}</Form.Label>
+							<Switch {...props} bind:checked={$formData[source.name]} />
 						{/snippet}
 					</Form.Control>
 				</Form.Field>
@@ -595,12 +608,6 @@
 				</Form.Control>
 				<Form.FieldErrors />
 			</Form.Field>
-			<div>
-				<Button type="submit" formaction="?/saveApiKey" disabled={$submitting}>
-					{#if $submitting}<Spinner />{:else}<Save />{/if}
-					API-Key speichern
-				</Button>
-			</div>
 			<Form.Field {form} name="rankingNotes">
 				<Form.Control>
 					{#snippet children({ props })}
@@ -616,6 +623,17 @@
 				<Form.FieldErrors />
 			</Form.Field>
 		</Card.Content>
+		<Card.Footer class="border-t">
+			<Button
+				type="submit"
+				formaction="?/saveApiKey"
+				class="w-full sm:w-auto"
+				disabled={$submitting}
+			>
+				{#if $submitting}<Spinner />{:else}<Save />{/if}
+				API-Key speichern
+			</Button>
+		</Card.Footer>
 	</Card.Root>
 </form>
 

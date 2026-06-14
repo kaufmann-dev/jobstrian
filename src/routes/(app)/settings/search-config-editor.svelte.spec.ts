@@ -76,4 +76,21 @@ describe('SearchConfigEditor autocomplete', () => {
 			.element(page.getByRole('button', { name: 'amenity=cafe entfernen' }))
 			.not.toBeInTheDocument();
 	});
+
+	it('renders field errors beside the affected search controls', async () => {
+		render(SearchConfigEditor, {
+			config,
+			errors: {
+				jobSearchLocations: ['Mindestens ein Suchort ist erforderlich.'],
+				businessOsmTags: ['Mindestens eine Kategorie ist erforderlich.'],
+				businessRadiusMeters: ['Die Entfernung ist ungültig.']
+			}
+		});
+
+		await expect.element(page.getByText('Mindestens ein Suchort ist erforderlich.')).toBeVisible();
+		await expect
+			.element(page.getByText('Mindestens eine Kategorie ist erforderlich.'))
+			.toBeVisible();
+		await expect.element(page.getByText('Die Entfernung ist ungültig.')).toBeVisible();
+	});
 });

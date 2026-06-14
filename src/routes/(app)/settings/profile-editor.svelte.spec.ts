@@ -20,6 +20,32 @@ const profile = {
 	certifications: []
 };
 
+const profileWithHistory = {
+	...profile,
+	workExperience: [
+		{
+			position: 'Barista',
+			employer: 'Cafe',
+			location: 'Wien',
+			startDate: '2025',
+			endDate: '',
+			description: ''
+		}
+	],
+	educationHistory: [
+		{
+			qualification: 'Matura',
+			institution: 'Schule',
+			field: '',
+			location: 'Wien',
+			startDate: '2020',
+			endDate: '2024',
+			description: ''
+		}
+	],
+	certifications: [{ name: 'HACCP', issuer: '', date: '', description: '' }]
+};
+
 afterEach(() => vi.unstubAllGlobals());
 
 it('keeps manual scalar edits after blur', async () => {
@@ -61,4 +87,23 @@ it('shows the deployment configuration error returned by the server', async () =
 	await expect
 		.element(page.getByText('GEOAPIFY_API_KEY ist in der Deployment-Umgebung nicht konfiguriert.'))
 		.toBeVisible();
+});
+
+it('collapses profile history by default and shows entry counts', async () => {
+	render(ProfileEditor, { profile: profileWithHistory, collapsibleHistory: true });
+
+	const workExperience = page.getByRole('button', { name: /Berufserfahrung 1/ });
+	await expect.element(workExperience).toBeVisible();
+	await expect.element(page.getByRole('textbox', { name: 'Position' })).not.toBeInTheDocument();
+
+	await workExperience.click();
+	await expect.element(page.getByRole('textbox', { name: 'Position' })).toBeVisible();
+});
+
+it('keeps profile history expanded when collapsible history is disabled', async () => {
+	render(ProfileEditor, { profile: profileWithHistory });
+
+	await expect.element(page.getByRole('textbox', { name: 'Position' })).toBeVisible();
+	await expect.element(page.getByRole('textbox', { name: 'Abschluss' })).toBeVisible();
+	await expect.element(page.getByRole('textbox', { name: 'Zertifikat' })).toBeVisible();
 });
