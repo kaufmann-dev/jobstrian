@@ -1,5 +1,4 @@
 <script lang="ts">
-	import { Combobox } from 'bits-ui';
 	import type { GeoSuggestion, GeoSuggestionKind } from '$lib/geo';
 	import { Input } from '$lib/components/ui/input/index.js';
 
@@ -23,8 +22,10 @@
 		onBlur?: () => void;
 	} = $props();
 
+	const componentId = $props.id();
+	const listboxId = `${componentId}-suggestions`;
+
 	let open = $state(false);
-	let selectedValue = $state('');
 	let suggestions = $state.raw<GeoSuggestion[]>([]);
 	let status = $state<'idle' | 'loading' | 'error'>('idle');
 	let errorMessage = $state('');
@@ -33,9 +34,15 @@
 	let requestId = 0;
 	let skipNextBlurCommit = false;
 
-	function close(): void {
+	function clearRequest(): void {
 		clearTimeout(timer);
+		timer = undefined;
 		controller?.abort();
+		controller = undefined;
+	}
+
+	function close(): void {
+		clearRequest();
 		open = false;
 		suggestions = [];
 		status = 'idle';
@@ -44,6 +51,7 @@
 
 	async function load(query: string, id: number, signal: AbortSignal): Promise<void> {
 		status = 'loading';
+		open = true;
 		try {
 			const response = await fetch(
 				`/api/geo/suggestions?kind=${kind}&q=${encodeURIComponent(query)}`,
@@ -70,35 +78,33 @@
 	}
 
 	function handleInput(next: string): void {
-		selectedValue = '';
 		value = next;
 		onInput(next);
-		clearTimeout(timer);
-		controller?.abort();
+		clearRequest();
 		const query = next.trim();
 		if (query.length < minLength) {
 			close();
 			return;
 		}
 		const id = ++requestId;
+		status = 'loading';
+		open = true;
 		timer = setTimeout(() => {
 			controller = new AbortController();
 			void load(query, id, controller.signal);
 		}, 300);
 	}
 
-	function select(id: string): void {
-		const suggestion = suggestions.find((item) => item.id === id);
-		if (!suggestion) return;
-		selectSuggestion(suggestion);
-	}
-
 	function selectSuggestion(suggestion: GeoSuggestion): void {
 		value = suggestion.label;
-		selectedValue = suggestion.id;
 		skipNextBlurCommit = true;
 		onSelect(suggestion);
 		close();
+	}
+
+	function selectFromPointer(event: PointerEvent, suggestion: GeoSuggestion): void {
+		event.preventDefault();
+		selectSuggestion(suggestion);
 	}
 
 	function handleBlur(): void {
@@ -118,65 +124,60 @@
 	}
 </script>
 
-<Combobox.Root
-	type="single"
-	{open}
-	bind:value={selectedValue}
-	allowDeselect={false}
-	onOpenChange={(next) => (open = next)}
-	onValueChange={(selected) => select(selected)}
-	items={suggestions.map((suggestion) => ({ value: suggestion.id, label: suggestion.label }))}
-	inputValue={value}
->
-	<Combobox.Input>
-		{#snippet child({ props })}
-			<Input
-				{...props}
-				{value}
-				oninput={(event) => handleInput(event.currentTarget.value)}
-				onfocus={() => suggestions.length > 0 && (open = true)}
-				onblur={handleBlur}
-				aria-label={label}
-				autocomplete="off"
-				{placeholder}
-			/>
-		{/snippet}
-	</Combobox.Input>
-	<Combobox.Portal>
-		<Combobox.Content
-			collisionPadding={8}
-			class="z-50 max-h-60 w-(--bits-combobox-anchor-width) max-w-[calc(100vw-1rem)] overflow-auto rounded-xl border bg-popover p-1 text-popover-foreground shadow-md"
+<div class="relative">
+	<Input
+		role="combobox"
+		aria-label={label}
+		aria-autocomplete="list"
+		aria-controls={listboxId}
+		aria-expanded={open}
+		autocomplete="off"
+		{placeholder}
+		{value}
+		oninput={(event) => handleInput(event.currentTarget.value)}
+		onfocus={() => {
+			if (suggestions.length > 0 || status !== 'idle') open = true;
+		}}
+		onblur={handleBlur}
+	/>
+
+	{#if open}
+		<div
+			id={listboxId}
+			role="listbox"
+			class="absolute z-50 mt-1 max-h-60 w-full overflow-auto rounded-xl border bg-popover p-1 text-popover-foreground shadow-md"
 		>
 			{#if status === 'loading'}
-				<div class="px-2 py-1.5 text-sm text-muted-foreground">Vorschläge werden geladen …</div>
+				<div class="px-2 py-1.5 text-sm text-muted-foreground">Vorschläge werden geladen ...</div>
 			{:else if status === 'error'}
 				<div class="px-2 py-1.5 text-sm text-muted-foreground">
 					{errorMessage}
 				</div>
 			{:else if suggestions.length === 0}
-				<div class="px-2 py-1.5 text-sm text-muted-foreground">Keine Vorschläge gefunden.</div>
+				<div class="px-2 py-1.5 text-sm text-destructive">
+					{kind === 'address'
+						? 'Adresse ungültig. Wähle eine Adresse aus den Vorschlägen aus.'
+						: 'Keine Vorschläge gefunden.'}
+				</div>
 			{:else}
-				<Combobox.Viewport>
-					{#each suggestions as suggestion (suggestion.id)}
-						<Combobox.Item
-							value={suggestion.id}
-							label={suggestion.label}
-							class="min-w-0 overflow-hidden rounded-lg px-2 py-1.5 text-sm outline-none data-highlighted:bg-muted"
-						>
-							{#snippet child({ props })}
-								<div {...props} onpointerdowncapture={() => selectSuggestion(suggestion)}>
-									<span class="block truncate">{suggestion.label}</span>
-									{#if suggestion.secondaryLabel}
-										<span class="block truncate text-xs text-muted-foreground">
-											{suggestion.secondaryLabel}
-										</span>
-									{/if}
-								</div>
-							{/snippet}
-						</Combobox.Item>
-					{/each}
-				</Combobox.Viewport>
+				{#each suggestions as suggestion (suggestion.id)}
+					<button
+						type="button"
+						role="option"
+						aria-selected={false}
+						class="block w-full min-w-0 overflow-hidden rounded-lg px-2 py-1.5 text-left text-sm outline-none hover:bg-muted focus-visible:bg-muted"
+						onpointerdown={(event) => selectFromPointer(event, suggestion)}
+						onclick={() => selectSuggestion(suggestion)}
+					>
+						<span class="block truncate">{suggestion.label}</span>
+						{#if suggestion.secondaryLabel}
+							<span class="block truncate text-xs text-muted-foreground">
+								{suggestion.secondaryLabel}
+							</span>
+						{/if}
+					</button>
+				{/each}
 			{/if}
-		</Combobox.Content>
-	</Combobox.Portal>
-</Combobox.Root>
+		</div>
+	{/if}
+</div>

@@ -136,6 +136,30 @@ it('passes verified suggestion metadata when an address suggestion is selected',
 	);
 });
 
+it('selects an address suggestion from pointerdown before blur can commit typed text', async () => {
+	vi.stubGlobal(
+		'fetch',
+		vi.fn().mockResolvedValue(jsonResponse({ suggestions: [verifiedAddressSuggestion] }))
+	);
+	const onHomeAddressChange = vi.fn();
+	const onHomeAddressCommit = vi.fn();
+	render(ProfileEditor, { profile: { ...profile }, onHomeAddressChange, onHomeAddressCommit });
+
+	const input = page.getByRole('combobox', { name: 'Adresse' });
+	await input.fill('Fuhrmannsgasse 18a');
+	await waitForDebounce();
+	const option = await page.getByRole('option', { name: /Fuhrmannsgasse 18a/ }).element();
+
+	option.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, cancelable: true }));
+	(await input.element()).blur();
+
+	expect(onHomeAddressChange).toHaveBeenLastCalledWith(
+		'Fuhrmannsgasse 18a, 1080 Wien, Österreich',
+		expect.objectContaining({ id: 'geoapify-address-1', verifiable: true })
+	);
+	expect(onHomeAddressCommit).not.toHaveBeenCalled();
+});
+
 it('does not overwrite a selected address with an unverified blur commit', async () => {
 	vi.stubGlobal(
 		'fetch',
