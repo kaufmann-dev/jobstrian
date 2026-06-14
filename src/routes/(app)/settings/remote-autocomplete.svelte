@@ -24,6 +24,7 @@
 	} = $props();
 
 	let open = $state(false);
+	let selectedValue = $state('');
 	let suggestions = $state.raw<GeoSuggestion[]>([]);
 	let status = $state<'idle' | 'loading' | 'error'>('idle');
 	let errorMessage = $state('');
@@ -68,6 +69,7 @@
 	}
 
 	function handleInput(next: string): void {
+		selectedValue = '';
 		value = next;
 		onInput(next);
 		clearTimeout(timer);
@@ -87,13 +89,25 @@
 	function select(id: string): void {
 		const suggestion = suggestions.find((item) => item.id === id);
 		if (!suggestion) return;
+		selectSuggestion(suggestion);
+	}
+
+	function selectSuggestion(suggestion: GeoSuggestion): void {
 		value = suggestion.label;
+		selectedValue = suggestion.id;
 		onSelect(suggestion);
 		close();
 	}
 
 	function handleBlur(): void {
 		setTimeout(() => {
+			const exactSuggestion = suggestions.find(
+				(suggestion) => suggestion.verifiable && suggestion.label.trim() === value.trim()
+			);
+			if (exactSuggestion) {
+				selectSuggestion(exactSuggestion);
+				return;
+			}
 			close();
 			onBlur?.();
 		});
@@ -103,6 +117,8 @@
 <Combobox.Root
 	type="single"
 	{open}
+	bind:value={selectedValue}
+	allowDeselect={false}
 	onOpenChange={(next) => (open = next)}
 	onValueChange={(selected) => select(selected)}
 	items={suggestions.map((suggestion) => ({ value: suggestion.id, label: suggestion.label }))}

@@ -30,6 +30,7 @@ export class SettingsAutosaveQueue {
 	private pending: SettingsPatchRequest = { patch: {} };
 	private inFlight = false;
 	private timer: ReturnType<typeof setTimeout> | undefined;
+	private activeFlush: Promise<void> | undefined;
 
 	constructor(
 		private readonly send: (patch: SettingsPatchRequest) => Promise<void>,
@@ -50,19 +51,26 @@ export class SettingsAutosaveQueue {
 	retry(): void {
 		if (empty(this.pending) || this.inFlight) return;
 		this.clearTimer();
-		void this.flush();
+		void this.runFlush();
 	}
 
 	isSaved(): boolean {
 		return !this.timer && !this.inFlight && empty(this.pending);
 	}
 
+	flush(): Promise<void> {
+		if (this.isSaved()) return Promise.resolve();
+		this.clearTimer();
+		return this.runFlush();
+	}
+
 	private schedule(): void {
+		if (this.activeFlush || this.inFlight) return;
 		this.clearTimer();
 		this.onStatus('idle');
 		this.timer = setTimeout(() => {
 			this.timer = undefined;
-			void this.flush();
+			void this.runFlush();
 		}, this.debounceMs);
 	}
 
@@ -71,27 +79,37 @@ export class SettingsAutosaveQueue {
 		this.timer = undefined;
 	}
 
-	private async flush(): Promise<void> {
-		if (this.inFlight || empty(this.pending)) return;
-		const request = this.pending;
-		this.pending = { patch: {} };
-		this.inFlight = true;
-		this.onStatus('saving');
-		try {
-			await this.send(request);
-			this.inFlight = false;
-			if (!empty(this.pending)) {
-				await this.flush();
-			} else {
-				this.onStatus('saved');
-			}
-		} catch {
-			this.inFlight = false;
-			this.pending = {
-				patch: { ...request.patch, ...this.pending.patch },
-				homeLocation: this.pending.homeLocation ?? request.homeLocation
-			};
-			this.onStatus('error');
+	private runFlush(): Promise<void> {
+		if (!this.activeFlush) {
+			this.activeFlush = this.flushPending().finally(() => {
+				this.activeFlush = undefined;
+			});
 		}
+		return this.activeFlush;
+	}
+
+	private async flushPending(): Promise<void> {
+		if (this.inFlight) return;
+		let sent = false;
+		while (!empty(this.pending)) {
+			sent = true;
+			const request = this.pending;
+			this.pending = { patch: {} };
+			this.inFlight = true;
+			this.onStatus('saving');
+			try {
+				await this.send(request);
+			} catch {
+				this.pending = {
+					patch: { ...request.patch, ...this.pending.patch },
+					homeLocation: this.pending.homeLocation ?? request.homeLocation
+				};
+				this.onStatus('error');
+				return;
+			} finally {
+				this.inFlight = false;
+			}
+		}
+		if (sent) this.onStatus('saved');
 	}
 }

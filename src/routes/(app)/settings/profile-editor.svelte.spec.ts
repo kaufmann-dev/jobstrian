@@ -48,6 +48,29 @@ const profileWithHistory = {
 
 afterEach(() => vi.unstubAllGlobals());
 
+const verifiedAddressSuggestion = {
+	id: 'geoapify-address-1',
+	label: 'Fuhrmannsgasse 18a, 1080 Wien, Österreich',
+	secondaryLabel: '1080 Wien, Österreich',
+	city: 'Wien',
+	postcode: '1080',
+	lat: 48.21234,
+	lon: 16.34567,
+	countryCode: 'at',
+	kind: 'address' as const,
+	verifiable: true
+};
+
+function jsonResponse(body: unknown): Response {
+	return new Response(JSON.stringify(body), {
+		headers: { 'content-type': 'application/json' }
+	});
+}
+
+async function waitForDebounce() {
+	await new Promise((resolve) => setTimeout(resolve, 350));
+}
+
 it('keeps manual scalar edits after blur', async () => {
 	render(ProfileEditor, { profile });
 	const input = page.getByRole('textbox', { name: 'Ausbildung / Status' });
@@ -66,6 +89,52 @@ it('does not overwrite the typed address on blur', async () => {
 	(await input.element()).blur();
 
 	await expect.element(input).toHaveValue('Fuhrmannsgasse 18');
+});
+
+it('passes verified suggestion metadata when an address suggestion is selected', async () => {
+	vi.stubGlobal(
+		'fetch',
+		vi.fn().mockResolvedValue(jsonResponse({ suggestions: [verifiedAddressSuggestion] }))
+	);
+	const onHomeAddressChange = vi.fn();
+	render(ProfileEditor, { profile: { ...profile }, onHomeAddressChange });
+
+	const input = page.getByRole('combobox', { name: 'Adresse' });
+	await input.fill('Fuhrmannsgasse 18a');
+	await waitForDebounce();
+	await page.getByRole('option', { name: /Fuhrmannsgasse 18a/ }).click();
+
+	expect(onHomeAddressChange).toHaveBeenLastCalledWith(
+		'Fuhrmannsgasse 18a, 1080 Wien, Österreich',
+		expect.objectContaining({
+			id: 'geoapify-address-1',
+			verifiable: true,
+			city: 'Wien',
+			postcode: '1080'
+		})
+	);
+});
+
+it('promotes exact loaded address text on blur to a verified suggestion', async () => {
+	vi.stubGlobal(
+		'fetch',
+		vi.fn().mockResolvedValue(jsonResponse({ suggestions: [verifiedAddressSuggestion] }))
+	);
+	const onHomeAddressChange = vi.fn();
+	render(ProfileEditor, { profile: { ...profile }, onHomeAddressChange });
+
+	const input = page.getByRole('combobox', { name: 'Adresse' });
+	await input.fill('Fuhrmannsgasse 18a, 1080 Wien, Österreich');
+	await waitForDebounce();
+	await expect.element(page.getByRole('option', { name: /Fuhrmannsgasse 18a/ })).toBeVisible();
+	(await input.element()).blur();
+
+	await vi.waitFor(() =>
+		expect(onHomeAddressChange).toHaveBeenLastCalledWith(
+			'Fuhrmannsgasse 18a, 1080 Wien, Österreich',
+			expect.objectContaining({ id: 'geoapify-address-1', verifiable: true })
+		)
+	);
 });
 
 it('shows the deployment configuration error returned by the server', async () => {

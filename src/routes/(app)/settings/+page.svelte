@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { superForm } from 'sveltekit-superforms';
 	import { zod4Client } from 'sveltekit-superforms/adapters';
-	import { invalidateAll } from '$app/navigation';
+	import { invalidate, invalidateAll, onNavigate } from '$app/navigation';
 	import { untrack } from 'svelte';
 	import { fromAction } from 'svelte/attachments';
 	import { toast } from 'svelte-sonner';
@@ -11,6 +11,7 @@
 	import {
 		SettingsAutosaveQueue,
 		type HomeLocationPatch,
+		type SettingsPatchRequest,
 		type SaveStatus
 	} from './settings-autosave';
 	import ProfileEditor from './profile-editor.svelte';
@@ -51,6 +52,7 @@
 			});
 			if (!response.ok)
 				throw new Error(await responseMessage(response, 'Speichern fehlgeschlagen'));
+			if (affectsSettingsStatus(patch)) await invalidate('app:settings-status');
 		},
 		(status) => {
 			saveStatus = status;
@@ -146,6 +148,15 @@
 	const canImport = $derived(Boolean(data.cv && data.hasLlmConfig && !hasUnsavedChanges));
 	const canGenerateSearchConfig = $derived(Boolean(data.hasLlmConfig && !hasUnsavedChanges));
 
+	onNavigate(() => autosave.flush());
+
+	function affectsSettingsStatus(request: SettingsPatchRequest): boolean {
+		if (request.homeLocation) return true;
+		return Object.keys(request.patch).some((field) =>
+			['llmBaseUrl', 'llmModel', 'jobSearchKeywords', 'businessOsmTags'].includes(field)
+		);
+	}
+
 	function saveHomeAddress(value: string, suggestion?: GeoSuggestion) {
 		autosaveDirty = true;
 		homeLocationVerified = Boolean(suggestion?.verifiable);
@@ -162,6 +173,7 @@
 				}
 			: { address: value, verified: false };
 		autosave.enqueueHomeLocation(homeLocation);
+		if (homeLocation.verified) void autosave.flush();
 	}
 
 	function fmtSize(bytes: number): string {

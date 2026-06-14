@@ -1,7 +1,8 @@
 import { getSettings } from '$lib/server/settings';
 import type { LayoutServerLoad } from './$types';
 
-export const load: LayoutServerLoad = async ({ locals }) => {
+export const load: LayoutServerLoad = async ({ locals, depends }) => {
+	depends('app:settings-status');
 	const settings = await getSettings();
 	return {
 		user: locals.user,
