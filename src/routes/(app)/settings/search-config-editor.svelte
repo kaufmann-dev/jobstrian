@@ -145,12 +145,18 @@
 		addCity(cityInput);
 	}
 
+	function clearTagSuggestions() {
+		clearTimeout(tagSuggestionTimer);
+		tagSuggestionController?.abort();
+		tagSuggestions = [];
+		tagLookupStatus = 'idle';
+	}
+
 	function addTag(tag: OsmBusinessTag) {
 		setField('businessOsmTags', normalizeOsmBusinessTags([...config.businessOsmTags, tag]));
 		tagInput = '';
 		tagInputError = '';
-		tagSuggestions = [];
-		tagLookupStatus = 'idle';
+		clearTagSuggestions();
 	}
 
 	function addTypedTag() {
@@ -163,6 +169,11 @@
 			return;
 		}
 		addTag(tag);
+	}
+
+	function onTagBlur() {
+		addTypedTag();
+		clearTagSuggestions();
 	}
 
 	function removeTag(tag: OsmBusinessTag) {
@@ -279,11 +290,16 @@
 				{#if citySuggestions.length > 0 && cityAnchor}
 					<div
 						use:anchoredDropdown={cityAnchor}
+						onmousedown={(event) => event.preventDefault()}
+						role="listbox"
+						tabindex="-1"
 						class="z-50 max-h-60 overflow-auto rounded-xl border bg-popover p-1 text-popover-foreground shadow-md"
 					>
 						{#each citySuggestions as suggestion (suggestion.placeId ?? suggestion.label)}
 							<button
 								type="button"
+								role="option"
+								aria-selected="false"
 								class="w-full rounded-lg px-2 py-1.5 text-left text-sm hover:bg-muted"
 								onmousedown={(event) => {
 									event.preventDefault();
@@ -331,7 +347,7 @@
 					value={tagInput}
 					oninput={(event) => onTagInput(event.currentTarget.value)}
 					onkeydown={onTagKeydown}
-					onblur={addTypedTag}
+					onblur={onTagBlur}
 					aria-invalid={Boolean(tagInputError)}
 					aria-expanded={tagSuggestions.length > 0}
 					aria-label="OSM-Kategorie hinzufügen"
@@ -340,11 +356,16 @@
 				{#if tagSuggestions.length > 0 && tagAnchor}
 					<div
 						use:anchoredDropdown={tagAnchor}
+						onmousedown={(event) => event.preventDefault()}
+						role="listbox"
+						tabindex="-1"
 						class="z-50 max-h-60 overflow-auto rounded-xl border bg-popover p-1 text-popover-foreground shadow-md"
 					>
 						{#each tagSuggestions as suggestion (suggestion.raw)}
 							<button
 								type="button"
+								role="option"
+								aria-selected="false"
 								class="w-full rounded-lg px-2 py-1.5 text-left text-sm hover:bg-muted"
 								onmousedown={(event) => {
 									event.preventDefault();

@@ -35,10 +35,13 @@
 	const selectable = $derived(Boolean(fields));
 	let addressSuggestions = $state.raw<AddressSuggestion[]>([]);
 	let addressLookupStatus = $state<'idle' | 'loading'>('idle');
-	const addressError = $derived(homeAddressErrors[0]);
+	let addressValidationError = $state('');
+	const addressError = $derived(homeAddressErrors[0] ?? addressValidationError);
 	let addressSuggestionTimer: ReturnType<typeof setTimeout> | undefined;
 	let addressSuggestionController: AbortController | undefined;
+	let addressValidationController: AbortController | undefined;
 	let addressSuggestionRequest = 0;
+	let addressValidationRequest = 0;
 	let addressAnchor = $state<HTMLElement>();
 
 	function visible(field: ProfileField): boolean {
@@ -109,13 +112,55 @@
 	}
 
 	function onHomeAddressInput(value: string) {
+		addressValidationError = '';
 		setField('homeAddress', value);
 		scheduleAddressSuggestions(value);
 	}
 
 	function selectAddressSuggestion(suggestion: AddressSuggestion) {
+		addressValidationController?.abort();
+		addressValidationError = '';
 		setField('homeAddress', suggestion.label);
 		clearAddressSuggestions();
+	}
+
+	function onHomeAddressBlur() {
+		clearAddressSuggestions();
+		void validateHomeAddress();
+	}
+
+	async function validateHomeAddress() {
+		const address = profile.homeAddress.trim();
+		addressValidationController?.abort();
+		addressValidationError = '';
+		if (!address) return;
+		if (address.length < 3) {
+			addressValidationError = 'Adresse ist zu kurz.';
+			return;
+		}
+
+		const requestId = ++addressValidationRequest;
+		addressValidationController = new AbortController();
+		try {
+			const response = await fetch('/api/geo/validate-address', {
+				method: 'POST',
+				headers: { 'content-type': 'application/json' },
+				body: JSON.stringify({ address }),
+				signal: addressValidationController.signal
+			});
+			if (!response.ok) throw new Error('Address validation failed');
+			const body = (await response.json()) as {
+				valid?: boolean;
+				suggestion?: AddressSuggestion | null;
+			};
+			if (requestId !== addressValidationRequest) return;
+			if (!body.valid || !body.suggestion) {
+				addressValidationError = 'Adresse konnte in Österreich nicht gefunden werden.';
+			}
+		} catch (error) {
+			if (addressValidationController.signal.aborted) return;
+			addressValidationError = 'Adresse konnte nicht geprüft werden.';
+		}
 	}
 
 	function updateEntry<
@@ -324,6 +369,7 @@
 				<Input
 					value={profile.homeAddress}
 					oninput={(event) => onHomeAddressInput(event.currentTarget.value)}
+					onblur={onHomeAddressBlur}
 					aria-invalid={Boolean(addressError)}
 					aria-expanded={addressSuggestions.length > 0}
 					aria-label="Adresse"
@@ -333,11 +379,16 @@
 				{#if addressSuggestions.length > 0 && addressAnchor}
 					<div
 						use:anchoredDropdown={addressAnchor}
+						onmousedown={(event) => event.preventDefault()}
+						role="listbox"
+						tabindex="-1"
 						class="z-50 max-h-60 overflow-auto rounded-xl border bg-popover p-1 text-popover-foreground shadow-md"
 					>
 						{#each addressSuggestions as suggestion (suggestion.placeId ?? suggestion.label)}
 							<button
 								type="button"
+								role="option"
+								aria-selected="false"
 								class="w-full rounded-lg px-2 py-1.5 text-left text-sm hover:bg-muted"
 								onmousedown={(event) => {
 									event.preventDefault();
