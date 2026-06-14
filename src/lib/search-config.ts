@@ -150,7 +150,7 @@ export type SearchConfigField =
 	| 'jobSearchLocations'
 	| 'businessOsmTags'
 	| 'businessRadiusMeters';
-export type SearchConfigPreview = {
+export type SearchConfig = {
 	jobSearchKeywords: string[];
 	jobSearchLocations: string[];
 	businessOsmTags: OsmBusinessTag[];
@@ -261,3 +261,48 @@ export const businessOsmTagsSchema = z
 	.array(osmBusinessTagSchema)
 	.max(100)
 	.transform((tags) => normalizeOsmBusinessTags(tags));
+
+export const generatedSearchConfigFields = {
+	jobSearchKeywords: stringListSchema,
+	businessOsmTags: businessOsmTagsSchema,
+	jobSearchLocations: stringListSchema
+} as const;
+
+export const searchConfigPreviewSchema = z.object(generatedSearchConfigFields).partial();
+export type SearchConfigPreview = z.infer<typeof searchConfigPreviewSchema>;
+export type GeneratedSearchConfigField = keyof SearchConfigPreview;
+
+const generatedSearchConfigFieldSchema = z.enum(
+	Object.keys(generatedSearchConfigFields) as [
+		GeneratedSearchConfigField,
+		...GeneratedSearchConfigField[]
+	]
+);
+
+export const searchConfigPatchSchema = z
+	.object({
+		selected: z
+			.array(generatedSearchConfigFieldSchema)
+			.max(Object.keys(generatedSearchConfigFields).length),
+		searchConfig: searchConfigPreviewSchema
+	})
+	.superRefine(({ selected, searchConfig }, ctx) => {
+		if (new Set(selected).size !== selected.length) {
+			ctx.addIssue({
+				code: 'custom',
+				path: ['selected'],
+				message: 'Ausgewählte Felder dürfen nicht doppelt vorkommen.'
+			});
+		}
+		for (const field of selected) {
+			if (searchConfig[field] === undefined) {
+				ctx.addIssue({
+					code: 'custom',
+					path: ['selected'],
+					message: `Ausgewähltes Feld fehlt: ${field}`
+				});
+			}
+		}
+	});
+
+export type SearchConfigPatch = z.infer<typeof searchConfigPatchSchema>;

@@ -6,8 +6,8 @@
 		parseOsmBusinessTag,
 		type OsmBusinessTag,
 		type OsmBusinessTagSuggestion,
-		type SearchConfigField,
-		type SearchConfigPreview
+		type SearchConfig,
+		type SearchConfigField
 	} from '$lib/search-config';
 	import { Input } from '$lib/components/ui/input/index.js';
 	import { Checkbox } from '$lib/components/ui/checkbox/index.js';
@@ -27,7 +27,7 @@
 		fields,
 		selected = $bindable([])
 	}: {
-		config: SearchConfigPreview;
+		config: SearchConfig;
 		fields?: SearchConfigField[];
 		selected?: SearchConfigField[];
 	} = $props();
@@ -75,10 +75,7 @@
 		];
 	}
 
-	function setField<Field extends keyof SearchConfigPreview>(
-		field: Field,
-		value: SearchConfigPreview[Field]
-	) {
+	function setField<Field extends keyof SearchConfig>(field: Field, value: SearchConfig[Field]) {
 		config = { ...config, [field]: value };
 	}
 

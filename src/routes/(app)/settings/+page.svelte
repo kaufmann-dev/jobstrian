@@ -22,6 +22,12 @@
 	import Download from '@lucide/svelte/icons/download';
 	import Trash2 from '@lucide/svelte/icons/trash-2';
 	import Sparkles from '@lucide/svelte/icons/sparkles';
+	import type {
+		GeneratedSearchConfigField,
+		SearchConfig,
+		SearchConfigField,
+		SearchConfigPreview
+	} from '$lib/search-config';
 
 	let { data } = $props();
 	const hasApiKey = $derived(data.hasApiKey);
@@ -89,9 +95,23 @@
 		educationHistory: [],
 		certifications: []
 	});
+	let searchIntentOpen = $state(false);
+	let searchIntent = $state('');
+	let searchPreviewBusy = $state(false);
+	let searchApplyBusy = $state(false);
+	let searchPreviewOpen = $state(false);
+	let searchPreviewFields = $state<SearchConfigField[]>([]);
+	let selectedSearchFields = $state<SearchConfigField[]>([]);
+	let searchPreview = $state<SearchConfig>({
+		jobSearchKeywords: [],
+		jobSearchLocations: [],
+		businessOsmTags: [],
+		businessRadiusMeters: 5000
+	});
 
 	const hasUnsavedChanges = $derived(Boolean($tainted));
 	const canImport = $derived(Boolean(data.cv && data.hasLlmConfig && !hasUnsavedChanges));
+	const canGenerateSearchConfig = $derived(Boolean(data.hasLlmConfig && !hasUnsavedChanges));
 
 	function scheduleAutosave() {
 		clearTimeout(autosaveTimer);
@@ -189,6 +209,76 @@
 			);
 		} finally {
 			applyBusy = false;
+		}
+	}
+
+	function blankSearchPreview(): SearchConfig {
+		return {
+			jobSearchKeywords: [],
+			jobSearchLocations: [],
+			businessOsmTags: [],
+			businessRadiusMeters: $formData.businessRadiusMeters
+		};
+	}
+
+	async function createSearchPreview() {
+		if (!canGenerateSearchConfig) return;
+		searchPreviewBusy = true;
+		try {
+			const response = await fetch('/api/search-config/preview', {
+				method: 'POST',
+				headers: { 'content-type': 'application/json' },
+				body: JSON.stringify({ intent: searchIntent })
+			});
+			if (!response.ok) {
+				throw new Error(
+					await responseMessage(response, 'Suchkonfiguration konnte nicht erzeugt werden')
+				);
+			}
+			const body = (await response.json()) as { searchConfig: SearchConfigPreview };
+			searchPreviewFields = Object.keys(body.searchConfig) as SearchConfigField[];
+			selectedSearchFields = [...searchPreviewFields];
+			searchPreview = { ...blankSearchPreview(), ...body.searchConfig };
+			searchIntentOpen = false;
+			searchPreviewOpen = true;
+		} catch (error) {
+			toast.error(
+				error instanceof Error ? error.message : 'Suchkonfiguration konnte nicht erzeugt werden'
+			);
+		} finally {
+			searchPreviewBusy = false;
+		}
+	}
+
+	async function applySearchPreview() {
+		searchApplyBusy = true;
+		try {
+			const selected = selectedSearchFields as GeneratedSearchConfigField[];
+			const response = await fetch('/api/search-config', {
+				method: 'PATCH',
+				headers: { 'content-type': 'application/json' },
+				body: JSON.stringify({
+					selected,
+					searchConfig: $state.snapshot(searchPreview)
+				})
+			});
+			if (!response.ok) {
+				throw new Error(
+					await responseMessage(response, 'Suchkonfiguration konnte nicht aktualisiert werden')
+				);
+			}
+			searchPreviewOpen = false;
+			await invalidateAll();
+			form.reset({ data: data.form.data });
+			toast.success('Suchkonfiguration aktualisiert');
+		} catch (error) {
+			toast.error(
+				error instanceof Error
+					? error.message
+					: 'Suchkonfiguration konnte nicht aktualisiert werden'
+			);
+		} finally {
+			searchApplyBusy = false;
 		}
 	}
 </script>
@@ -291,6 +381,26 @@
 		</Card.Header>
 		<Card.Content class="space-y-4">
 			<SearchConfigEditor bind:config={$formData} />
+			<div class="flex flex-wrap gap-2 border-t pt-4">
+				<Button
+					variant="outline"
+					disabled={!canGenerateSearchConfig || searchPreviewBusy}
+					onclick={() => (searchIntentOpen = true)}
+					title={hasUnsavedChanges ? 'Speichere zuerst die offenen Änderungen.' : undefined}
+				>
+					{#if searchPreviewBusy}<Spinner />{:else}<Sparkles />{/if}
+					Suchkonfiguration mit KI erstellen
+				</Button>
+			</div>
+			{#if !data.hasLlmConfig}
+				<p class="text-sm text-muted-foreground">
+					Für die KI-Suchkonfiguration müssen Base URL und Modell gespeichert sein.
+				</p>
+			{:else if hasUnsavedChanges}
+				<p class="text-sm text-muted-foreground">
+					Speichere die offenen Änderungen, bevor du eine Suchkonfiguration erzeugst.
+				</p>
+			{/if}
 			<div class="grid gap-2 sm:grid-cols-2">
 				<Form.Field {form} name="jobSearchLocations">
 					<Form.FieldErrors />
@@ -437,6 +547,67 @@
 			<Button variant="outline" onclick={() => (previewOpen = false)}>Abbrechen</Button>
 			<Button disabled={applyBusy || selectedFields.length === 0} onclick={applyPreview}>
 				{#if applyBusy}<Spinner />{:else}<Save />{/if}
+				Auswahl übernehmen
+			</Button>
+		</Dialog.Footer>
+	</Dialog.Content>
+</Dialog.Root>
+
+<Dialog.Root bind:open={searchIntentOpen}>
+	<Dialog.Content class="sm:max-w-xl">
+		<Dialog.Header>
+			<Dialog.Title>Suchkonfiguration mit KI erstellen</Dialog.Title>
+			<Dialog.Description>
+				Nenne Rolle, Branche, Seniorität, Arbeitszeit oder Ausschlüsse, die wichtig sind.
+			</Dialog.Description>
+		</Dialog.Header>
+		<div class="space-y-2">
+			<label class="text-sm font-medium" for="search-config-intent">
+				Welche Jobs möchtest du finden?
+			</label>
+			<Textarea
+				id="search-config-intent"
+				bind:value={searchIntent}
+				rows={5}
+				placeholder="z.B. Teilzeit im Verkauf oder Büro in Wien, keine Nachtschichten"
+			/>
+			<p class="text-sm text-muted-foreground">
+				Beispiele können Rolle, Branche, Seniorität, Arbeitszeit und Ausschlüsse enthalten.
+			</p>
+		</div>
+		<Dialog.Footer>
+			<Button variant="outline" onclick={() => (searchIntentOpen = false)}>Abbrechen</Button>
+			<Button
+				disabled={searchPreviewBusy || !searchIntent.trim() || !canGenerateSearchConfig}
+				onclick={createSearchPreview}
+			>
+				{#if searchPreviewBusy}<Spinner />{:else}<Sparkles />{/if}
+				Vorschlag erzeugen
+			</Button>
+		</Dialog.Footer>
+	</Dialog.Content>
+</Dialog.Root>
+
+<Dialog.Root bind:open={searchPreviewOpen}>
+	<Dialog.Content class="max-h-[90vh] overflow-y-auto sm:max-w-3xl">
+		<Dialog.Header>
+			<Dialog.Title>Suchkonfiguration prüfen</Dialog.Title>
+			<Dialog.Description>
+				Prüfe die KI-Vorschläge. Nur ausgewählte Bereiche werden sofort gespeichert.
+			</Dialog.Description>
+		</Dialog.Header>
+		<SearchConfigEditor
+			bind:config={searchPreview}
+			fields={searchPreviewFields}
+			bind:selected={selectedSearchFields}
+		/>
+		<Dialog.Footer>
+			<Button variant="outline" onclick={() => (searchPreviewOpen = false)}>Abbrechen</Button>
+			<Button
+				disabled={searchApplyBusy || selectedSearchFields.length === 0}
+				onclick={applySearchPreview}
+			>
+				{#if searchApplyBusy}<Spinner />{:else}<Save />{/if}
 				Auswahl übernehmen
 			</Button>
 		</Dialog.Footer>
