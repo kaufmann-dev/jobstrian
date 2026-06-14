@@ -1,9 +1,10 @@
-import { superValidate } from 'sveltekit-superforms';
+import { setError, superValidate } from 'sveltekit-superforms/server';
 import { zod4 } from 'sveltekit-superforms/adapters';
 import { fail } from '@sveltejs/kit';
 import { getSettings, updateSettings, ALL_SOURCES } from '$lib/server/settings';
 import { getCvMeta } from '$lib/server/cv';
 import { apiKeySchema, settingsSchema } from './schema';
+import { resolveHomeAddressSave } from './settings-save';
 import type { Settings } from '$lib/server/db/schema';
 import type { Actions, PageServerLoad } from './$types';
 
@@ -56,7 +57,9 @@ async function saveSettings(request: Request) {
 		return data.sourceAms;
 	});
 
-	const addressChanged = data.homeAddress.trim() !== current.homeAddress.trim();
+	const homeAddressSave = await resolveHomeAddressSave(current, data.homeAddress);
+	if (!homeAddressSave.ok) return setError(form, 'homeAddress', homeAddressSave.message);
+	form.data.homeAddress = homeAddressSave.homeAddress;
 
 	const updated = await updateSettings({
 		profileText: data.profileText,
@@ -70,7 +73,7 @@ async function saveSettings(request: Request) {
 		educationStatus: data.educationStatus,
 		availability: data.availability,
 		rankingNotes: data.rankingNotes,
-		homeAddress: data.homeAddress,
+		homeAddress: homeAddressSave.homeAddress,
 		jobSearchKeywords: data.jobSearchKeywords,
 		jobSearchLocations: data.jobSearchLocations,
 		businessOsmTags: data.businessOsmTags,
@@ -80,8 +83,8 @@ async function saveSettings(request: Request) {
 		llmModel: data.llmModel,
 		llmRequestsPerMinute: data.llmRequestsPerMinute,
 		llmMaxConcurrent: data.llmMaxConcurrent,
-		// Re-geocode on next run if the address changed.
-		...(addressChanged ? { homeLat: null, homeLon: null } : {})
+		...('homeLat' in homeAddressSave ? { homeLat: homeAddressSave.homeLat } : {}),
+		...('homeLon' in homeAddressSave ? { homeLon: homeAddressSave.homeLon } : {})
 	});
 
 	const responseForm = await settingsForm(updated);

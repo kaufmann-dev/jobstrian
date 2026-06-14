@@ -58,7 +58,7 @@
 			}
 		}
 	);
-	const { form: formData, enhance, submitting, tainted } = form;
+	const { form: formData, enhance, submitting, tainted, errors } = form;
 	const enhanceAttachment = fromAction(enhance);
 	let autosaveTimer: ReturnType<typeof setTimeout> | undefined;
 	let saveStatus = $state<'idle' | 'saving' | 'saved' | 'error'>('idle');
@@ -223,7 +223,7 @@
 			</Card.Description>
 		</Card.Header>
 		<Card.Content class="space-y-6">
-			<ProfileEditor bind:profile={$formData} />
+			<ProfileEditor bind:profile={$formData} homeAddressErrors={$errors.homeAddress} />
 
 			<div class="space-y-4 border-t pt-6">
 				<div>
@@ -292,6 +292,9 @@
 		<Card.Content class="space-y-4">
 			<SearchConfigEditor bind:config={$formData} />
 			<div class="grid gap-2 sm:grid-cols-2">
+				<Form.Field {form} name="jobSearchLocations">
+					<Form.FieldErrors />
+				</Form.Field>
 				<Form.Field {form} name="businessRadiusMeters">
 					<Form.FieldErrors />
 				</Form.Field>

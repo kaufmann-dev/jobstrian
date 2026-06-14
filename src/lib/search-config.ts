@@ -141,6 +141,10 @@ export const OSM_TAG_CATALOG = {
 
 export type OsmBusinessTagKey = keyof typeof OSM_TAG_CATALOG;
 export type OsmBusinessTag = { key: OsmBusinessTagKey; value: string };
+export type OsmBusinessTagSuggestion = OsmBusinessTag & {
+	label: string;
+	raw: string;
+};
 export type SearchConfigField =
 	| 'jobSearchKeywords'
 	| 'jobSearchLocations'
@@ -175,6 +179,47 @@ export function isValidOsmBusinessTag(tag: { key: string; value: string }): tag 
 	return (OSM_TAG_CATALOG[tag.key as OsmBusinessTagKey] as readonly string[]).includes(tag.value);
 }
 
+function humanizeToken(token: string): string {
+	return token
+		.split('_')
+		.map((part) => part.charAt(0).toLocaleUpperCase('de-AT') + part.slice(1))
+		.join(' ');
+}
+
+export function osmBusinessTagLabel(tag: OsmBusinessTag): string {
+	return `${humanizeToken(tag.key)}: ${humanizeToken(tag.value)}`;
+}
+
+export function osmBusinessTagRaw(tag: OsmBusinessTag): string {
+	return `${tag.key}=${tag.value}`;
+}
+
+export function parseOsmBusinessTag(raw: string): OsmBusinessTag | null {
+	const [key, ...valueParts] = raw.trim().split('=');
+	const value = valueParts.join('=');
+	const tag = { key: key?.trim() ?? '', value: value.trim() };
+	return isValidOsmBusinessTag(tag) ? tag : null;
+}
+
+export function osmBusinessTagSuggestions(query: string, limit = 10): OsmBusinessTagSuggestion[] {
+	const normalizedQuery = query.trim().toLocaleLowerCase('de-AT');
+	const suggestions: OsmBusinessTagSuggestion[] = [];
+
+	for (const key of OSM_KEYS) {
+		for (const value of OSM_TAG_CATALOG[key]) {
+			const tag = { key, value };
+			const raw = osmBusinessTagRaw(tag);
+			const label = osmBusinessTagLabel(tag);
+			const haystack = `${raw} ${label}`.toLocaleLowerCase('de-AT');
+			if (normalizedQuery && !haystack.includes(normalizedQuery)) continue;
+			suggestions.push({ ...tag, raw, label });
+			if (suggestions.length >= limit) return suggestions;
+		}
+	}
+
+	return suggestions;
+}
+
 export function normalizeOsmBusinessTags(tags: readonly OsmBusinessTag[]): OsmBusinessTag[] {
 	const seen = new Set<string>();
 	const normalized: OsmBusinessTag[] = [];
@@ -182,7 +227,7 @@ export function normalizeOsmBusinessTags(tags: readonly OsmBusinessTag[]): OsmBu
 		const key = tag.key.trim() as OsmBusinessTagKey;
 		const value = tag.value.trim();
 		if (!isValidOsmBusinessTag({ key, value })) continue;
-		const id = `${key}=${value}`;
+		const id = osmBusinessTagRaw({ key, value });
 		if (seen.has(id)) continue;
 		seen.add(id);
 		normalized.push({ key, value });
