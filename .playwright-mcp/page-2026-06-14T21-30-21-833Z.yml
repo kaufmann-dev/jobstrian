@@ -1,0 +1,21 @@
+- generic [ref=e2]:
+  - region "Notifications alt+T"
+  - generic [ref=e3]:
+    - generic [ref=e4]:
+      - img [ref=e6]
+      - generic [ref=e9]: Jobstrian
+    - generic [ref=e10]:
+      - generic [ref=e11]:
+        - generic [ref=e12]: Anmelden
+        - paragraph [ref=e13]: Melde dich an, um deine Jobsuche zu verwalten.
+      - generic [ref=e14]:
+        - generic [ref=e15]:
+          - generic [ref=e16]:
+            - generic [ref=e17]: E-Mail
+            - textbox "E-Mail" [ref=e18]
+          - generic [ref=e19]:
+            - generic [ref=e20]: Passwort
+            - textbox "Passwort" [ref=e21]
+        - button "Anmelden" [ref=e23]:
+          - img
+          - text: Anmelden

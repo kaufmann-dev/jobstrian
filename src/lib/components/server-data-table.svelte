@@ -93,8 +93,10 @@
 </script>
 
 <div class="space-y-3">
-	<div class="flex flex-col gap-3 rounded-xl border bg-card p-4 shadow-sm lg:flex-row lg:items-end">
-		<div class="relative min-w-0 flex-1">
+	<div
+		class="grid gap-3 rounded-xl border bg-card p-3 shadow-sm sm:p-4 lg:grid-cols-[minmax(20rem,1fr)_auto] lg:items-end"
+	>
+		<div class="relative min-w-0">
 			<Search class="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
 			<Input
 				value={search}
@@ -104,9 +106,14 @@
 				class="bg-background pl-9"
 			/>
 		</div>
-		<div class="flex flex-wrap items-end gap-3">
+		<div class="grid grid-cols-2 items-end gap-2 sm:grid-cols-4 lg:flex lg:flex-nowrap lg:gap-3">
 			{#if filters}{@render filters()}{/if}
-			<Button variant="ghost" size="sm" onclick={resetAll}>
+			<Button
+				variant="ghost"
+				size="sm"
+				class="h-10 justify-center bg-input/35 lg:h-7 lg:bg-transparent"
+				onclick={resetAll}
+			>
 				<RotateCcw class="size-4" />
 				Zurücksetzen
 			</Button>

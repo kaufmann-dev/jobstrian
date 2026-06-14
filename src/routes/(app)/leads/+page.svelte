@@ -354,7 +354,9 @@
 	</div>
 
 	{#snippet filters()}
-		<label class="flex items-center gap-2">
+		<label
+			class="flex min-h-10 items-center gap-2 rounded-2xl bg-input/35 px-3 text-sm lg:min-h-0 lg:bg-transparent lg:px-0"
+		>
 			<Checkbox
 				checked={onlyWithEmail}
 				onCheckedChange={(checked) => {
@@ -365,7 +367,9 @@
 			/>
 			Nur mit E-Mail
 		</label>
-		<label class="flex items-center gap-2">
+		<label
+			class="flex min-h-10 items-center gap-2 rounded-2xl bg-input/35 px-3 text-sm lg:min-h-0 lg:bg-transparent lg:px-0"
+		>
 			<Checkbox
 				checked={onlyOpen}
 				onCheckedChange={(checked) => {
@@ -376,7 +380,9 @@
 			/>
 			Nur ohne Ausschreibung
 		</label>
-		<label class="flex items-center gap-2">
+		<label
+			class="flex min-h-10 items-center gap-2 rounded-2xl bg-input/35 px-3 text-sm lg:min-h-0 lg:bg-transparent lg:px-0"
+		>
 			<Checkbox
 				checked={hideIgnored}
 				onCheckedChange={(checked) => {

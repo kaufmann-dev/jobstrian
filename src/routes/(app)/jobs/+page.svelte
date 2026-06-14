@@ -218,7 +218,7 @@
 	</div>
 
 	{#snippet filters()}
-		<div class="space-y-1">
+		<div class="min-w-0 space-y-1">
 			<Label for="src">Portal</Label>
 			<Select.Root
 				type="single"
@@ -230,7 +230,7 @@
 					selected = null;
 				}}
 			>
-				<Select.Trigger id="src" class="w-36"
+				<Select.Trigger id="src" class="w-full lg:w-36"
 					>{sourceFilter === 'all' ? 'Alle Portale' : SOURCE_LABELS[sourceFilter]}</Select.Trigger
 				>
 				<Select.Content>
@@ -241,7 +241,7 @@
 				</Select.Content>
 			</Select.Root>
 		</div>
-		<div class="space-y-1">
+		<div class="min-w-0 space-y-1">
 			<Label for="vd">Bewertung</Label>
 			<Select.Root
 				type="single"
@@ -253,7 +253,7 @@
 					selected = null;
 				}}
 			>
-				<Select.Trigger id="vd" class="w-32">
+				<Select.Trigger id="vd" class="w-full lg:w-32">
 					{{ all: 'Alle', strong: 'Passt gut', maybe: 'Vielleicht', weak: 'Schwach' }[
 						verdictFilter
 					]}
@@ -266,7 +266,9 @@
 				</Select.Content>
 			</Select.Root>
 		</div>
-		<label class="flex items-center gap-2 pb-1 text-sm">
+		<label
+			class="flex min-h-10 items-center gap-2 rounded-2xl bg-input/35 px-3 text-sm lg:min-h-0 lg:bg-transparent lg:px-0 lg:pb-1"
+		>
 			<Checkbox
 				checked={showClosed}
 				onCheckedChange={(checked) => {
