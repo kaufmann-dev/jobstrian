@@ -34,14 +34,11 @@
 	const visibleFields = $derived(fields ?? allFields);
 	const selectable = $derived(Boolean(fields));
 	let addressSuggestions = $state.raw<AddressSuggestion[]>([]);
-	let addressLookupStatus = $state<'idle' | 'loading' | 'error'>('idle');
-	let addressValidationError = $state('');
-	const addressError = $derived(homeAddressErrors[0] ?? addressValidationError);
+	let addressLookupStatus = $state<'idle' | 'loading'>('idle');
+	const addressError = $derived(homeAddressErrors[0]);
 	let addressSuggestionTimer: ReturnType<typeof setTimeout> | undefined;
 	let addressSuggestionController: AbortController | undefined;
-	let addressValidationController: AbortController | undefined;
 	let addressSuggestionRequest = 0;
-	let addressValidationRequest = 0;
 	let addressAnchor = $state<HTMLElement>();
 
 	function visible(field: ProfileField): boolean {
@@ -89,7 +86,7 @@
 		} catch (error) {
 			if (signal.aborted) return;
 			addressSuggestions = [];
-			addressLookupStatus = 'error';
+			addressLookupStatus = 'idle';
 		}
 	}
 
@@ -108,54 +105,17 @@
 		addressSuggestionTimer = setTimeout(() => {
 			addressSuggestionController = new AbortController();
 			void loadAddressSuggestions(trimmed, requestId, addressSuggestionController.signal);
-		}, 250);
+		}, 400);
 	}
 
 	function onHomeAddressInput(value: string) {
-		addressValidationError = '';
 		setField('homeAddress', value);
 		scheduleAddressSuggestions(value);
 	}
 
 	function selectAddressSuggestion(suggestion: AddressSuggestion) {
-		addressValidationController?.abort();
-		addressValidationError = '';
 		setField('homeAddress', suggestion.label);
 		clearAddressSuggestions();
-	}
-
-	async function validateHomeAddress() {
-		const address = profile.homeAddress.trim();
-		addressValidationController?.abort();
-		addressValidationError = '';
-		if (!address) return;
-		if (address.length < 3) {
-			addressValidationError = 'Adresse ist zu kurz.';
-			return;
-		}
-
-		const requestId = ++addressValidationRequest;
-		addressValidationController = new AbortController();
-		try {
-			const response = await fetch('/api/geo/validate-address', {
-				method: 'POST',
-				headers: { 'content-type': 'application/json' },
-				body: JSON.stringify({ address }),
-				signal: addressValidationController.signal
-			});
-			if (!response.ok) throw new Error('Address validation failed');
-			const body = (await response.json()) as {
-				valid?: boolean;
-				suggestion?: AddressSuggestion | null;
-			};
-			if (requestId !== addressValidationRequest) return;
-			if (!body.valid || !body.suggestion) {
-				addressValidationError = 'Adresse konnte in Österreich nicht gefunden werden.';
-			}
-		} catch (error) {
-			if (addressValidationController.signal.aborted) return;
-			addressValidationError = 'Adresse konnte nicht geprüft werden.';
-		}
 	}
 
 	function updateEntry<
@@ -364,7 +324,6 @@
 				<Input
 					value={profile.homeAddress}
 					oninput={(event) => onHomeAddressInput(event.currentTarget.value)}
-					onblur={validateHomeAddress}
 					aria-invalid={Boolean(addressError)}
 					aria-expanded={addressSuggestions.length > 0}
 					aria-label="Adresse"
@@ -398,8 +357,6 @@
 			</div>
 			{#if addressLookupStatus === 'loading'}
 				<p class="text-sm text-muted-foreground">Adressvorschläge werden geladen …</p>
-			{:else if addressLookupStatus === 'error'}
-				<p class="text-sm text-destructive">Adressvorschläge konnten nicht geladen werden.</p>
 			{/if}
 			{#if addressError}
 				<p class="text-sm font-medium text-destructive">{addressError}</p>

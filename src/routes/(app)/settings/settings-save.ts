@@ -4,16 +4,13 @@ import type { Settings } from '$lib/server/db/schema';
 export async function resolveHomeAddressSave(
 	current: Settings,
 	homeAddress: string
-): Promise<
-	| {
-			ok: true;
-			homeAddress: string;
-			homeCity?: string;
-			homeLat?: number | null;
-			homeLon?: number | null;
-	  }
-	| { ok: false; message: string }
-> {
+): Promise<{
+	ok: true;
+	homeAddress: string;
+	homeCity?: string;
+	homeLat?: number | null;
+	homeLon?: number | null;
+}> {
 	const trimmedAddress = homeAddress.trim();
 	if (!trimmedAddress) {
 		return { ok: true, homeAddress: '', homeCity: '', homeLat: null, homeLon: null };
@@ -30,16 +27,12 @@ export async function resolveHomeAddressSave(
 		console.error('Address validation during settings save failed', error);
 		return null;
 	});
-	if (!resolvedAddress) {
-		return {
-			ok: false,
-			message: 'Adresse konnte in Österreich nicht eindeutig gefunden werden.'
-		};
-	}
+	// Keep exactly what the user typed; only enrich geo fields when the address resolves.
+	if (!resolvedAddress) return { ok: true, homeAddress };
 
 	return {
 		ok: true,
-		homeAddress: resolvedAddress.label,
+		homeAddress,
 		homeCity: resolvedAddress.city ?? '',
 		homeLat: resolvedAddress.lat,
 		homeLon: resolvedAddress.lon

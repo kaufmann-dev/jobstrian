@@ -56,18 +56,18 @@ function settings(overrides: Partial<Settings> = {}): Settings {
 }
 
 describe('settings address save validation', () => {
-	it('fails unresolved addresses', async () => {
+	it('keeps the typed address but leaves geo fields untouched when unresolved', async () => {
 		validateAustrianAddress.mockResolvedValue(null);
 
 		await expect(resolveHomeAddressSave(settings(), 'Not Real')).resolves.toEqual({
-			ok: false,
-			message: 'Adresse konnte in Österreich nicht eindeutig gefunden werden.'
+			ok: true,
+			homeAddress: 'Not Real'
 		});
 	});
 
-	it('stores normalized coordinates for resolved changed addresses', async () => {
+	it('keeps the typed address and enriches geo fields for resolved changed addresses', async () => {
 		validateAustrianAddress.mockResolvedValue({
-			label: 'Herrengasse 14, 1010 Wien, Österreich',
+			label: 'Herrengasse 14, 1010 Wien',
 			lat: 48.2101,
 			lon: 16.3652,
 			city: 'Wien',
@@ -82,7 +82,7 @@ describe('settings address save validation', () => {
 			)
 		).resolves.toEqual({
 			ok: true,
-			homeAddress: 'Herrengasse 14, 1010 Wien, Österreich',
+			homeAddress: 'Herrengasse 14 Wien',
 			homeCity: 'Wien',
 			homeLat: 48.2101,
 			homeLon: 16.3652

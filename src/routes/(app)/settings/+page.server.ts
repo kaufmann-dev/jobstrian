@@ -1,4 +1,4 @@
-import { setError, superValidate } from 'sveltekit-superforms/server';
+import { superValidate } from 'sveltekit-superforms/server';
 import { zod4 } from 'sveltekit-superforms/adapters';
 import { fail } from '@sveltejs/kit';
 import { getSettings, updateSettings, ALL_SOURCES } from '$lib/server/settings';
@@ -61,7 +61,6 @@ async function saveSettings(request: Request) {
 	});
 
 	const homeAddressSave = await resolveHomeAddressSave(current, data.homeAddress);
-	if (!homeAddressSave.ok) return setError(form, 'homeAddress', homeAddressSave.message);
 	form.data.homeAddress = homeAddressSave.homeAddress;
 
 	const updated = await updateSettings({
