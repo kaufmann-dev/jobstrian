@@ -122,6 +122,10 @@ export const settings = pgTable('settings', {
 	experienceYears: integer('experience_years'), // years of relevant experience
 	educationStatus: text('education_status').notNull().default(''),
 	availability: text('availability').notNull().default(''),
+	// Applicant's own contact data (used to sign generated cold emails).
+	fullName: text('full_name').notNull().default(''),
+	phone: text('phone').notNull().default(''),
+	email: text('email').notNull().default(''),
 	// Extra free-text instructions steering how the LLM weighs the ranking.
 	rankingNotes: text('ranking_notes').notNull().default(''),
 	// Home location for the nearby-business search.

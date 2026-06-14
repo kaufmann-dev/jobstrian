@@ -36,6 +36,9 @@ export const educationHistoryListSchema = z.array(educationHistorySchema).max(50
 export const certificationsSchema = z.array(certificationSchema).max(50);
 
 export const importableProfileFields = {
+	fullName: z.string().max(200),
+	phone: z.string().max(50),
+	email: z.string().max(200),
 	profileText: z.string().max(5000),
 	languages: z.array(z.string().max(200)).max(50),
 	germanLevel: z.string().max(20),

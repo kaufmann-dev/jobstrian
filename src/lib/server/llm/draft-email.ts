@@ -3,19 +3,20 @@ import { chatJson, type LlmConfig } from './client';
 import { profileBlock } from './rank';
 import type { LlmLimiter } from './limiter';
 
-export const DRAFT_PROMPT_VERSION = 'draft-cold-email-v2-search-config';
+export const DRAFT_PROMPT_VERSION = 'draft-cold-email-v3-signature';
 
 export interface EmailDraft {
 	subject: string;
 	body: string;
 }
 
-const SYSTEM = `Du schreibst eine kurze, höfliche Initiativbewerbung (Kaltakquise) auf Deutsch an einen Betrieb.
-Der Bewerber sucht eine Stelle passend zu den konfigurierten Stellen-Keywords und seinem Profil.
-Erwähne eine konkrete Zielrolle nur, wenn sie aus den Stellen-Keywords offensichtlich ist; formuliere sonst neutral als passende Mitarbeit.
-Erwähne im Text genau einmal beiläufig, dass der Lebenslauf im Anhang beiliegt ("Meinen Lebenslauf finden Sie im Anhang.").
+const SYSTEM = `Du schreibst eine kurze, höfliche Initiativbewerbung auf Deutsch an einen Betrieb.
+Der Bewerber sucht eine Stelle passend zu den Stellen-Keywords und seinem Profil. Nenne eine konkrete Zielrolle nur, wenn sie aus den Keywords klar hervorgeht, sonst formuliere neutral als passende Mitarbeit.
+Komm schnell zum Punkt und schreib konkret. Keine Werbefloskeln und keine leeren Standardsätze (z.B. kein "mit großem Interesse", kein "ich hoffe, diese Nachricht erreicht Sie gut").
+Erwähne genau einmal beiläufig, dass der Lebenslauf im Anhang liegt.
+Schließe mit Grußformel und dem Namen des Absenders.
 Antworte ausschließlich als JSON: {"subject": "<Betreff>", "body": "<E-Mail-Text>"}.
-Der Text soll natürlich klingen, 5-9 Sätze, mit Anrede und Grußformel, ohne Platzhalter in eckigen Klammern.`;
+4-7 Sätze, mit Anrede, ohne Platzhalter in eckigen Klammern.`;
 
 export function targetRoleLine(settings: Settings): string {
 	return settings.jobSearchKeywords.length
@@ -30,6 +31,7 @@ export function buildColdEmailPrompt(settings: Settings, lead: Lead): string {
 	return `BEWERBERPROFIL:
 ${profileBlock(settings) || 'Bewerber sucht eine passende Stelle in Österreich.'}
 ${targetRoleLine(settings)}
+Absender (mit diesem Namen unterschreiben): ${settings.fullName || 'Name nicht angegeben'}
 
 BETRIEB:
 Name: ${lead.name}

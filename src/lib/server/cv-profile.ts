@@ -19,6 +19,9 @@ import { getSettings, updateSettings } from './settings';
 
 const MAX_PDF_TEXT_LENGTH = 100_000;
 const STRING_FIELDS = [
+	'fullName',
+	'phone',
+	'email',
 	'profileText',
 	'germanLevel',
 	'educationStatus',
@@ -171,12 +174,13 @@ export async function extractPdfText(data: Buffer): Promise<string> {
 
 const EXTRACTION_SYSTEM = `Du extrahierst ein bewerbungsrelevantes Profil aus einem Lebenslauf.
 Antworte ausschließlich mit einem JSON-Objekt. Erlaubte Felder:
-profileText, languages, germanLevel, experienceYears, educationStatus,
-availability, homeAddress, skills, workExperience, educationHistory, certifications.
+fullName, phone, email, profileText, languages, germanLevel, experienceYears,
+educationStatus, availability, homeAddress, skills, workExperience, educationHistory, certifications.
 
 Regeln:
 - Gib nur Felder zurück, die im Lebenslauf ausdrücklich genannt oder direkt daraus ableitbar sind.
 - Erfinde und rate nichts. Lasse nicht belegte Felder vollständig weg.
+- fullName, phone und email sind Name, Telefonnummer und E-Mail-Adresse des Bewerbers.
 - Fasse profileText knapp und sachlich zusammen.
 - Normalisiere Listen, entferne Dubletten und lasse leere Einträge weg.
 - experienceYears ist eine ganze Zahl oder null.
@@ -184,7 +188,7 @@ Regeln:
 - educationHistory-Einträge haben qualification, institution, field, location, startDate, endDate, description.
 - certifications-Einträge haben name, issuer, date, description.
 - Verwende für fehlende Eigenschaften innerhalb eines gefundenen Listeneintrags einen leeren String.
-- Kontaktdaten, Geburtsdatum, Nationalität und andere sensible persönliche Daten gehören nicht ins Profil.`;
+- Übernimm außer Name, Telefon und E-Mail keine sensiblen persönlichen Daten (z.B. Geburtsdatum, Nationalität, Familienstand).`;
 
 export async function createProfilePreview(): Promise<ProfilePreview> {
 	const [storedCv, settings] = await Promise.all([getCvData(), getSettings()]);

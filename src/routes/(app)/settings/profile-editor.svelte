@@ -234,6 +234,47 @@
 {/snippet}
 
 <div class="space-y-5">
+	{#if visible('fullName')}
+		<div class="space-y-2">
+			{@render heading('fullName', 'Name')}
+			<Input
+				value={profile.fullName}
+				oninput={(event) => setField('fullName', event.currentTarget.value)}
+				autocomplete="name"
+				placeholder="Max Mustermann"
+			/>
+		</div>
+	{/if}
+
+	{#if visible('phone') || visible('email')}
+		<div class="grid gap-4 sm:grid-cols-2">
+			{#if visible('phone')}
+				<div class="space-y-2">
+					{@render heading('phone', 'Telefon')}
+					<Input
+						type="tel"
+						value={profile.phone}
+						oninput={(event) => setField('phone', event.currentTarget.value)}
+						autocomplete="tel"
+						placeholder="+43 660 1234567"
+					/>
+				</div>
+			{/if}
+			{#if visible('email')}
+				<div class="space-y-2">
+					{@render heading('email', 'E-Mail')}
+					<Input
+						type="email"
+						value={profile.email}
+						oninput={(event) => setField('email', event.currentTarget.value)}
+						autocomplete="email"
+						placeholder="max@example.com"
+					/>
+				</div>
+			{/if}
+		</div>
+	{/if}
+
 	{#if visible('profileText')}
 		<div class="space-y-2">
 			{@render heading('profileText', 'Über dich')}

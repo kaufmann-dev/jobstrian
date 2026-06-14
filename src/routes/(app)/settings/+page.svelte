@@ -85,6 +85,9 @@
 	let previewFields = $state<ProfileField[]>([]);
 	let selectedFields = $state<ProfileField[]>([]);
 	let preview = $state<Required<ProfilePreview>>({
+		fullName: '',
+		phone: '',
+		email: '',
 		profileText: '',
 		languages: [],
 		germanLevel: '',

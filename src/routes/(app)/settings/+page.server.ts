@@ -12,6 +12,9 @@ function settingsFormData(s: Settings) {
 	const enabled = new Set(s.enabledSources);
 
 	return {
+		fullName: s.fullName,
+		phone: s.phone,
+		email: s.email,
 		profileText: s.profileText,
 		languages: s.languages,
 		skills: s.skills,
@@ -62,6 +65,9 @@ async function saveSettings(request: Request) {
 	form.data.homeAddress = homeAddressSave.homeAddress;
 
 	const updated = await updateSettings({
+		fullName: data.fullName,
+		phone: data.phone,
+		email: data.email,
 		profileText: data.profileText,
 		languages: data.languages,
 		skills: data.skills,

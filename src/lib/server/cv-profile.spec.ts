@@ -19,6 +19,9 @@ import {
 function settings(patch: Partial<Settings> = {}): Settings {
 	return {
 		id: 1,
+		fullName: '',
+		phone: '',
+		email: '',
 		profileText: 'Bestehend',
 		languages: ['Deutsch (B1)'],
 		skills: ['Service'],

@@ -8,6 +8,9 @@ import {
 import { businessOsmTagsSchema, stringListSchema } from '$lib/search-config';
 
 export const settingsSchema = z.object({
+	fullName: z.string().max(200).default(''),
+	phone: z.string().max(50).default(''),
+	email: z.string().max(200).default(''),
 	profileText: z.string().max(5000).default(''),
 	languages: z.array(z.string().max(200)).max(50).default([]),
 	skills: skillsSchema.default([]),

@@ -4,6 +4,9 @@ import { expect, it } from 'vitest';
 import ProfileEditor from './profile-editor.svelte';
 
 const profile = {
+	fullName: '',
+	phone: '',
+	email: '',
 	profileText: '',
 	languages: [],
 	germanLevel: '',

@@ -5,6 +5,9 @@ import { buildLeadRankingPrompt, profileBlock } from './rank';
 function settings(patch: Partial<Settings> = {}): Settings {
 	return {
 		id: 1,
+		fullName: '',
+		phone: '',
+		email: '',
 		skills: [],
 		workExperience: [],
 		educationHistory: [],

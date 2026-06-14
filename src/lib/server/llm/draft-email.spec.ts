@@ -5,6 +5,9 @@ import { buildColdEmailPrompt } from './draft-email';
 function settings(patch: Partial<Settings> = {}): Settings {
 	return {
 		id: 1,
+		fullName: 'Anna Beispiel',
+		phone: '',
+		email: '',
 		profileText: 'Erfahrung in Empfang und Administration',
 		languages: [],
 		skills: [],
@@ -79,6 +82,7 @@ describe('cold email prompt', () => {
 
 		expect(prompt).toContain('Zielrolle aus Stellen-Keywords: Ordinationsassistenz, Empfang');
 		expect(prompt).toContain('Amenity: Doctors');
+		expect(prompt).toContain('Absender (mit diesem Namen unterschreiben): Anna Beispiel');
 		expect(prompt).not.toMatch(/Gastro|Gastronomie|Servicekraft|Barista|Kellner/);
 	});
 });

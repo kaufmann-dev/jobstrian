@@ -22,6 +22,9 @@ import { resolveHomeAddressSave } from './settings-save';
 function settings(overrides: Partial<Settings> = {}): Settings {
 	return {
 		id: 1,
+		fullName: '',
+		phone: '',
+		email: '',
 		profileText: '',
 		languages: [],
 		skills: [],

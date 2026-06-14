@@ -21,6 +21,9 @@ const matchedTags: OsmBusinessTagSuggestion[] = [
 function settings(patch: Partial<Settings> = {}): Settings {
 	return {
 		id: 1,
+		fullName: '',
+		phone: '',
+		email: '',
 		profileText: 'Servicekraft mit Barista-Erfahrung',
 		languages: ['Deutsch (B1)', 'Englisch (C1)'],
 		skills: [],
