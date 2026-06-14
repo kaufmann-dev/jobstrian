@@ -3,6 +3,7 @@
 	import type { GeoSuggestion } from '$lib/geo';
 	import { untrack } from 'svelte';
 	import RemoteAutocomplete from './remote-autocomplete.svelte';
+	import StringListEditor from './string-list-editor.svelte';
 	import * as Accordion from '$lib/components/ui/accordion/index.js';
 	import { Input } from '$lib/components/ui/input/index.js';
 	import { Textarea } from '$lib/components/ui/textarea/index.js';
@@ -45,13 +46,6 @@
 		selected = checked
 			? [...new Set([...selected, field])]
 			: selected.filter((item) => item !== field);
-	}
-
-	function parseList(value: string): string[] {
-		return value
-			.split(',')
-			.map((item) => item.trim())
-			.filter(Boolean);
 	}
 
 	function setField<Field extends keyof EditableProfile>(
@@ -434,11 +428,11 @@
 	{#if visible('skills')}
 		<div class="space-y-2">
 			{@render heading('skills', 'Kenntnisse')}
-			<Input
-				value={profile.skills.join(', ')}
-				onchange={(event) =>
-					setField('skills', parseList((event.currentTarget as HTMLInputElement).value))}
+			<StringListEditor
+				values={profile.skills}
+				label="Kenntnisse"
 				placeholder="Espressozubereitung, Kassensysteme"
+				onValuesChange={(values) => setField('skills', values)}
 			/>
 		</div>
 	{/if}
@@ -446,11 +440,11 @@
 	{#if visible('languages')}
 		<div class="space-y-2">
 			{@render heading('languages', 'Sprachen mit Niveau')}
-			<Input
-				value={profile.languages.join(', ')}
-				onchange={(event) =>
-					setField('languages', parseList((event.currentTarget as HTMLInputElement).value))}
+			<StringListEditor
+				values={profile.languages}
+				label="Sprachen mit Niveau"
 				placeholder="Deutsch (B1), Englisch (C1)"
+				onValuesChange={(values) => setField('languages', values)}
 			/>
 		</div>
 	{/if}

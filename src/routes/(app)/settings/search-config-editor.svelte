@@ -16,6 +16,7 @@
 	import { Button } from '$lib/components/ui/button/index.js';
 	import type { GeoSuggestion } from '$lib/geo';
 	import RemoteAutocomplete from './remote-autocomplete.svelte';
+	import StringListEditor from './string-list-editor.svelte';
 	import X from '@lucide/svelte/icons/x';
 
 	let {
@@ -53,17 +54,6 @@
 		selected = checked
 			? [...new Set([...selected, field])]
 			: selected.filter((item) => item !== field);
-	}
-
-	function parseList(value: string): string[] {
-		return [
-			...new Set(
-				value
-					.split(',')
-					.map((item) => item.trim())
-					.filter(Boolean)
-			)
-		];
 	}
 
 	function setField<Field extends keyof SearchConfig>(field: Field, value: SearchConfig[Field]) {
@@ -150,11 +140,11 @@
 	{#if visible('jobSearchKeywords')}
 		<div class="space-y-2">
 			{@render heading('jobSearchKeywords', 'Stellen-Keywords')}
-			<Input
-				value={config.jobSearchKeywords.join(', ')}
-				onchange={(event) =>
-					setField('jobSearchKeywords', parseList((event.currentTarget as HTMLInputElement).value))}
+			<StringListEditor
+				values={config.jobSearchKeywords}
+				label="Stellen-Keywords"
 				placeholder="Pflegeassistenz, Verkauf, Office"
+				onValuesChange={(values) => setField('jobSearchKeywords', values)}
 			/>
 		</div>
 	{/if}

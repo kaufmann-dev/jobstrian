@@ -110,3 +110,31 @@ it('keeps profile history expanded when collapsible history is disabled', async 
 	await expect.element(page.getByRole('textbox', { name: 'Abschluss' })).toBeVisible();
 	await expect.element(page.getByRole('textbox', { name: 'Zertifikat' })).toBeVisible();
 });
+
+it('adds pasted comma-separated languages as removable chips', async () => {
+	render(ProfileEditor, { profile });
+	const input = page.getByRole('textbox', { name: 'Sprachen mit Niveau hinzufügen' });
+
+	await input.fill('Deutsch (B1), Englisch (C1), Deutsch (B1)');
+	(await input.element()).blur();
+
+	await expect.element(page.getByText('Deutsch (B1)')).toBeVisible();
+	await expect.element(page.getByText('Englisch (C1)')).toBeVisible();
+	await page.getByRole('button', { name: 'Deutsch (B1) entfernen' }).click();
+	await expect
+		.element(page.getByRole('button', { name: 'Deutsch (B1) entfernen' }))
+		.not.toBeInTheDocument();
+});
+
+it('adds skills as removable chips on comma', async () => {
+	render(ProfileEditor, { profile });
+	const input = page.getByRole('textbox', { name: 'Kenntnisse hinzufügen' });
+
+	await input.fill('Latte Art');
+	(await input.element()).dispatchEvent(
+		new KeyboardEvent('keydown', { key: ',', bubbles: true, cancelable: true })
+	);
+
+	await expect.element(page.getByText('Latte Art')).toBeVisible();
+	await expect.element(input).toHaveValue('');
+});

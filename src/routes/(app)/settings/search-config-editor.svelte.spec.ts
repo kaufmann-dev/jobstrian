@@ -93,4 +93,24 @@ describe('SearchConfigEditor autocomplete', () => {
 			.toBeVisible();
 		await expect.element(page.getByText('Die Entfernung ist ungültig.')).toBeVisible();
 	});
+
+	it('adds and removes job keyword chips', async () => {
+		render(SearchConfigEditor, {
+			config: {
+				...config,
+				jobSearchKeywords: ['Pflege']
+			}
+		});
+
+		await expect.element(page.getByText('Pflege')).toBeVisible();
+		const input = page.getByRole('textbox', { name: 'Stellen-Keywords hinzufügen' });
+		await input.fill('Verkauf');
+		(await input.element()).blur();
+		await expect.element(page.getByText('Verkauf')).toBeVisible();
+
+		await page.getByRole('button', { name: 'Pflege entfernen' }).click();
+		await expect
+			.element(page.getByRole('button', { name: 'Pflege entfernen' }))
+			.not.toBeInTheDocument();
+	});
 });
