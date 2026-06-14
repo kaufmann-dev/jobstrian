@@ -1,5 +1,7 @@
 import { z } from 'zod';
 import type { Settings } from './db/schema';
+import type { GeoSuggestion } from '$lib/geo';
+import { geoSuggestions } from './geo/geoapify';
 import { ALL_SOURCES, getSettings, updateSettings } from './settings';
 import { settingsSchema } from '$lib/../routes/(app)/settings/schema';
 
@@ -94,6 +96,56 @@ function locationPatch(
 	};
 }
 
+function normalizedAddressText(value: string): string {
+	return value.normalize('NFKC').trim().replace(/\s+/g, ' ').toLocaleLowerCase('de-AT');
+}
+
+function verifiedHomeLocationFromSuggestion(
+	suggestion: GeoSuggestion
+): NonNullable<SettingsPatch['homeLocation']> {
+	return {
+		address: suggestion.label,
+		verified: true,
+		provider: 'geoapify',
+		id: suggestion.id,
+		postcode: suggestion.postcode,
+		city: suggestion.city,
+		lat: suggestion.lat,
+		lon: suggestion.lon
+	};
+}
+
+function matchingVerifiableSuggestion(
+	address: string,
+	suggestions: GeoSuggestion[]
+): GeoSuggestion | null {
+	const query = normalizedAddressText(address);
+	const verifiable = suggestions.filter((suggestion) => suggestion.verifiable);
+	const exact = verifiable.find((suggestion) => normalizedAddressText(suggestion.label) === query);
+	if (exact) return exact;
+	if (!/\d/.test(query)) return null;
+
+	const prefixed = verifiable.filter((suggestion) => {
+		const label = normalizedAddressText(suggestion.label);
+		return label === query || label.startsWith(`${query},`);
+	});
+	return prefixed.length === 1 ? prefixed[0] : null;
+}
+
+export async function verifyTypedHomeLocation(
+	homeLocation: NonNullable<SettingsPatch['homeLocation']>
+): Promise<NonNullable<SettingsPatch['homeLocation']>> {
+	if (homeLocation.verified) return homeLocation;
+	const address = homeLocation.address.trim();
+	if (address.length < 3) return homeLocation;
+	try {
+		const match = matchingVerifiableSuggestion(address, await geoSuggestions(address, 'address'));
+		return match ? verifiedHomeLocationFromSuggestion(match) : homeLocation;
+	} catch {
+		return homeLocation;
+	}
+}
+
 export function toSettingsDbPatch(input: SettingsPatch, current?: Settings): Partial<Settings> {
 	const { sourceHokify, sourceWillhaben, sourceKarriere, sourceAms, ...ordinary } = input.patch;
 	const hasSourcePatch =
@@ -140,6 +192,8 @@ export function toSettingsDbPatch(input: SettingsPatch, current?: Settings): Par
 export async function applySettingsPatch(input: unknown): Promise<Settings> {
 	const parsed = settingsPatchSchema.safeParse(input);
 	if (!parsed.success) throw parsed.error;
+	const data = parsed.data as SettingsPatch;
+	if (data.homeLocation) data.homeLocation = await verifyTypedHomeLocation(data.homeLocation);
 	const current = await getSettings();
-	return updateSettings(toSettingsDbPatch(parsed.data as SettingsPatch, current));
+	return updateSettings(toSettingsDbPatch(data, current));
 }
