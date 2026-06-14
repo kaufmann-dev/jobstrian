@@ -13,11 +13,37 @@ import {
 } from '$lib/profile';
 import type { Settings } from './db/schema';
 import { getCvData } from './cv';
-import { chatJson, getLlmConfig } from './llm/client';
+import { chatJson, getLlmConfig, LlmHttpError } from './llm/client';
 import { LlmLimiter } from './llm/limiter';
 import { getSettings, updateSettings } from './settings';
 
 const MAX_PDF_TEXT_LENGTH = 100_000;
+const STRING_FIELDS = [
+	'profileText',
+	'germanLevel',
+	'educationStatus',
+	'availability',
+	'homeAddress'
+] as const;
+const STRING_LIST_FIELDS = ['roleKeywords', 'languages', 'skills'] as const;
+const WORK_FIELDS = [
+	'position',
+	'employer',
+	'location',
+	'startDate',
+	'endDate',
+	'description'
+] as const;
+const EDUCATION_FIELDS = [
+	'qualification',
+	'institution',
+	'field',
+	'location',
+	'startDate',
+	'endDate',
+	'description'
+] as const;
+const CERTIFICATION_FIELDS = ['name', 'issuer', 'date', 'description'] as const;
 
 export class CvProfileError extends Error {
 	constructor(
@@ -37,6 +63,78 @@ export function isCvProfileError(error: unknown): error is CvProfileError {
 			'status' in error &&
 			typeof error.status === 'number')
 	);
+}
+
+function record(value: unknown): Record<string, unknown> | null {
+	return value !== null && typeof value === 'object' && !Array.isArray(value)
+		? (value as Record<string, unknown>)
+		: null;
+}
+
+function normalizedStrings(value: unknown): string[] | undefined {
+	if (!Array.isArray(value)) return undefined;
+	return [
+		...new Set(
+			value
+				.filter((item): item is string => typeof item === 'string')
+				.map((item) => item.trim())
+				.filter(Boolean)
+		)
+	];
+}
+
+function normalizedEntries<const Fields extends readonly string[]>(
+	value: unknown,
+	fields: Fields
+): Record<Fields[number], string>[] | undefined {
+	if (!Array.isArray(value)) return undefined;
+	return value.flatMap((item) => {
+		const source = record(item);
+		if (!source) return [];
+		const entry = Object.fromEntries(
+			fields.map((field) => [field, typeof source[field] === 'string' ? source[field].trim() : ''])
+		) as Record<Fields[number], string>;
+		return Object.values(entry).some(Boolean) ? [entry] : [];
+	});
+}
+
+/**
+ * Normalize conservative variations commonly returned by JSON-capable models:
+ * null means "not found", and omitted nested properties become empty strings.
+ */
+export function normalizeProfilePreview(raw: unknown): unknown {
+	const outer = record(raw);
+	if (!outer) return raw;
+	const source = record(outer.profile) ?? outer;
+	const normalized: Record<string, unknown> = {};
+
+	for (const field of STRING_FIELDS) {
+		if (typeof source[field] === 'string' && source[field].trim()) {
+			normalized[field] = source[field].trim();
+		}
+	}
+	for (const field of STRING_LIST_FIELDS) {
+		const value = normalizedStrings(source[field]);
+		if (value?.length) normalized[field] = value;
+	}
+	if (typeof source.experienceYears === 'number') {
+		normalized.experienceYears = source.experienceYears;
+	} else if (
+		typeof source.experienceYears === 'string' &&
+		/^\d+$/.test(source.experienceYears.trim())
+	) {
+		normalized.experienceYears = Number(source.experienceYears);
+	}
+	if (typeof source.workPermit === 'boolean') normalized.workPermit = source.workPermit;
+
+	const workExperience = normalizedEntries(source.workExperience, WORK_FIELDS);
+	if (workExperience?.length) normalized.workExperience = workExperience;
+	const educationHistory = normalizedEntries(source.educationHistory, EDUCATION_FIELDS);
+	if (educationHistory?.length) normalized.educationHistory = educationHistory;
+	const certifications = normalizedEntries(source.certifications, CERTIFICATION_FIELDS);
+	if (certifications?.length) normalized.certifications = certifications;
+
+	return normalized;
 }
 
 export async function extractPdfText(data: Buffer): Promise<string> {
@@ -105,16 +203,28 @@ export async function createProfilePreview(): Promise<ProfilePreview> {
 		requestsPerMinute: settings.llmRequestsPerMinute,
 		maxConcurrent: settings.llmMaxConcurrent
 	});
-	const raw = await chatJson<unknown>(
-		cfg,
-		[
-			{ role: 'system', content: EXTRACTION_SYSTEM },
-			{ role: 'user', content: `LEBENSLAUF:\n${text}` }
-		],
-		{ limiter, temperature: 0 }
-	);
-	const parsed = profilePreviewSchema.safeParse(raw);
+	let raw: unknown;
+	try {
+		raw = await chatJson<unknown>(
+			cfg,
+			[
+				{ role: 'system', content: EXTRACTION_SYSTEM },
+				{ role: 'user', content: `LEBENSLAUF:\n${text}` }
+			],
+			{ limiter, temperature: 0 }
+		);
+	} catch (error) {
+		if (error instanceof LlmHttpError && (error.status === 401 || error.status === 403)) {
+			throw new CvProfileError(
+				'KI-Anmeldung fehlgeschlagen. Prüfe den gespeicherten API-Key.',
+				502
+			);
+		}
+		throw error;
+	}
+	const parsed = profilePreviewSchema.safeParse(normalizeProfilePreview(raw));
 	if (!parsed.success) {
+		console.error('Invalid LLM CV profile response', parsed.error.issues);
 		throw new CvProfileError('Die KI-Antwort enthält kein gültiges Profil.', 502);
 	}
 	if (Object.keys(parsed.data).length === 0) {

@@ -8,7 +8,12 @@ const { getCvData, getSettings } = vi.hoisted(() => ({
 vi.mock('./cv', () => ({ getCvData }));
 vi.mock('./settings', () => ({ getSettings, updateSettings: vi.fn() }));
 
-import { createProfilePreview, extractPdfText, selectedProfilePatch } from './cv-profile';
+import {
+	createProfilePreview,
+	extractPdfText,
+	normalizeProfilePreview,
+	selectedProfilePatch
+} from './cv-profile';
 
 function settings(patch: Partial<Settings> = {}): Settings {
 	return {
@@ -61,6 +66,40 @@ describe('selectedProfilePatch', () => {
 				profile: { homeAddress: 'Neue Adresse' }
 			})
 		).toEqual({ homeAddress: 'Neue Adresse', homeLat: null, homeLon: null });
+	});
+});
+
+describe('normalizeProfilePreview', () => {
+	it('drops null fields and fills omitted nested entry properties', () => {
+		expect(
+			normalizeProfilePreview({
+				profileText: null,
+				experienceYears: '3',
+				skills: [' Service ', null, 'Service', 'Latte Art'],
+				workExperience: [{ position: 'Barista', employer: 'Cafe Test' }]
+			})
+		).toEqual({
+			experienceYears: 3,
+			skills: ['Service', 'Latte Art'],
+			workExperience: [
+				{
+					position: 'Barista',
+					employer: 'Cafe Test',
+					location: '',
+					startDate: '',
+					endDate: '',
+					description: ''
+				}
+			]
+		});
+	});
+
+	it('unwraps a profile object and ignores unsupported fields', () => {
+		expect(
+			normalizeProfilePreview({
+				profile: { languages: ['Deutsch (B1)'], rankingNotes: 'nicht importieren' }
+			})
+		).toEqual({ languages: ['Deutsch (B1)'] });
 	});
 });
 
