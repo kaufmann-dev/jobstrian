@@ -40,31 +40,70 @@
 			.filter(Boolean);
 	}
 
+	function setField<Field extends keyof EditableProfile>(
+		field: Field,
+		value: EditableProfile[Field]
+	) {
+		profile = { ...profile, [field]: value };
+	}
+
+	function updateEntry<
+		ListField extends 'workExperience' | 'educationHistory' | 'certifications',
+		Entry extends EditableProfile[ListField][number],
+		EntryField extends keyof Entry
+	>(listField: ListField, item: Entry, field: EntryField, value: Entry[EntryField]) {
+		setField(
+			listField,
+			profile[listField].map((entry) =>
+				entry === item ? { ...entry, [field]: value } : entry
+			) as EditableProfile[ListField]
+		);
+	}
+
+	function removeEntry<ListField extends 'workExperience' | 'educationHistory' | 'certifications'>(
+		listField: ListField,
+		item: EditableProfile[ListField][number]
+	) {
+		setField(
+			listField,
+			profile[listField].filter((entry) => entry !== item) as EditableProfile[ListField]
+		);
+	}
+
 	function addWorkExperience() {
-		profile.workExperience.push({
-			position: '',
-			employer: '',
-			location: '',
-			startDate: '',
-			endDate: '',
-			description: ''
-		});
+		setField('workExperience', [
+			...profile.workExperience,
+			{
+				position: '',
+				employer: '',
+				location: '',
+				startDate: '',
+				endDate: '',
+				description: ''
+			}
+		]);
 	}
 
 	function addEducation() {
-		profile.educationHistory.push({
-			qualification: '',
-			institution: '',
-			field: '',
-			location: '',
-			startDate: '',
-			endDate: '',
-			description: ''
-		});
+		setField('educationHistory', [
+			...profile.educationHistory,
+			{
+				qualification: '',
+				institution: '',
+				field: '',
+				location: '',
+				startDate: '',
+				endDate: '',
+				description: ''
+			}
+		]);
 	}
 
 	function addCertification() {
-		profile.certifications.push({ name: '', issuer: '', date: '', description: '' });
+		setField('certifications', [
+			...profile.certifications,
+			{ name: '', issuer: '', date: '', description: '' }
+		]);
 	}
 </script>
 
@@ -85,7 +124,11 @@
 	{#if visible('profileText')}
 		<div class="space-y-2">
 			{@render heading('profileText', 'Über dich')}
-			<Textarea bind:value={profile.profileText} rows={5} />
+			<Textarea
+				value={profile.profileText}
+				oninput={(event) => setField('profileText', event.currentTarget.value)}
+				rows={5}
+			/>
 		</div>
 	{/if}
 
@@ -95,7 +138,7 @@
 			<Input
 				value={profile.roleKeywords.join(', ')}
 				onchange={(event) =>
-					(profile.roleKeywords = parseList((event.currentTarget as HTMLInputElement).value))}
+					setField('roleKeywords', parseList((event.currentTarget as HTMLInputElement).value))}
 				placeholder="Barista, Servicekraft"
 			/>
 		</div>
@@ -107,7 +150,7 @@
 			<Input
 				value={profile.skills.join(', ')}
 				onchange={(event) =>
-					(profile.skills = parseList((event.currentTarget as HTMLInputElement).value))}
+					setField('skills', parseList((event.currentTarget as HTMLInputElement).value))}
 				placeholder="Espressozubereitung, Kassensysteme"
 			/>
 		</div>
@@ -119,7 +162,7 @@
 			<Input
 				value={profile.languages.join(', ')}
 				onchange={(event) =>
-					(profile.languages = parseList((event.currentTarget as HTMLInputElement).value))}
+					setField('languages', parseList((event.currentTarget as HTMLInputElement).value))}
 				placeholder="Deutsch (B1), Englisch (C1)"
 			/>
 		</div>
@@ -129,19 +172,36 @@
 		{#if visible('germanLevel')}
 			<div class="space-y-2">
 				{@render heading('germanLevel', 'Deutschniveau')}
-				<Input bind:value={profile.germanLevel} placeholder="B1" />
+				<Input
+					value={profile.germanLevel}
+					oninput={(event) => setField('germanLevel', event.currentTarget.value)}
+					placeholder="B1"
+				/>
 			</div>
 		{/if}
 		{#if visible('experienceYears')}
 			<div class="space-y-2">
 				{@render heading('experienceYears', 'Erfahrung (Jahre)')}
-				<Input type="number" min="0" max="60" bind:value={profile.experienceYears} />
+				<Input
+					type="number"
+					min="0"
+					max="60"
+					value={profile.experienceYears ?? undefined}
+					oninput={(event) => {
+						const value = event.currentTarget.valueAsNumber;
+						setField('experienceYears', Number.isFinite(value) ? value : null);
+					}}
+				/>
 			</div>
 		{/if}
 		{#if visible('availability')}
 			<div class="space-y-2">
 				{@render heading('availability', 'Verfügbarkeit')}
-				<Input bind:value={profile.availability} placeholder="Vollzeit, ab sofort" />
+				<Input
+					value={profile.availability}
+					oninput={(event) => setField('availability', event.currentTarget.value)}
+					placeholder="Vollzeit, ab sofort"
+				/>
 			</div>
 		{/if}
 	</div>
@@ -149,7 +209,11 @@
 	{#if visible('educationStatus')}
 		<div class="space-y-2">
 			{@render heading('educationStatus', 'Ausbildung / Status')}
-			<Input bind:value={profile.educationStatus} />
+			<Input
+				aria-label="Ausbildung / Status"
+				value={profile.educationStatus}
+				oninput={(event) => setField('educationStatus', event.currentTarget.value)}
+			/>
 		</div>
 	{/if}
 
@@ -157,7 +221,10 @@
 		<div class="space-y-2">
 			{@render heading('workPermit', 'Arbeitsberechtigung')}
 			<label class="flex items-center gap-2 text-sm">
-				<Checkbox bind:checked={profile.workPermit} />
+				<Checkbox
+					checked={profile.workPermit}
+					onCheckedChange={(checked) => setField('workPermit', checked === true)}
+				/>
 				Arbeitsberechtigung für Österreich vorhanden
 			</label>
 		</div>
@@ -166,7 +233,11 @@
 	{#if visible('homeAddress')}
 		<div class="space-y-2">
 			{@render heading('homeAddress', 'Adresse')}
-			<Input bind:value={profile.homeAddress} placeholder="Straße Hausnr, PLZ Ort" />
+			<Input
+				value={profile.homeAddress}
+				oninput={(event) => setField('homeAddress', event.currentTarget.value)}
+				placeholder="Straße Hausnr, PLZ Ort"
+			/>
 		</div>
 	{/if}
 
@@ -176,21 +247,47 @@
 			{#each profile.workExperience as item (item)}
 				<div class="space-y-3 rounded-2xl border p-4">
 					<div class="grid gap-3 sm:grid-cols-2">
-						<Input bind:value={item.position} placeholder="Position" />
-						<Input bind:value={item.employer} placeholder="Arbeitgeber" />
-						<Input bind:value={item.location} placeholder="Ort" />
+						<Input
+							value={item.position}
+							oninput={(event) =>
+								updateEntry('workExperience', item, 'position', event.currentTarget.value)}
+							placeholder="Position"
+						/>
+						<Input
+							value={item.employer}
+							oninput={(event) =>
+								updateEntry('workExperience', item, 'employer', event.currentTarget.value)}
+							placeholder="Arbeitgeber"
+						/>
+						<Input
+							value={item.location}
+							oninput={(event) =>
+								updateEntry('workExperience', item, 'location', event.currentTarget.value)}
+							placeholder="Ort"
+						/>
 						<div class="grid grid-cols-2 gap-3">
-							<Input bind:value={item.startDate} placeholder="Von" />
-							<Input bind:value={item.endDate} placeholder="Bis" />
+							<Input
+								value={item.startDate}
+								oninput={(event) =>
+									updateEntry('workExperience', item, 'startDate', event.currentTarget.value)}
+								placeholder="Von"
+							/>
+							<Input
+								value={item.endDate}
+								oninput={(event) =>
+									updateEntry('workExperience', item, 'endDate', event.currentTarget.value)}
+								placeholder="Bis"
+							/>
 						</div>
 					</div>
-					<Textarea bind:value={item.description} rows={3} placeholder="Aufgaben und Erfolge" />
-					<Button
-						variant="ghost"
-						size="sm"
-						onclick={() =>
-							(profile.workExperience = profile.workExperience.filter((entry) => entry !== item))}
-					>
+					<Textarea
+						value={item.description}
+						oninput={(event) =>
+							updateEntry('workExperience', item, 'description', event.currentTarget.value)}
+						rows={3}
+						placeholder="Aufgaben und Erfolge"
+					/>
+					<Button variant="ghost" size="sm" onclick={() => removeEntry('workExperience', item)}>
 						<Trash2 /> Entfernen
 					</Button>
 				</div>
@@ -205,22 +302,51 @@
 			{#each profile.educationHistory as item (item)}
 				<div class="space-y-3 rounded-2xl border p-4">
 					<div class="grid gap-3 sm:grid-cols-2">
-						<Input bind:value={item.qualification} placeholder="Abschluss" />
-						<Input bind:value={item.institution} placeholder="Institution" />
-						<Input bind:value={item.field} placeholder="Fachrichtung" />
-						<Input bind:value={item.location} placeholder="Ort" />
-						<Input bind:value={item.startDate} placeholder="Von" />
-						<Input bind:value={item.endDate} placeholder="Bis" />
+						<Input
+							value={item.qualification}
+							oninput={(event) =>
+								updateEntry('educationHistory', item, 'qualification', event.currentTarget.value)}
+							placeholder="Abschluss"
+						/>
+						<Input
+							value={item.institution}
+							oninput={(event) =>
+								updateEntry('educationHistory', item, 'institution', event.currentTarget.value)}
+							placeholder="Institution"
+						/>
+						<Input
+							value={item.field}
+							oninput={(event) =>
+								updateEntry('educationHistory', item, 'field', event.currentTarget.value)}
+							placeholder="Fachrichtung"
+						/>
+						<Input
+							value={item.location}
+							oninput={(event) =>
+								updateEntry('educationHistory', item, 'location', event.currentTarget.value)}
+							placeholder="Ort"
+						/>
+						<Input
+							value={item.startDate}
+							oninput={(event) =>
+								updateEntry('educationHistory', item, 'startDate', event.currentTarget.value)}
+							placeholder="Von"
+						/>
+						<Input
+							value={item.endDate}
+							oninput={(event) =>
+								updateEntry('educationHistory', item, 'endDate', event.currentTarget.value)}
+							placeholder="Bis"
+						/>
 					</div>
-					<Textarea bind:value={item.description} rows={3} placeholder="Details" />
-					<Button
-						variant="ghost"
-						size="sm"
-						onclick={() =>
-							(profile.educationHistory = profile.educationHistory.filter(
-								(entry) => entry !== item
-							))}
-					>
+					<Textarea
+						value={item.description}
+						oninput={(event) =>
+							updateEntry('educationHistory', item, 'description', event.currentTarget.value)}
+						rows={3}
+						placeholder="Details"
+					/>
+					<Button variant="ghost" size="sm" onclick={() => removeEntry('educationHistory', item)}>
 						<Trash2 /> Entfernen
 					</Button>
 				</div>
@@ -235,17 +361,33 @@
 			{#each profile.certifications as item (item)}
 				<div class="space-y-3 rounded-2xl border p-4">
 					<div class="grid gap-3 sm:grid-cols-3">
-						<Input bind:value={item.name} placeholder="Zertifikat" />
-						<Input bind:value={item.issuer} placeholder="Aussteller" />
-						<Input bind:value={item.date} placeholder="Datum" />
+						<Input
+							value={item.name}
+							oninput={(event) =>
+								updateEntry('certifications', item, 'name', event.currentTarget.value)}
+							placeholder="Zertifikat"
+						/>
+						<Input
+							value={item.issuer}
+							oninput={(event) =>
+								updateEntry('certifications', item, 'issuer', event.currentTarget.value)}
+							placeholder="Aussteller"
+						/>
+						<Input
+							value={item.date}
+							oninput={(event) =>
+								updateEntry('certifications', item, 'date', event.currentTarget.value)}
+							placeholder="Datum"
+						/>
 					</div>
-					<Textarea bind:value={item.description} rows={2} placeholder="Details" />
-					<Button
-						variant="ghost"
-						size="sm"
-						onclick={() =>
-							(profile.certifications = profile.certifications.filter((entry) => entry !== item))}
-					>
+					<Textarea
+						value={item.description}
+						oninput={(event) =>
+							updateEntry('certifications', item, 'description', event.currentTarget.value)}
+						rows={2}
+						placeholder="Details"
+					/>
+					<Button variant="ghost" size="sm" onclick={() => removeEntry('certifications', item)}>
 						<Trash2 /> Entfernen
 					</Button>
 				</div>

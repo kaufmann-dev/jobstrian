@@ -180,7 +180,7 @@
 			</Card.Description>
 		</Card.Header>
 		<Card.Content class="space-y-6">
-			<ProfileEditor profile={$formData} />
+			<ProfileEditor bind:profile={$formData} />
 
 			<div class="grid gap-4 border-t pt-6 sm:grid-cols-3">
 				<p class="text-sm text-muted-foreground sm:col-span-2">
