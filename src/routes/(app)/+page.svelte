@@ -421,6 +421,7 @@
 											{/if}
 											<span
 												class={[
+													'truncate',
 													phase.state === 'pending' || phase.state === 'skipped'
 														? 'text-muted-foreground'
 														: 'font-medium'
@@ -430,19 +431,24 @@
 											</span>
 											<span class="sr-only">{phaseStateLabel(phase.state)}</span>
 										</div>
-										<span class="text-xs whitespace-nowrap text-muted-foreground tabular-nums">
-											{#if phase.failed > 0}
-												<span class="text-amber-600 dark:text-amber-400"
-													>{phase.failed} fehlgeschlagen ·
-												</span>
-											{/if}
-											{#if phase.skipped > 0}{phase.skipped} übersprungen ·
-											{/if}
+										<span
+											class="shrink-0 text-xs whitespace-nowrap text-muted-foreground tabular-nums"
+										>
 											{phase.current} / {phase.total}
 										</span>
 									</div>
+									{#if phase.failed > 0 || phase.skipped > 0}
+										<p class="pl-[26px] text-xs text-muted-foreground">
+											{#if phase.failed > 0}<span class="text-amber-600 dark:text-amber-400"
+													>{phase.failed} fehlgeschlagen</span
+												>{/if}{#if phase.failed > 0 && phase.skipped > 0}{' · '}{/if}{#if phase.skipped > 0}{phase.skipped}
+												übersprungen{/if}
+										</p>
+									{/if}
 									{#if phase.state === 'running'}
-										<Progress value={phasePercent(phase)} class="h-1" />
+										{#if phase.total > 1}
+											<Progress value={phasePercent(phase)} class="h-1" />
+										{/if}
 										{#if phase.detail}
 											<p class="text-xs break-words text-muted-foreground">{phase.detail}</p>
 										{/if}
@@ -473,26 +479,28 @@
 				<h2 class="text-sm font-medium tracking-wide text-muted-foreground uppercase">
 					{group.title}
 				</h2>
-				<div class="grid grid-cols-3 gap-3">
+				<div class="grid grid-cols-1 gap-3 sm:grid-cols-3">
 					{#each group.cards as card (card.label)}
 						<a
 							href={card.href}
 							class="rounded-xl outline-none focus-visible:ring-2 focus-visible:ring-ring"
 						>
 							<Card.Root
-								class="h-full gap-3 py-5 transition-all hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-md"
+								class="h-full py-3 transition-all hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-md sm:py-5"
 							>
-								<Card.Header class="gap-2">
+								<div class="flex items-center gap-3 px-5 sm:flex-col sm:items-start sm:gap-2">
 									<span
-										class="flex size-8 items-center justify-center rounded-lg bg-primary/10 text-primary"
+										class="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary sm:size-8"
 									>
 										<card.icon class="size-4" />
 									</span>
-									<Card.Title class="text-2xl tabular-nums sm:text-3xl">
+									<Card.Title
+										class="order-last ml-auto text-2xl tabular-nums sm:order-none sm:ml-0 sm:text-3xl"
+									>
 										{card.value.toLocaleString('de-AT')}
 									</Card.Title>
 									<Card.Description>{card.label}</Card.Description>
-								</Card.Header>
+								</div>
 							</Card.Root>
 						</a>
 					{/each}
