@@ -27,6 +27,7 @@
 	import FileText from '@lucide/svelte/icons/file-text';
 	import Download from '@lucide/svelte/icons/download';
 	import Trash2 from '@lucide/svelte/icons/trash-2';
+	import Upload from '@lucide/svelte/icons/upload';
 	import Sparkles from '@lucide/svelte/icons/sparkles';
 	import type {
 		GeneratedSearchConfigField,
@@ -101,7 +102,9 @@
 		{ name: 'sourceAms', label: 'AMS eJob-Room' }
 	] as const;
 
-	let cvBusy = $state(false);
+	let cvInput = $state<HTMLInputElement | null>(null);
+	let cvUploading = $state(false);
+	let cvDeleting = $state(false);
 	let importBusy = $state(false);
 	let applyBusy = $state(false);
 	let previewOpen = $state(false);
@@ -176,7 +179,7 @@
 		const input = event.currentTarget as HTMLInputElement;
 		const file = input.files?.[0];
 		if (!file) return;
-		cvBusy = true;
+		cvUploading = true;
 		try {
 			const body = new FormData();
 			body.append('file', file);
@@ -187,13 +190,13 @@
 		} catch (error) {
 			toast.error(error instanceof Error ? error.message : 'Upload fehlgeschlagen');
 		} finally {
-			cvBusy = false;
+			cvUploading = false;
 			input.value = '';
 		}
 	}
 
 	async function deleteCv() {
-		cvBusy = true;
+		cvDeleting = true;
 		try {
 			const response = await fetch('/api/cv', { method: 'DELETE' });
 			if (!response.ok) throw new Error(await responseMessage(response, 'Löschen fehlgeschlagen'));
@@ -202,7 +205,7 @@
 		} catch (error) {
 			toast.error(error instanceof Error ? error.message : 'Löschen fehlgeschlagen');
 		} finally {
-			cvBusy = false;
+			cvDeleting = false;
 		}
 	}
 
@@ -367,29 +370,75 @@
 					</p>
 				</div>
 				{#if data.cv}
-					<div class="flex flex-wrap items-center gap-3 rounded-2xl border p-3">
-						<FileText class="size-8 shrink-0 text-muted-foreground" />
-						<div class="min-w-0 flex-1">
-							<p class="truncate font-medium">{data.cv.filename}</p>
-							<p class="text-sm text-muted-foreground">
-								{fmtSize(data.cv.size)} · hochgeladen
-								{new Date(data.cv.uploadedAt).toLocaleDateString('de-AT')}
-							</p>
+					<div class="flex flex-col gap-3 rounded-2xl border p-3 sm:flex-row sm:items-center">
+						<div class="flex min-w-0 flex-1 items-center gap-3">
+							<FileText class="size-8 shrink-0 text-muted-foreground" />
+							<div class="min-w-0">
+								<p class="truncate font-medium" title={data.cv.filename}>{data.cv.filename}</p>
+								<p class="text-sm text-muted-foreground">
+									{fmtSize(data.cv.size)} · hochgeladen
+									{new Date(data.cv.uploadedAt).toLocaleDateString('de-AT')}
+								</p>
+							</div>
 						</div>
-						<Button href="/api/cv" variant="outline" size="sm"><Download /> Download</Button>
-						<Button variant="ghost" size="sm" disabled={cvBusy} onclick={deleteCv}>
-							<Trash2 /> Löschen
+						<div class="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto sm:shrink-0">
+							<Button
+								href="/api/cv"
+								variant="outline"
+								size="sm"
+								class="w-full sm:w-auto"
+								disabled={cvUploading || cvDeleting}
+							>
+								<Download /> Download
+							</Button>
+							<Button
+								variant="destructive"
+								size="sm"
+								class="w-full sm:w-auto"
+								disabled={cvUploading || cvDeleting}
+								onclick={deleteCv}
+							>
+								{#if cvDeleting}<Spinner />{:else}<Trash2 />{/if}
+								{cvDeleting ? 'Wird gelöscht …' : 'Löschen'}
+							</Button>
+						</div>
+					</div>
+					<Button
+						variant="outline"
+						class="w-full sm:w-auto"
+						disabled={cvUploading || cvDeleting}
+						onclick={() => cvInput?.click()}
+					>
+						{#if cvUploading}<Spinner />{:else}<Upload />{/if}
+						{cvUploading ? 'PDF wird ersetzt …' : 'PDF ersetzen'}
+					</Button>
+				{:else}
+					<div
+						class="flex flex-col gap-3 rounded-2xl border border-dashed p-3 sm:flex-row sm:items-center sm:justify-between"
+					>
+						<div class="flex items-center gap-3">
+							<FileText class="size-8 shrink-0 text-muted-foreground" />
+							<p class="text-sm text-muted-foreground">Noch kein Lebenslauf hinterlegt.</p>
+						</div>
+						<Button
+							variant="outline"
+							class="w-full sm:w-auto"
+							disabled={cvUploading || cvDeleting}
+							onclick={() => cvInput?.click()}
+						>
+							{#if cvUploading}<Spinner />{:else}<Upload />{/if}
+							{cvUploading ? 'PDF wird hochgeladen …' : 'PDF hochladen'}
 						</Button>
 					</div>
-				{:else}
-					<p class="text-sm text-muted-foreground">Noch kein Lebenslauf hinterlegt.</p>
 				{/if}
 
 				<Input
+					bind:ref={cvInput}
 					type="file"
 					accept=".pdf,application/pdf"
-					disabled={cvBusy}
-					class="max-w-sm"
+					aria-label="Lebenslauf als PDF auswählen"
+					disabled={cvUploading || cvDeleting}
+					class="sr-only"
 					onchange={onCvSelected}
 				/>
 				<div class="flex flex-wrap gap-2">
@@ -406,10 +455,6 @@
 				{#if data.cv && !data.hasLlmConfig}
 					<p class="text-sm text-muted-foreground">
 						Für den Profilimport müssen Base URL und Modell gespeichert sein.
-					</p>
-				{:else if hasUnsavedChanges}
-					<p class="text-sm text-muted-foreground">
-						Speichere die offenen Änderungen, bevor du das Profil importierst.
 					</p>
 				{/if}
 			</div>
@@ -439,10 +484,6 @@
 			{#if !data.hasLlmConfig}
 				<p class="text-sm text-muted-foreground">
 					Für die KI-Suchkonfiguration müssen Base URL und Modell gespeichert sein.
-				</p>
-			{:else if hasUnsavedChanges}
-				<p class="text-sm text-muted-foreground">
-					Speichere die offenen Änderungen, bevor du eine Suchkonfiguration erzeugst.
 				</p>
 			{/if}
 			<div class="grid gap-2 sm:grid-cols-2">
