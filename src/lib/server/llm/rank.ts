@@ -3,7 +3,7 @@ import { chatJson, type LlmConfig } from './client';
 import type { LlmLimiter } from './limiter';
 import { osmBusinessTagLabel } from '$lib/search-config';
 
-export const RANK_PROMPT_VERSION = 'rank-v2-structured-profile';
+export const RANK_PROMPT_VERSION = 'rank-v3-split-listing-lead';
 
 export interface RankResult {
 	score: number; // 0-100
@@ -57,14 +57,24 @@ export function profileBlock(s: Settings): string {
 	return parts.join('\n');
 }
 
-const SYSTEM = `Du bist ein Recruiting-Assistent. Bewerte, wie gut eine konkrete Stelle oder eine Initiativbewerbung bei einem Betrieb zum Profil des Bewerbers passt.
+const LISTING_SYSTEM = `Du bist ein Recruiting-Assistent. Bewerte, wie gut eine konkrete, ausgeschriebene Stelle zum Profil des Bewerbers passt.
 Gleiche die ANFORDERUNGEN der Stelle gegen das Profil ab und gewichte vor allem:
 - Sprachniveau: Verlangt die Stelle ein höheres Deutschniveau als der Bewerber hat (z.B. Stelle "Deutsch C1/fließend", Bewerber A2), senke den Score deutlich und nenne es. Andere Sprachen als Plus werten.
 - Erfahrung: Vergleiche geforderte Berufsjahre mit der vorhandenen Erfahrung. Weniger Erfahrung als gefordert => niedriger.
 - Ausbildung/Status: Studium/Schulabschluss und Verfügbarkeit berücksichtigen.
 - Kenntnisse und detaillierter Verlauf: Relevante Skills, konkrete Berufsstationen, Ausbildung und Zertifikate gegen die Anforderungen abgleichen.
-- Rolle, Kategorie & Ort: Passt die Stelle oder Initiativbewerbung zu den konfigurierten Stellen-Keywords, zur Betriebskategorie, zur Entfernung und zum Profil?
+- Rolle & Ort: Passt die Stelle zu den konfigurierten Stellen-Keywords, zur Entfernung und zum Profil?
 Wenn die Stellenbeschreibung keine Anforderung nennt, nimm an, dass sie erfüllbar ist (nicht bestrafen).
+Antworte ausschließlich als JSON-Objekt:
+{"score": <0-100>, "verdict": "strong"|"maybe"|"weak", "reason": "<kurze deutsche Begründung, max 2 Sätze, nenne den ausschlaggebenden Faktor>"}
+score 70-100 => "strong", 40-69 => "maybe", 0-39 => "weak".`;
+
+const LEAD_SYSTEM = `Du bist ein Recruiting-Assistent. Bewerte, wie sinnvoll und erfolgversprechend eine Initiativbewerbung (unaufgeforderte Bewerbung) des Bewerbers bei diesem Betrieb ist.
+WICHTIG: Es gibt KEINE ausgeschriebene Stelle und KEINE konkreten Anforderungen. Bewerte NICHT gegen Stellenanforderungen und erfinde keine. Beurteile stattdessen, ob der Betrieb grundsätzlich zum Bewerber passt. Gewichte:
+- Branchen-/Rollen-Fit (wichtigster Faktor): Beschäftigt ein Betrieb dieser Art (Kategorie / OSM-Kategorien) plausibel jemanden mit dem Profil und den gesuchten Stellen-Keywords des Bewerbers? Wenn die Branche gar nicht zur gesuchten Rolle passt, niedriger Score.
+- Entfernung: Kürzere Anfahrt ist besser.
+- Profil-Passung: Passen Kenntnisse, Erfahrung und Ausbildung des Bewerbers grundsätzlich in diesen Betrieb?
+Sprachniveau und Berufsjahre NICHT als harte Anforderung bestrafen — es gibt keine Ausschreibung, gegen die man durchfallen könnte; nutze sie nur als grobe Plausibilität.
 Antworte ausschließlich als JSON-Objekt:
 {"score": <0-100>, "verdict": "strong"|"maybe"|"weak", "reason": "<kurze deutsche Begründung, max 2 Sätze, nenne den ausschlaggebenden Faktor>"}
 score 70-100 => "strong", 40-69 => "maybe", 0-39 => "weak".`;
@@ -116,7 +126,7 @@ export async function rankListing(
 	const raw = await chatJson<Partial<RankResult>>(
 		cfg,
 		[
-			{ role: 'system', content: SYSTEM },
+			{ role: 'system', content: LISTING_SYSTEM },
 			{ role: 'user', content: user }
 		],
 		{ limiter, signal }
@@ -135,7 +145,7 @@ export async function rankLead(
 	const raw = await chatJson<Partial<RankResult>>(
 		cfg,
 		[
-			{ role: 'system', content: SYSTEM },
+			{ role: 'system', content: LEAD_SYSTEM },
 			{ role: 'user', content: user }
 		],
 		{ limiter, signal }
