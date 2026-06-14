@@ -148,17 +148,17 @@
 {/snippet}
 
 {#snippet entryField(label: string, children: import('svelte').Snippet)}
-	<Label class="flex flex-col items-stretch gap-2">
+	<Label class="flex w-full min-w-0 flex-col items-stretch gap-2">
 		<span>{label}</span>
 		{@render children()}
 	</Label>
 {/snippet}
 
 {#snippet workExperienceEditor()}
-	<div class="space-y-3">
+	<div class="min-w-0 space-y-3">
 		{#each profile.workExperience as item, index (index)}
-			<div class="space-y-4 rounded-2xl border p-4">
-				<div class="grid gap-4 sm:grid-cols-2">
+			<div class="min-w-0 space-y-4 rounded-2xl border p-4">
+				<div class="grid min-w-0 gap-4 sm:grid-cols-2">
 					{@render entryField('Position', positionInput)}
 					{#snippet positionInput()}
 						<Input
@@ -186,7 +186,7 @@
 							placeholder="Ort"
 						/>
 					{/snippet}
-					<div class="grid grid-cols-2 gap-3">
+					<div class="grid min-w-0 grid-cols-2 gap-3">
 						{@render entryField('Von', startInput)}
 						{#snippet startInput()}
 							<Input
@@ -210,6 +210,7 @@
 				{@render entryField('Aufgaben und Erfolge', descriptionInput)}
 				{#snippet descriptionInput()}
 					<Textarea
+						class="min-w-0"
 						value={item.description}
 						oninput={(event) =>
 							updateEntry('workExperience', item, 'description', event.currentTarget.value)}
@@ -233,10 +234,10 @@
 {/snippet}
 
 {#snippet educationEditor()}
-	<div class="space-y-3">
+	<div class="min-w-0 space-y-3">
 		{#each profile.educationHistory as item, index (index)}
-			<div class="space-y-4 rounded-2xl border p-4">
-				<div class="grid gap-4 sm:grid-cols-2">
+			<div class="min-w-0 space-y-4 rounded-2xl border p-4">
+				<div class="grid min-w-0 gap-4 sm:grid-cols-2">
 					{@render entryField('Abschluss', qualificationInput)}
 					{#snippet qualificationInput()}
 						<Input
@@ -295,6 +296,7 @@
 				{@render entryField('Details', educationDescriptionInput)}
 				{#snippet educationDescriptionInput()}
 					<Textarea
+						class="min-w-0"
 						value={item.description}
 						oninput={(event) =>
 							updateEntry('educationHistory', item, 'description', event.currentTarget.value)}
@@ -318,10 +320,10 @@
 {/snippet}
 
 {#snippet certificationsEditor()}
-	<div class="space-y-3">
+	<div class="min-w-0 space-y-3">
 		{#each profile.certifications as item, index (index)}
-			<div class="space-y-4 rounded-2xl border p-4">
-				<div class="grid gap-4 sm:grid-cols-3">
+			<div class="min-w-0 space-y-4 rounded-2xl border p-4">
+				<div class="grid min-w-0 gap-4 sm:grid-cols-3">
 					{@render entryField('Zertifikat', certificationNameInput)}
 					{#snippet certificationNameInput()}
 						<Input
@@ -353,6 +355,7 @@
 				{@render entryField('Details', certificationDescriptionInput)}
 				{#snippet certificationDescriptionInput()}
 					<Textarea
+						class="min-w-0"
 						value={item.description}
 						oninput={(event) =>
 							updateEntry('certifications', item, 'description', event.currentTarget.value)}
@@ -375,7 +378,7 @@
 	</div>
 {/snippet}
 
-<div class="space-y-5">
+<div class="min-w-0 space-y-5">
 	{#if visible('fullName')}
 		<div class="space-y-2">
 			{@render heading('fullName', 'Name')}
@@ -526,10 +529,14 @@
 	{#if collapsibleHistory}
 		<Accordion.Root type="multiple">
 			{#if visible('workExperience')}
-				<Accordion.Item value="work-experience">
-					<Accordion.Trigger>
-						<span>Berufserfahrung</span>
-						<span class="ml-auto text-xs font-normal text-muted-foreground">
+				<Accordion.Item value="work-experience" class="data-open:bg-transparent">
+					<Accordion.Trigger
+						class="items-center gap-4 hover:no-underline [&>span:first-child]:min-w-0 [&>span:first-child]:flex-1"
+					>
+						<span class="truncate">Berufserfahrung</span>
+						<span
+							class="w-8 shrink-0 text-center text-xs font-normal text-muted-foreground tabular-nums"
+						>
 							{profile.workExperience.length}
 						</span>
 					</Accordion.Trigger>
@@ -537,10 +544,14 @@
 				</Accordion.Item>
 			{/if}
 			{#if visible('educationHistory')}
-				<Accordion.Item value="education-history">
-					<Accordion.Trigger>
-						<span>Ausbildungsverlauf</span>
-						<span class="ml-auto text-xs font-normal text-muted-foreground">
+				<Accordion.Item value="education-history" class="data-open:bg-transparent">
+					<Accordion.Trigger
+						class="items-center gap-4 hover:no-underline [&>span:first-child]:min-w-0 [&>span:first-child]:flex-1"
+					>
+						<span class="truncate">Ausbildungsverlauf</span>
+						<span
+							class="w-8 shrink-0 text-center text-xs font-normal text-muted-foreground tabular-nums"
+						>
 							{profile.educationHistory.length}
 						</span>
 					</Accordion.Trigger>
@@ -548,10 +559,14 @@
 				</Accordion.Item>
 			{/if}
 			{#if visible('certifications')}
-				<Accordion.Item value="certifications">
-					<Accordion.Trigger>
-						<span>Zertifikate</span>
-						<span class="ml-auto text-xs font-normal text-muted-foreground">
+				<Accordion.Item value="certifications" class="data-open:bg-transparent">
+					<Accordion.Trigger
+						class="items-center gap-4 hover:no-underline [&>span:first-child]:min-w-0 [&>span:first-child]:flex-1"
+					>
+						<span class="truncate">Zertifikate</span>
+						<span
+							class="w-8 shrink-0 text-center text-xs font-normal text-muted-foreground tabular-nums"
+						>
 							{profile.certifications.length}
 						</span>
 					</Accordion.Trigger>

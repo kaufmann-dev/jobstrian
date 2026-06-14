@@ -258,7 +258,7 @@
 	{/if}
 
 	{#if visible('businessRadiusMeters')}
-		<div class="max-w-xs space-y-2">
+		<div class="space-y-2">
 			{@render heading('businessRadiusMeters', 'Maximale Entfernung für Betriebe')}
 			<Input
 				type="number"

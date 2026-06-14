@@ -98,6 +98,9 @@ it('collapses profile history by default and shows entry counts', async () => {
 
 	await workExperience.click();
 	await expect.element(page.getByRole('textbox', { name: 'Position' })).toBeVisible();
+	expect(document.documentElement.scrollWidth).toBeLessThanOrEqual(
+		document.documentElement.clientWidth
+	);
 });
 
 it('keeps profile history expanded when collapsible history is disabled', async () => {
