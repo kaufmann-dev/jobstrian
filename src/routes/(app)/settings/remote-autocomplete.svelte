@@ -124,7 +124,8 @@
 	</Combobox.Input>
 	<Combobox.Portal>
 		<Combobox.Content
-			class="z-50 max-h-60 min-w-(--bits-combobox-anchor-width) overflow-auto rounded-xl border bg-popover p-1 text-popover-foreground shadow-md"
+			collisionPadding={8}
+			class="z-50 max-h-60 w-(--bits-combobox-anchor-width) max-w-[calc(100vw-1rem)] overflow-auto rounded-xl border bg-popover p-1 text-popover-foreground shadow-md"
 		>
 			{#if status === 'loading'}
 				<div class="px-2 py-1.5 text-sm text-muted-foreground">Vorschläge werden geladen …</div>
@@ -140,11 +141,13 @@
 						<Combobox.Item
 							value={suggestion.id}
 							label={suggestion.label}
-							class="rounded-lg px-2 py-1.5 text-sm outline-none data-highlighted:bg-muted"
+							class="min-w-0 overflow-hidden rounded-lg px-2 py-1.5 text-sm outline-none data-highlighted:bg-muted"
 						>
-							<span class="block">{suggestion.label}</span>
+							<span class="block truncate">{suggestion.label}</span>
 							{#if suggestion.secondaryLabel}
-								<span class="block text-xs text-muted-foreground">{suggestion.secondaryLabel}</span>
+								<span class="block truncate text-xs text-muted-foreground">
+									{suggestion.secondaryLabel}
+								</span>
 							{/if}
 						</Combobox.Item>
 					{/each}
