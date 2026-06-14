@@ -398,7 +398,7 @@
 		searchPlaceholder="Betrieb, Kategorie, Adresse oder E-Mail suchen"
 		defaultSort="recommended"
 		itemLabel="Betrieben"
-		emptyText="Noch keine Betriebe. Trage deinen Wohnort in den Einstellungen ein und aktualisiere."
+		emptyText="Noch keine Betriebe. Trage Adresse und Betriebskategorien in den Einstellungen ein und aktualisiere."
 	/>
 </div>
 

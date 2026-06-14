@@ -271,7 +271,7 @@
 					onblur={() => addCity(cityInput)}
 					aria-expanded={citySuggestions.length > 0}
 					aria-label="Job-Suchort hinzufügen"
-					placeholder="Wien, Graz, Linz"
+					placeholder="Graz, Linz, Salzburg"
 				/>
 				{#if citySuggestions.length > 0}
 					<div

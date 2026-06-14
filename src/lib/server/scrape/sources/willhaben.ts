@@ -51,13 +51,28 @@ function normalizeLocation(value: string): string {
 		.trim();
 }
 
-function matchesConfiguredCity(location: string | undefined, cities: readonly string[]): boolean {
-	if (!location) return false;
+function matchingConfiguredCity(
+	location: string | undefined,
+	cities: readonly string[]
+): string | null {
+	if (!location) return null;
 	const normalized = normalizeLocation(location);
-	return cities.some((city) => {
-		const normalizedCity = normalizeLocation(city);
-		return normalizedCity.length > 0 && normalized.includes(normalizedCity);
-	});
+	return (
+		cities.find((city) => {
+			const normalizedCity = normalizeLocation(city);
+			return normalizedCity.length > 0 && normalized.includes(normalizedCity);
+		}) ?? null
+	);
+}
+
+function listingWithDiscovery(
+	listing: RawListing,
+	keyword: string,
+	cities: readonly string[]
+): RawListing | null {
+	const city = matchingConfiguredCity(listing.location, cities);
+	if (!city) return null;
+	return { ...listing, discoveryKeyword: keyword, discoveryCity: city };
 }
 
 export const willhaben: SourceAdapter = {
@@ -72,9 +87,10 @@ export const willhaben: SourceAdapter = {
 				const html = await fetchText(url, { timeoutMs: 20_000, signal });
 				for (const entry of parseNextData(html)) {
 					const listing = toListing(entry);
-					if (listing && matchesConfiguredCity(listing.location, profile.locations)) {
-						byId.set(listing.externalId, listing);
-					}
+					const discovered = listing
+						? listingWithDiscovery(listing, keyword, profile.locations)
+						: null;
+					if (discovered) byId.set(discovered.externalId, discovered);
 				}
 			} catch (err) {
 				console.error(`[willhaben] "${keyword}" failed:`, err);

@@ -3,6 +3,7 @@ import { fetchJson } from '../util/http';
 export interface GeoPoint {
 	lat: number;
 	lon: number;
+	city: string | null;
 }
 
 export interface AustrianGeoSuggestion extends GeoPoint {
@@ -130,5 +131,5 @@ export async function searchAustrianCities(
 /** Geocode a free-form Austrian address via OpenStreetMap Nominatim. */
 export async function geocode(address: string): Promise<GeoPoint | null> {
 	const result = await validateAustrianAddress(address);
-	return result ? { lat: result.lat, lon: result.lon } : null;
+	return result ? { lat: result.lat, lon: result.lon, city: result.city } : null;
 }

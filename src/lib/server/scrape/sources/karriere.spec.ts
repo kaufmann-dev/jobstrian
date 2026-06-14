@@ -35,5 +35,9 @@ describe('karriere scraper', () => {
 			expect.any(Object)
 		);
 		expect(listings).toHaveLength(1);
+		expect(listings[0]).toMatchObject({
+			discoveryKeyword: 'Verkauf',
+			discoveryCity: 'Graz'
+		});
 	});
 });

@@ -41,6 +41,7 @@
 	const stats = $derived(data.stats);
 	const configured = $derived(data.configured);
 	const hasHome = $derived(data.hasHome);
+	const hasSearchConfig = $derived(data.hasSearchConfig);
 	const progress = $derived(normalizeProgress(run));
 	const phaseRows = $derived(toPhaseRows(progress));
 	const currentPhase = $derived(
@@ -313,7 +314,9 @@
 	<div class="flex flex-wrap items-center justify-between gap-4">
 		<div>
 			<h1 class="text-2xl font-semibold tracking-tight">Übersicht</h1>
-			<p class="text-sm text-muted-foreground">Deine automatisierte Jobsuche in Wien.</p>
+			<p class="text-sm text-muted-foreground">
+				Deine automatisierte Jobsuche und Arbeitgeber-Recherche in Österreich.
+			</p>
 		</div>
 		<Button onclick={update} disabled={isRunning} size="lg">
 			{#if isRunning}
@@ -338,10 +341,21 @@
 	{#if !hasHome}
 		<Alert.Root>
 			<TriangleAlert class="size-4" />
-			<Alert.Title>Wohnort fehlt</Alert.Title>
+			<Alert.Title>Adresse fehlt</Alert.Title>
 			<Alert.Description>
 				Trage deine Adresse in den <a class="underline" href={resolve('/settings')}>Einstellungen</a
-				> ein, um Betriebe in der Nähe zu finden.
+				> ein, um Job-Suchorte abzuleiten und nahe potenzielle Arbeitgeber zu finden.
+			</Alert.Description>
+		</Alert.Root>
+	{/if}
+	{#if !hasSearchConfig}
+		<Alert.Root>
+			<TriangleAlert class="size-4" />
+			<Alert.Title>Suchkonfiguration fehlt</Alert.Title>
+			<Alert.Description>
+				Hinterlege in den <a class="underline" href={resolve('/settings')}>Einstellungen</a>
+				Stellen-Keywords und Betriebskategorien, damit passende Stellen und nahe potenzielle Arbeitgeber
+				gefunden werden.
 			</Alert.Description>
 		</Alert.Root>
 	{/if}

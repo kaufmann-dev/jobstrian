@@ -47,5 +47,6 @@ describe('willhaben scraper', () => {
 		);
 		expect(fetchTextMock.mock.calls[0]?.[0]).not.toContain('areaId=900');
 		expect(listings.map((listing) => listing.externalId)).toEqual(['1']);
+		expect(listings[0]).toMatchObject({ discoveryKeyword: 'Verkauf', discoveryCity: 'Graz' });
 	});
 });

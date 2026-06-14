@@ -1,6 +1,7 @@
 import type { Settings, Listing, Lead } from '../db/schema';
 import { chatJson, type LlmConfig } from './client';
 import type { LlmLimiter } from './limiter';
+import { osmBusinessTagLabel } from '$lib/search-config';
 
 export const RANK_PROMPT_VERSION = 'rank-v2-structured-profile';
 
@@ -18,6 +19,8 @@ export function profileBlock(s: Settings): string {
 	const parts = [
 		s.profileText && `Profil: ${s.profileText}`,
 		s.jobSearchKeywords.length && `Gesuchte Stellen-Keywords: ${s.jobSearchKeywords.join(', ')}`,
+		s.businessOsmTags.length &&
+			`Ausgewählte Betriebskategorien: ${s.businessOsmTags.map(osmBusinessTagLabel).join(', ')}`,
 		exp,
 		s.germanLevel && `Deutschniveau: ${s.germanLevel}`,
 		s.languages.length && `Sprachen gesamt: ${s.languages.join(', ')}`,
@@ -25,7 +28,9 @@ export function profileBlock(s: Settings): string {
 		s.educationStatus && `Ausbildung: ${s.educationStatus}`,
 		s.availability && `Verfügbarkeit: ${s.availability}`,
 		s.homeAddress && `Wohnort: ${s.homeAddress} (kurze Anfahrt ist ein Plus)`,
-		s.jobSearchLocations.length && `Job-Suchorte: ${s.jobSearchLocations.join(', ')}`,
+		s.jobSearchLocations.length
+			? `Job-Suchorte: ${s.jobSearchLocations.join(', ')}`
+			: s.homeCity && `Abgeleiteter Job-Suchort: ${s.homeCity}`,
 		s.workExperience.length &&
 			`Berufserfahrung:\n${s.workExperience
 				.map(
@@ -52,13 +57,13 @@ export function profileBlock(s: Settings): string {
 	return parts.join('\n');
 }
 
-const SYSTEM = `Du bist ein Recruiting-Assistent. Bewerte, wie gut eine konkrete Stelle zum Profil des Bewerbers passt.
+const SYSTEM = `Du bist ein Recruiting-Assistent. Bewerte, wie gut eine konkrete Stelle oder eine Initiativbewerbung bei einem Betrieb zum Profil des Bewerbers passt.
 Gleiche die ANFORDERUNGEN der Stelle gegen das Profil ab und gewichte vor allem:
 - Sprachniveau: Verlangt die Stelle ein höheres Deutschniveau als der Bewerber hat (z.B. Stelle "Deutsch C1/fließend", Bewerber A2), senke den Score deutlich und nenne es. Andere Sprachen als Plus werten.
 - Erfahrung: Vergleiche geforderte Berufsjahre mit der vorhandenen Erfahrung. Weniger Erfahrung als gefordert => niedriger.
 - Ausbildung/Status: Studium/Schulabschluss und Verfügbarkeit berücksichtigen.
 - Kenntnisse und detaillierter Verlauf: Relevante Skills, konkrete Berufsstationen, Ausbildung und Zertifikate gegen die Anforderungen abgleichen.
-- Rolle & Ort: Passt die Rolle zu den gesuchten Rollen? Ist die Stelle in/nahe dem Wohnort?
+- Rolle, Kategorie & Ort: Passt die Stelle oder Initiativbewerbung zu den konfigurierten Stellen-Keywords, zur Betriebskategorie, zur Entfernung und zum Profil?
 Wenn die Stellenbeschreibung keine Anforderung nennt, nimm an, dass sie erfüllbar ist (nicht bestrafen).
 Antworte ausschließlich als JSON-Objekt:
 {"score": <0-100>, "verdict": "strong"|"maybe"|"weak", "reason": "<kurze deutsche Begründung, max 2 Sätze, nenne den ausschlaggebenden Faktor>"}
@@ -72,6 +77,34 @@ function clampResult(raw: Partial<RankResult>): RankResult {
 	return { score, verdict, reason: (raw.reason ?? '').toString().slice(0, 500) };
 }
 
+export function buildListingRankingPrompt(settings: Settings, listing: Listing): string {
+	return `BEWERBER:\n${profileBlock(settings)}\n\nSTELLE:
+Titel: ${listing.title}
+Unternehmen: ${listing.company ?? 'unbekannt'}
+Ort: ${listing.location ?? 'unbekannt'}
+Gefunden über Keyword: ${listing.discoveryKeyword ?? 'unbekannt'}
+Gefunden für Suchort: ${listing.discoveryCity ?? 'unbekannt'}
+Gehalt: ${listing.salary ?? 'unbekannt'}
+Beschreibung: ${(listing.description ?? '').slice(0, 2000)}`;
+}
+
+export function buildLeadRankingPrompt(settings: Settings, lead: Lead): string {
+	const targetRole = settings.jobSearchKeywords.length
+		? settings.jobSearchKeywords.join(', ')
+		: 'keine eindeutige Zielrolle konfiguriert';
+	const matchedTags = lead.matchedOsmTags.length
+		? lead.matchedOsmTags.map((tag) => tag.label).join(', ')
+		: 'keine gespeicherten OSM-Kategorien';
+	return `BEWERBER:\n${profileBlock(settings)}\n\nBETRIEB (potenzielle Initiativbewerbung):
+Name: ${lead.name}
+Art: ${lead.category ?? 'Betrieb'}
+Passende OSM-Kategorien: ${matchedTags}
+Zielrolle aus Stellen-Keywords: ${targetRole}
+Adresse: ${lead.address ?? 'unbekannt'}
+Entfernung: ${lead.distanceMeters} m
+Bewerte, wie gut eine Initiativbewerbung mit den konfigurierten Stellen-Keywords, den Betriebskategorien, der Entfernung und dem Profil bei diesem Betrieb passt.`;
+}
+
 export async function rankListing(
 	cfg: LlmConfig,
 	settings: Settings,
@@ -79,12 +112,7 @@ export async function rankListing(
 	limiter: LlmLimiter,
 	signal?: AbortSignal
 ): Promise<RankResult> {
-	const user = `BEWERBER:\n${profileBlock(settings)}\n\nSTELLE:
-Titel: ${listing.title}
-Unternehmen: ${listing.company ?? 'unbekannt'}
-Ort: ${listing.location ?? 'unbekannt'}
-Gehalt: ${listing.salary ?? 'unbekannt'}
-Beschreibung: ${(listing.description ?? '').slice(0, 2000)}`;
+	const user = buildListingRankingPrompt(settings, listing);
 	const raw = await chatJson<Partial<RankResult>>(
 		cfg,
 		[
@@ -103,12 +131,7 @@ export async function rankLead(
 	limiter: LlmLimiter,
 	signal?: AbortSignal
 ): Promise<RankResult> {
-	const user = `BEWERBER:\n${profileBlock(settings)}\n\nBETRIEB (potenzielle Initiativbewerbung):
-Name: ${lead.name}
-Art: ${lead.category ?? 'Betrieb'}
-Adresse: ${lead.address ?? 'unbekannt'}
-Entfernung: ${lead.distanceMeters} m
-Bewerte, wie gut eine Initiativbewerbung mit den konfigurierten Stellen-Keywords und dem Profil bei diesem Betrieb passt.`;
+	const user = buildLeadRankingPrompt(settings, lead);
 	const raw = await chatJson<Partial<RankResult>>(
 		cfg,
 		[

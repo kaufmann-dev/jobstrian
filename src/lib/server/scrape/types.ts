@@ -14,6 +14,8 @@ export interface RawListing {
 	description?: string;
 	salary?: string;
 	postedAt?: Date;
+	discoveryKeyword?: string;
+	discoveryCity?: string;
 }
 
 export interface SourceAdapter {

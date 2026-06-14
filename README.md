@@ -2,7 +2,8 @@
 
 > Automated job search and business lead discovery for Austria.
 
-Jobstrian searches Austrian job portals for configured role keywords and cities,
+Jobstrian searches Austrian job portals for configured role keywords and Austrian cities,
+derives a portal city from your validated home address when no explicit cities are configured,
 finds configured business categories near your home for speculative
 applications, and rates each job / business using a user-configured
 OpenAI-compatible LLM.
@@ -13,6 +14,10 @@ OpenAI-compatible LLM.
   - `hokify`, `willhaben` Jobs (embedded JSON), `karriere.at` (HTML), and
     `AMS eJob-Room` (browser-driven, because the search API requires an SPA
     token).
+  - Job portal scraping requires configured role keywords plus either explicit
+    search cities or a validated address with a city / municipality. If no city
+    can be determined, portal scraping is skipped instead of using a default
+    city.
 - **Nearby businesses**: OpenStreetMap (Overpass) finds configured business
   categories within a radius; missing e-mail addresses are extracted from the
   respective website (imprint / contact page). If Overpass is temporarily
@@ -83,8 +88,8 @@ pnpm dev
 
 Open `http://localhost:5173` and create the first user on the setup screen.
 The setup screen disables itself permanently once that single user exists.
-Afterwards log in at `/login`, enter your address, search terms and the
-OpenAI-compatible LLM (base URL including `/v1`, model, API key) in **Settings**,
+Afterwards log in at `/login`, enter your address, role keywords, business
+categories and the OpenAI-compatible LLM (base URL including `/v1`, model, API key) in **Settings**,
 Upload an optional PDF CV and trigger the AI profile import manually in
 **Settings**. Then click **Update** on the dashboard.
 

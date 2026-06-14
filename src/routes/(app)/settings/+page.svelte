@@ -569,7 +569,7 @@
 				id="search-config-intent"
 				bind:value={searchIntent}
 				rows={5}
-				placeholder="z.B. Teilzeit im Verkauf oder Büro in Wien, keine Nachtschichten"
+				placeholder="z.B. Teilzeit im Verkauf oder Büro in Graz, keine Nachtschichten"
 			/>
 			<p class="text-sm text-muted-foreground">
 				Beispiele können Rolle, Branche, Seniorität, Arbeitszeit und Ausschlüsse enthalten.

@@ -1,8 +1,11 @@
 import { USER_AGENT } from '../util/http';
 import {
 	isValidOsmBusinessTag,
+	osmBusinessTagLabel,
+	osmBusinessTagRaw,
 	type OsmBusinessTag,
-	type OsmBusinessTagKey
+	type OsmBusinessTagKey,
+	type OsmBusinessTagSuggestion
 } from '$lib/search-config';
 
 export interface OverpassPlace {
@@ -11,6 +14,7 @@ export interface OverpassPlace {
 	category: string;
 	lat: number;
 	lon: number;
+	matchedOsmTags: OsmBusinessTagSuggestion[];
 	address?: string;
 	website?: string;
 	phone?: string;
@@ -204,13 +208,27 @@ out center tags;`;
 	});
 }
 
-function categoryFor(
+function matchedConfiguredTags(
 	tags: Record<string, string>,
 	configuredTags: readonly OsmBusinessTag[]
-): string {
+): OsmBusinessTagSuggestion[] {
+	const matched: OsmBusinessTagSuggestion[] = [];
 	for (const tag of configuredTags) {
-		if (tags[tag.key] === tag.value) return tag.value;
+		if (tags[tag.key] !== tag.value) continue;
+		matched.push({
+			...tag,
+			raw: osmBusinessTagRaw(tag),
+			label: osmBusinessTagLabel(tag)
+		});
 	}
+	return matched;
+}
+
+function categoryFor(
+	tags: Record<string, string>,
+	matchedTags: readonly OsmBusinessTagSuggestion[]
+): string {
+	if (matchedTags[0]) return matchedTags[0].value;
 	return tags.amenity ?? tags.shop ?? tags.craft ?? tags.office ?? tags.tourism ?? 'business';
 }
 
@@ -235,12 +253,24 @@ export async function findNearbyBusinesses(
 			const coord = el.lat != null && el.lon != null ? { lat: el.lat, lon: el.lon } : el.center;
 			if (!coord) continue;
 			const osmId = `${el.type}/${el.id}`;
+			const matchedOsmTags = matchedConfiguredTags(elementTags, tags);
+			const existing = byOsmId.get(osmId);
+			const mergedTags = existing
+				? [
+						...existing.matchedOsmTags,
+						...matchedOsmTags.filter(
+							(tag) => !existing.matchedOsmTags.some((existingTag) => existingTag.raw === tag.raw)
+						)
+					]
+				: matchedOsmTags;
 			byOsmId.set(osmId, {
+				...existing,
 				osmId,
 				name,
-				category: categoryFor(elementTags, tags),
+				category: categoryFor(elementTags, mergedTags),
 				lat: coord.lat,
 				lon: coord.lon,
+				matchedOsmTags: mergedTags,
 				address: buildAddress(elementTags),
 				website: elementTags.website ?? elementTags['contact:website'],
 				phone: elementTags.phone ?? elementTags['contact:phone'],

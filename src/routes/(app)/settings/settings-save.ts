@@ -5,14 +5,23 @@ export async function resolveHomeAddressSave(
 	current: Settings,
 	homeAddress: string
 ): Promise<
-	| { ok: true; homeAddress: string; homeLat?: number | null; homeLon?: number | null }
+	| {
+			ok: true;
+			homeAddress: string;
+			homeCity?: string;
+			homeLat?: number | null;
+			homeLon?: number | null;
+	  }
 	| { ok: false; message: string }
 > {
 	const trimmedAddress = homeAddress.trim();
-	if (!trimmedAddress) return { ok: true, homeAddress: '', homeLat: null, homeLon: null };
+	if (!trimmedAddress) {
+		return { ok: true, homeAddress: '', homeCity: '', homeLat: null, homeLon: null };
+	}
 
 	const mustValidate =
 		trimmedAddress !== current.homeAddress.trim() ||
+		!current.homeCity.trim() ||
 		current.homeLat == null ||
 		current.homeLon == null;
 	if (!mustValidate) return { ok: true, homeAddress };
@@ -31,6 +40,7 @@ export async function resolveHomeAddressSave(
 	return {
 		ok: true,
 		homeAddress: resolvedAddress.label,
+		homeCity: resolvedAddress.city ?? '',
 		homeLat: resolvedAddress.lat,
 		homeLon: resolvedAddress.lon
 	};

@@ -1,4 +1,4 @@
-import { and, eq, inArray, isNull, ne, or, sql } from 'drizzle-orm';
+import { and, eq, isNull, ne, or, sql, type SQL } from 'drizzle-orm';
 import { db } from '../db';
 import {
 	listing,
@@ -30,7 +30,6 @@ import { mapLimit } from '../util/concurrency';
 import { closeBrowser } from './browser';
 import { getEnabledAdapters, BROWSER_ADAPTERS } from './registry';
 import type { ProfileQuery, RawListing } from './types';
-import { DEFAULT_JOB_SEARCH_KEYWORDS } from '$lib/search-config';
 
 const PROGRESS_FLUSH_INTERVAL_MS = 1000;
 
@@ -153,6 +152,8 @@ async function upsertListing(source: string, r: RawListing, runId: number): Prom
 			description: r.description,
 			salary: r.salary,
 			postedAt: r.postedAt,
+			discoveryKeyword: r.discoveryKeyword,
+			discoveryCity: r.discoveryCity,
 			status: 'active',
 			lastSeenRunId: runId,
 			contentHash
@@ -167,6 +168,8 @@ async function upsertListing(source: string, r: RawListing, runId: number): Prom
 				description: r.description ?? sql`${listing.description}`,
 				salary: r.salary,
 				postedAt: r.postedAt,
+				discoveryKeyword: r.discoveryKeyword,
+				discoveryCity: r.discoveryCity,
 				status: 'active',
 				lastSeenRunId: runId,
 				contentHash
@@ -176,36 +179,79 @@ async function upsertListing(source: string, r: RawListing, runId: number): Prom
 	return res[0]?.inserted === true;
 }
 
-async function ensureHomeCoords(settings: Settings, signal: AbortSignal): Promise<Settings> {
-	if (settings.homeLat != null && settings.homeLon != null) return settings;
+async function ensureHomeLocation(settings: Settings, signal: AbortSignal): Promise<Settings> {
+	if (settings.homeLat != null && settings.homeLon != null && settings.homeCity.trim()) {
+		return settings;
+	}
 	if (!settings.homeAddress) return settings;
 	throwIfAborted(signal);
 	const point = await geocode(settings.homeAddress);
 	throwIfAborted(signal);
 	if (!point) return settings;
-	return updateSettings({ homeLat: point.lat, homeLon: point.lon });
+	return updateSettings({ homeLat: point.lat, homeLon: point.lon, homeCity: point.city ?? '' });
 }
 
-function cityFromAddress(address: string): string | null {
-	const cleaned = address.trim();
-	if (!cleaned) return null;
-	const lastPart = cleaned
-		.split(',')
-		.map((part) => part.trim())
-		.filter(Boolean)
-		.at(-1);
-	if (!lastPart) return null;
-	const city = lastPart
-		.replace(/\b\d{4}\b/g, '')
-		.replace(/\s+/g, ' ')
-		.trim();
-	return city || null;
-}
-
-function jobSearchLocations(settings: Settings): string[] {
+export function jobSearchLocations(
+	settings: Pick<Settings, 'jobSearchLocations' | 'homeCity'>
+): string[] {
 	if (settings.jobSearchLocations.length) return settings.jobSearchLocations;
-	const city = cityFromAddress(settings.homeAddress);
+	const city = settings.homeCity.trim();
 	return city ? [city] : [];
+}
+
+export function buildProfileQuery(
+	settings: Pick<Settings, 'jobSearchKeywords' | 'jobSearchLocations' | 'homeCity'>
+): ProfileQuery | null {
+	const keywords = settings.jobSearchKeywords;
+	const locations = jobSearchLocations(settings);
+	if (keywords.length === 0 || locations.length === 0) return null;
+	return { keywords, locations };
+}
+
+function scrapeSkipDetail(settings: Settings, adapters: readonly unknown[]): string {
+	if (adapters.length === 0) return 'Keine Quellen aktiviert';
+	if (settings.jobSearchKeywords.length === 0) return 'Keine Stellen-Keywords konfiguriert';
+	return 'Kein Job-Suchort aus Konfiguration oder Adresse ableitbar';
+}
+
+export interface ListingSearchScope {
+	source: string;
+	city: string;
+}
+
+export function listingSearchScopes(
+	sources: readonly string[],
+	cities: readonly string[]
+): ListingSearchScope[] {
+	const seen = new Set<string>();
+	const scopes: ListingSearchScope[] = [];
+	for (const source of sources) {
+		for (const city of cities) {
+			const trimmedCity = city.trim();
+			if (!trimmedCity) continue;
+			const key = `${source}\u0000${trimmedCity}`;
+			if (seen.has(key)) continue;
+			seen.add(key);
+			scopes.push({ source, city: trimmedCity });
+		}
+	}
+	return scopes;
+}
+
+export function listingReconcileWhere(
+	runId: number,
+	scopes: readonly ListingSearchScope[]
+): SQL | undefined {
+	if (scopes.length === 0) return undefined;
+	return and(
+		eq(listing.status, 'active'),
+		or(isNull(listing.lastSeenRunId), ne(listing.lastSeenRunId, runId)),
+		or(
+			...scopes.map(
+				(scope) => and(eq(listing.source, scope.source), eq(listing.discoveryCity, scope.city))!
+			)
+		)
+	);
 }
 
 /** Flag leads whose business name matches an active listing's company. */
@@ -231,52 +277,55 @@ export async function runRefresh(
 	let finalDetail = '';
 
 	try {
-		let settings = await getSettings();
+		let settings = await ensureHomeLocation(await getSettings(), signal);
 		const limiter = new LlmLimiter({
 			requestsPerMinute: settings.llmRequestsPerMinute,
 			maxConcurrent: settings.llmMaxConcurrent
 		});
 		writer.setLimiter(limiter);
-		const profile: ProfileQuery = {
-			keywords: settings.jobSearchKeywords.length
-				? settings.jobSearchKeywords
-				: DEFAULT_JOB_SEARCH_KEYWORDS,
-			locations: jobSearchLocations(settings)
-		};
+		const profile = buildProfileQuery(settings);
 		throwIfAborted(signal);
 
 		writer.phase('setup', { state: 'done', current: 1, total: 1, detail: 'Einstellungen geladen' });
 		await writer.flush(true);
 
 		const adapters = getEnabledAdapters(settings.enabledSources);
+		const canScrape = adapters.length > 0 && profile != null;
 		writer.phase(
 			'scrape',
 			{
-				state: adapters.length > 0 ? 'running' : 'skipped',
+				state: canScrape ? 'running' : 'skipped',
 				current: 0,
 				total: adapters.length,
-				detail: adapters.length > 0 ? 'Quellen werden abgefragt' : 'Keine Quellen aktiviert'
+				detail: canScrape ? 'Quellen werden abgefragt' : scrapeSkipDetail(settings, adapters)
 			},
 			'Stellen werden gesucht'
 		);
 		await writer.flush(true);
 
-		for (const [index, adapter] of adapters.entries()) {
-			throwIfAborted(signal);
-			if (BROWSER_ADAPTERS.has(adapter.id)) usesBrowser = true;
-			const detail = `${adapter.label}: ${index + 1} / ${adapters.length} Quellen`;
-			writer.phase('scrape', { state: 'running', current: index, total: adapters.length, detail });
-			await writer.flush(true);
-
-			const listings = await adapter.search(profile, signal);
-			for (const raw of listings) {
+		if (profile) {
+			for (const [index, adapter] of adapters.entries()) {
 				throwIfAborted(signal);
-				if (await upsertListing(adapter.id, raw, runId)) counts.added++;
+				if (BROWSER_ADAPTERS.has(adapter.id)) usesBrowser = true;
+				const detail = `${adapter.label}: ${index + 1} / ${adapters.length} Quellen`;
+				writer.phase('scrape', {
+					state: 'running',
+					current: index,
+					total: adapters.length,
+					detail
+				});
+				await writer.flush(true);
+
+				const listings = await adapter.search(profile, signal);
+				for (const raw of listings) {
+					throwIfAborted(signal);
+					if (await upsertListing(adapter.id, raw, runId)) counts.added++;
+				}
+				writer.phase('scrape', { current: index + 1, detail });
+				await writer.flush(true);
 			}
-			writer.phase('scrape', { current: index + 1, detail });
-			await writer.flush(true);
 		}
-		if (adapters.length > 0) {
+		if (canScrape) {
 			writer.phase('scrape', {
 				state: 'done',
 				current: adapters.length,
@@ -291,20 +340,20 @@ export async function runRefresh(
 			'Stellen werden abgeglichen'
 		);
 		await writer.flush(true);
-		if (adapters.length > 0) {
-			const enabledIds = adapters.map((a) => a.id);
-			const closed = await db
-				.update(listing)
-				.set({ status: 'closed' })
-				.where(
-					and(
-						eq(listing.status, 'active'),
-						or(isNull(listing.lastSeenRunId), ne(listing.lastSeenRunId, runId)),
-						inArray(listing.source, enabledIds)
-					)
-				)
-				.returning({ id: listing.id });
-			counts.closed = closed.length;
+		if (profile && adapters.length > 0) {
+			const scopes = listingSearchScopes(
+				adapters.map((a) => a.id),
+				profile.locations
+			);
+			const where = listingReconcileWhere(runId, scopes);
+			if (where) {
+				const closed = await db
+					.update(listing)
+					.set({ status: 'closed' })
+					.where(where)
+					.returning({ id: listing.id });
+				counts.closed = closed.length;
+			}
 		}
 		writer.phase('reconcile', {
 			state: 'done',
@@ -320,8 +369,15 @@ export async function runRefresh(
 			'Betriebe werden gesucht'
 		);
 		await writer.flush(true);
-		settings = await ensureHomeCoords(settings, signal);
-		if (settings.homeLat != null && settings.homeLon != null) {
+		if (settings.businessOsmTags.length === 0) {
+			writer.phase('leads', {
+				state: 'skipped',
+				current: 1,
+				total: 1,
+				detail: 'Keine Betriebskategorien konfiguriert',
+				skipped: 1
+			});
+		} else if (settings.homeLat != null && settings.homeLon != null) {
 			try {
 				const leadResult = await syncLeads(settings, runId, signal);
 				counts.leads = leadResult.total;

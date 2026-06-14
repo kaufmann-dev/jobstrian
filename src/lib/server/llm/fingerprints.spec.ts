@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Lead, Listing, Settings } from '../db/schema';
-import { DEFAULT_BUSINESS_OSM_TAGS } from '$lib/search-config';
+import type { OsmBusinessTag, OsmBusinessTagSuggestion } from '$lib/search-config';
 import type { LlmConfig } from './client';
 import {
 	draftContextHash,
@@ -12,6 +12,11 @@ import {
 	shouldRankLead,
 	shouldRankListing
 } from './fingerprints';
+
+const businessTags: OsmBusinessTag[] = [{ key: 'amenity', value: 'pharmacy' }];
+const matchedTags: OsmBusinessTagSuggestion[] = [
+	{ key: 'amenity', value: 'pharmacy', raw: 'amenity=pharmacy', label: 'Amenity: Pharmacy' }
+];
 
 function settings(patch: Partial<Settings> = {}): Settings {
 	return {
@@ -28,11 +33,12 @@ function settings(patch: Partial<Settings> = {}): Settings {
 		availability: 'ab sofort',
 		rankingNotes: 'Kurze Anfahrt bevorzugen',
 		homeAddress: 'Wien',
+		homeCity: 'Wien',
 		homeLat: 48.2,
 		homeLon: 16.37,
 		jobSearchKeywords: ['Barista'],
 		jobSearchLocations: ['Wien'],
-		businessOsmTags: DEFAULT_BUSINESS_OSM_TAGS,
+		businessOsmTags: businessTags,
 		businessRadiusMeters: 5000,
 		enabledSources: ['willhaben'],
 		llmBaseUrl: 'https://llm.example.test/v1',
@@ -63,6 +69,8 @@ function listingRow(patch: Partial<Listing> = {}): Listing {
 		description: 'Espresso und Service',
 		salary: '2000 EUR',
 		postedAt: new Date('2026-01-02T00:00:00Z'),
+		discoveryKeyword: 'Barista',
+		discoveryCity: 'Wien',
 		status: 'active',
 		firstSeenAt: new Date('2026-01-02T00:00:00Z'),
 		lastSeenRunId: 1,
@@ -84,6 +92,7 @@ function leadRow(patch: Partial<Lead> = {}): Lead {
 		osmId: 'node/1',
 		name: 'Cafe Test',
 		category: 'cafe',
+		matchedOsmTags: matchedTags,
 		lat: 48.2,
 		lon: 16.37,
 		distanceMeters: 350,
@@ -150,6 +159,27 @@ describe('LLM fingerprints', () => {
 		).toBe(true);
 	});
 
+	it('reranks when listing discovery context changes', () => {
+		const contextHash = rankingContextHash(settings(), cfg);
+		const oldRow = listingRow({ discoveryCity: 'Wien' });
+		const oldHash = listingContentHash(oldRow);
+		const changed = listingRow({ discoveryCity: 'Graz' });
+		const changedHash = listingContentHash(changed);
+
+		expect(changedHash).not.toBe(oldHash);
+		expect(
+			shouldRankListing(
+				listingRow({
+					discoveryCity: 'Graz',
+					contentHash: changedHash,
+					rankContentHash: oldHash,
+					rankContextHash: contextHash
+				}),
+				contextHash
+			)
+		).toBe(true);
+	});
+
 	it('reranks when ranking profile or model changes', () => {
 		expect.hasAssertions();
 		const oldContext = rankingContextHash(settings(), cfg);
@@ -192,6 +222,30 @@ describe('LLM fingerprints', () => {
 
 		expect(shouldRankLead(unchanged, rankContext)).toBe(false);
 		expect(shouldDraftLead(unchanged, emailContext)).toBe(false);
+	});
+
+	it('reranks leads when matched OSM tags change', () => {
+		const rankContext = rankingContextHash(settings(), cfg);
+		const oldRow = leadRow({ matchedOsmTags: matchedTags });
+		const oldHash = leadContentHash(oldRow);
+		const nextMatchedTags: OsmBusinessTagSuggestion[] = [
+			{ key: 'shop', value: 'bakery', raw: 'shop=bakery', label: 'Shop: Bakery' }
+		];
+		const changed = leadRow({ matchedOsmTags: nextMatchedTags });
+		const changedHash = leadContentHash(changed);
+
+		expect(changedHash).not.toBe(oldHash);
+		expect(
+			shouldRankLead(
+				leadRow({
+					matchedOsmTags: nextMatchedTags,
+					contentHash: changedHash,
+					rankContentHash: oldHash,
+					rankContextHash: rankContext
+				}),
+				rankContext
+			)
+		).toBe(true);
 	});
 
 	it('drafts every lead but only ranks leads without active postings', () => {

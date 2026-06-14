@@ -31,6 +31,7 @@ function settings(patch: Partial<Settings> = {}): Settings {
 		availability: '',
 		rankingNotes: '',
 		homeAddress: 'Alte Adresse',
+		homeCity: 'Wien',
 		homeLat: 48.2,
 		homeLon: 16.3,
 		jobSearchKeywords: ['Barista'],
@@ -67,7 +68,7 @@ describe('selectedProfilePatch', () => {
 				selected: ['homeAddress'],
 				profile: { homeAddress: 'Neue Adresse' }
 			})
-		).toEqual({ homeAddress: 'Neue Adresse', homeLat: null, homeLon: null });
+		).toEqual({ homeAddress: 'Neue Adresse', homeCity: '', homeLat: null, homeLon: null });
 	});
 });
 

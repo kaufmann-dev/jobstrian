@@ -1,13 +1,6 @@
 import { z } from 'zod';
 
-export const DEFAULT_JOB_SEARCH_KEYWORDS = [
-	'Barista',
-	'Kellner',
-	'Kellnerin',
-	'Servicekraft',
-	'Servicemitarbeiter',
-	'Service Hilfskraft'
-];
+export const DEFAULT_JOB_SEARCH_KEYWORDS: string[] = [];
 
 export const OSM_TAG_CATALOG = {
 	amenity: [
@@ -157,16 +150,7 @@ export type SearchConfig = {
 	businessRadiusMeters: number;
 };
 
-export const DEFAULT_BUSINESS_OSM_TAGS: OsmBusinessTag[] = [
-	{ key: 'amenity', value: 'cafe' },
-	{ key: 'amenity', value: 'restaurant' },
-	{ key: 'amenity', value: 'bar' },
-	{ key: 'amenity', value: 'pub' },
-	{ key: 'amenity', value: 'fast_food' },
-	{ key: 'amenity', value: 'biergarten' },
-	{ key: 'amenity', value: 'ice_cream' },
-	{ key: 'amenity', value: 'food_court' }
-];
+export const DEFAULT_BUSINESS_OSM_TAGS: OsmBusinessTag[] = [];
 
 const OSM_KEYS = Object.keys(OSM_TAG_CATALOG) as OsmBusinessTagKey[];
 

@@ -34,6 +34,7 @@ function settings(overrides: Partial<Settings> = {}): Settings {
 		availability: '',
 		rankingNotes: '',
 		homeAddress: '',
+		homeCity: '',
 		homeLat: null,
 		homeLon: null,
 		jobSearchKeywords: [],
@@ -79,6 +80,7 @@ describe('settings address save validation', () => {
 		).resolves.toEqual({
 			ok: true,
 			homeAddress: 'Herrengasse 14, 1010 Wien, Österreich',
+			homeCity: 'Wien',
 			homeLat: 48.2101,
 			homeLon: 16.3652
 		});
@@ -90,6 +92,12 @@ describe('settings address save validation', () => {
 				settings({ homeAddress: 'Herrengasse 14, 1010 Wien', homeLat: 48.2, homeLon: 16.3 }),
 				''
 			)
-		).resolves.toEqual({ ok: true, homeAddress: '', homeLat: null, homeLon: null });
+		).resolves.toEqual({
+			ok: true,
+			homeAddress: '',
+			homeCity: '',
+			homeLat: null,
+			homeLon: null
+		});
 	});
 });

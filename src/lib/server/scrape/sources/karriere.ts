@@ -60,7 +60,13 @@ export const karriere: SourceAdapter = {
 						headers: { 'accept-language': 'de-AT,de;q=0.9' },
 						signal
 					});
-					for (const listing of parse(html)) byId.set(listing.externalId, listing);
+					for (const listing of parse(html)) {
+						byId.set(listing.externalId, {
+							...listing,
+							discoveryKeyword: keyword,
+							discoveryCity: locationName
+						});
+					}
 				} catch (err) {
 					console.error(`[karriere] "${keyword}" in "${locationName}" failed:`, err);
 				}

@@ -74,6 +74,7 @@ async function saveSettings(request: Request) {
 		availability: data.availability,
 		rankingNotes: data.rankingNotes,
 		homeAddress: homeAddressSave.homeAddress,
+		...('homeCity' in homeAddressSave ? { homeCity: homeAddressSave.homeCity } : {}),
 		jobSearchKeywords: data.jobSearchKeywords,
 		jobSearchLocations: data.jobSearchLocations,
 		businessOsmTags: data.businessOsmTags,

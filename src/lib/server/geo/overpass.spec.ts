@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { DEFAULT_BUSINESS_OSM_TAGS, type OsmBusinessTag } from '$lib/search-config';
+import type { OsmBusinessTag } from '$lib/search-config';
 import {
 	compileBusinessOverpassQueries,
 	findNearbyBusinesses,
@@ -56,21 +56,18 @@ function overpassBody() {
 	};
 }
 
-describe('business Overpass queries', () => {
-	it('compiles the gastronomy defaults into amenity searches', () => {
-		const [query] = compileBusinessOverpassQueries(
-			48.2082,
-			16.3738,
-			500,
-			DEFAULT_BUSINESS_OSM_TAGS
-		);
+const testTags: OsmBusinessTag[] = [
+	{ key: 'amenity', value: 'cafe' },
+	{ key: 'amenity', value: 'restaurant' },
+	{ key: 'amenity', value: 'bar' }
+];
 
-		expect(query).toContain(
-			'node["amenity"~"^(cafe|restaurant|bar|pub|fast_food|biergarten|ice_cream|food_court)$"]'
-		);
-		expect(query).toContain(
-			'way["amenity"~"^(cafe|restaurant|bar|pub|fast_food|biergarten|ice_cream|food_court)$"]'
-		);
+describe('business Overpass queries', () => {
+	it('compiles configured business tags into amenity searches', () => {
+		const [query] = compileBusinessOverpassQueries(48.2082, 16.3738, 500, testTags);
+
+		expect(query).toContain('node["amenity"~"^(cafe|restaurant|bar)$"]');
+		expect(query).toContain('way["amenity"~"^(cafe|restaurant|bar)$"]');
 	});
 
 	it('compiles multiple OSM keys into node and way blocks', () => {
@@ -106,7 +103,7 @@ describe('findNearbyBusinesses', () => {
 		const fetchMock = vi.fn().mockResolvedValue(jsonResponse(overpassBody()));
 		vi.stubGlobal('fetch', fetchMock);
 
-		const places = await findNearbyBusinesses(48.2082, 16.3738, 500, DEFAULT_BUSINESS_OSM_TAGS);
+		const places = await findNearbyBusinesses(48.2082, 16.3738, 500, testTags);
 
 		expect(fetchMock).toHaveBeenCalledOnce();
 		expect(places).toEqual([
@@ -116,6 +113,9 @@ describe('findNearbyBusinesses', () => {
 				category: 'cafe',
 				lat: 48.2082,
 				lon: 16.3738,
+				matchedOsmTags: [
+					{ key: 'amenity', value: 'cafe', raw: 'amenity=cafe', label: 'Amenity: Cafe' }
+				],
 				address: 'Herrengasse 14, 1010 Wien',
 				website: 'https://example.test',
 				phone: '+431234',
@@ -127,6 +127,9 @@ describe('findNearbyBusinesses', () => {
 				category: 'bar',
 				lat: 48.21,
 				lon: 16.37,
+				matchedOsmTags: [
+					{ key: 'amenity', value: 'bar', raw: 'amenity=bar', label: 'Amenity: Bar' }
+				],
 				address: undefined,
 				website: 'https://way.example.test',
 				phone: '+435678',
@@ -143,7 +146,7 @@ describe('findNearbyBusinesses', () => {
 			.mockResolvedValueOnce(jsonResponse(overpassBody()));
 		vi.stubGlobal('fetch', fetchMock);
 
-		const places = await findNearbyBusinesses(48.2082, 16.3738, 500, DEFAULT_BUSINESS_OSM_TAGS);
+		const places = await findNearbyBusinesses(48.2082, 16.3738, 500, testTags);
 
 		expect(fetchMock).toHaveBeenCalledTimes(2);
 		expect(places.map((place) => place.osmId)).toEqual(['node/123', 'way/456']);
@@ -154,9 +157,7 @@ describe('findNearbyBusinesses', () => {
 		const fetchMock = vi.fn().mockResolvedValue(new Response('', { status: 504 }));
 		vi.stubGlobal('fetch', fetchMock);
 
-		await expect(
-			findNearbyBusinesses(48.2082, 16.3738, 500, DEFAULT_BUSINESS_OSM_TAGS)
-		).rejects.toMatchObject({
+		await expect(findNearbyBusinesses(48.2082, 16.3738, 500, testTags)).rejects.toMatchObject({
 			name: 'OverpassUnavailableError',
 			message: 'Overpass -> 504',
 			attempts: 3
@@ -171,7 +172,7 @@ describe('findNearbyBusinesses', () => {
 
 		let error: unknown;
 		try {
-			await findNearbyBusinesses(48.2082, 16.3738, 500, DEFAULT_BUSINESS_OSM_TAGS);
+			await findNearbyBusinesses(48.2082, 16.3738, 500, testTags);
 		} catch (err) {
 			error = err;
 		}

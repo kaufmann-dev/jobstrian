@@ -38,6 +38,7 @@ function settings(patch: Partial<Settings> = {}): Settings {
 		availability: '',
 		rankingNotes: '',
 		homeAddress: '',
+		homeCity: '',
 		homeLat: null,
 		homeLon: null,
 		jobSearchKeywords: ['Barista'],

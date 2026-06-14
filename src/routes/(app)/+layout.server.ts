@@ -6,6 +6,7 @@ export const load: LayoutServerLoad = async ({ locals }) => {
 	return {
 		user: locals.user,
 		configured: Boolean(settings.llmBaseUrl && settings.llmModel),
-		hasHome: Boolean(settings.homeAddress.trim())
+		hasHome: Boolean(settings.homeAddress.trim()),
+		hasSearchConfig: settings.jobSearchKeywords.length > 0 && settings.businessOsmTags.length > 0
 	};
 };

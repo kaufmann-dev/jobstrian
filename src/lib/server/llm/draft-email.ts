@@ -12,9 +12,34 @@ export interface EmailDraft {
 
 const SYSTEM = `Du schreibst eine kurze, höfliche Initiativbewerbung (Kaltakquise) auf Deutsch an einen Betrieb.
 Der Bewerber sucht eine Stelle passend zu den konfigurierten Stellen-Keywords und seinem Profil.
+Erwähne eine konkrete Zielrolle nur, wenn sie aus den Stellen-Keywords offensichtlich ist; formuliere sonst neutral als passende Mitarbeit.
 Erwähne im Text genau einmal beiläufig, dass der Lebenslauf im Anhang beiliegt ("Meinen Lebenslauf finden Sie im Anhang.").
 Antworte ausschließlich als JSON: {"subject": "<Betreff>", "body": "<E-Mail-Text>"}.
 Der Text soll natürlich klingen, 5-9 Sätze, mit Anrede und Grußformel, ohne Platzhalter in eckigen Klammern.`;
+
+export function targetRoleLine(settings: Settings): string {
+	return settings.jobSearchKeywords.length
+		? `Zielrolle aus Stellen-Keywords: ${settings.jobSearchKeywords.join(', ')}`
+		: 'Zielrolle: nicht eindeutig; neutral als passende Mitarbeit formulieren';
+}
+
+export function buildColdEmailPrompt(settings: Settings, lead: Lead): string {
+	const matchedTags = lead.matchedOsmTags.length
+		? lead.matchedOsmTags.map((tag) => tag.label).join(', ')
+		: 'keine gespeicherten OSM-Kategorien';
+	return `BEWERBERPROFIL:
+${profileBlock(settings) || 'Bewerber sucht eine passende Stelle in Österreich.'}
+${targetRoleLine(settings)}
+
+BETRIEB:
+Name: ${lead.name}
+Art: ${lead.category ?? 'Betrieb'}
+Passende OSM-Kategorien: ${matchedTags}
+Adresse: ${lead.address ?? 'unbekannt'}
+Entfernung vom Wohnort: ${lead.distanceMeters} m
+
+Schreibe eine passende Initiativbewerbung per E-Mail an diesen Betrieb. Der Lebenslauf liegt der E-Mail als Anhang bei.`;
+}
 
 export async function draftColdEmail(
 	cfg: LlmConfig,
@@ -23,16 +48,7 @@ export async function draftColdEmail(
 	limiter: LlmLimiter,
 	signal?: AbortSignal
 ): Promise<EmailDraft> {
-	const user = `BEWERBERPROFIL:
-${profileBlock(settings) || 'Bewerber sucht eine passende Stelle in Österreich.'}
-
-BETRIEB:
-Name: ${lead.name}
-Art: ${lead.category ?? 'Betrieb'}
-Adresse: ${lead.address ?? 'unbekannt'}
-Entfernung vom Wohnort: ${lead.distanceMeters} m
-
-Schreibe eine passende Initiativbewerbung per E-Mail an diesen Betrieb. Der Lebenslauf liegt der E-Mail als Anhang bei.`;
+	const user = buildColdEmailPrompt(settings, lead);
 
 	const raw = await chatJson<Partial<EmailDraft>>(
 		cfg,

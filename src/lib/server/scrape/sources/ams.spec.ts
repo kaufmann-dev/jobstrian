@@ -52,5 +52,6 @@ describe('AMS scraper', () => {
 
 		expect(listings.map((listing) => listing.externalId)).toEqual(['1']);
 		expect(listings[0]?.location).toBe('Graz, Steiermark');
+		expect(listings[0]).toMatchObject({ discoveryKeyword: 'Office', discoveryCity: 'Graz' });
 	});
 });

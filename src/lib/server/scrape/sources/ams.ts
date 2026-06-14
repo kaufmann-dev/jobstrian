@@ -32,22 +32,28 @@ function normalizeLocation(value: string): string {
 		.trim();
 }
 
-function addressMatchesCities(addr: AmsAddress | undefined, cities: readonly string[]): boolean {
+function matchingAddressCity(
+	addr: AmsAddress | undefined,
+	cities: readonly string[]
+): string | null {
 	const fields = [addr?.town, addr?.municipality].filter(Boolean) as string[];
-	return fields.some((field) => {
+	for (const field of fields) {
 		const normalized = normalizeLocation(field);
-		return cities.some((city) => {
-			const normalizedCity = normalizeLocation(city);
+		const city = cities.find((candidate) => {
+			const normalizedCity = normalizeLocation(candidate);
 			return normalizedCity.length > 0 && normalized.includes(normalizedCity);
 		});
-	});
+		if (city) return city;
+	}
+	return null;
 }
 
-function toListing(r: AmsResult, cities: readonly string[]): RawListing | null {
+function toListing(r: AmsResult, cities: readonly string[], keyword: string): RawListing | null {
 	const id = r.id ?? r.uuid;
 	if (id == null || !r.title) return null;
 	const addr = r.company?.address;
-	if (!addressMatchesCities(addr, cities)) return null;
+	const discoveryCity = matchingAddressCity(addr, cities);
+	if (!discoveryCity) return null;
 	const location = [addr?.town ?? addr?.municipality, addr?.federalState]
 		.filter(Boolean)
 		.join(', ');
@@ -57,7 +63,9 @@ function toListing(r: AmsResult, cities: readonly string[]): RawListing | null {
 		title: r.title,
 		company: r.company?.name,
 		location: location || undefined,
-		postedAt: r.lastUpdatedAt ? new Date(r.lastUpdatedAt) : undefined
+		postedAt: r.lastUpdatedAt ? new Date(r.lastUpdatedAt) : undefined,
+		discoveryKeyword: keyword,
+		discoveryCity
 	};
 }
 
@@ -95,7 +103,7 @@ async function searchKeyword(
 
 		const byId = new Map<string, RawListing>();
 		for (const result of captured) {
-			const listing = toListing(result, cities);
+			const listing = toListing(result, cities, keyword);
 			if (listing) byId.set(listing.externalId, listing);
 		}
 		return [...byId.values()];

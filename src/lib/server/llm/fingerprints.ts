@@ -14,13 +14,15 @@ type ListingFingerprintInput = Pick<
 	| 'location'
 	| 'salary'
 	| 'postedAt'
+	| 'discoveryKeyword'
+	| 'discoveryCity'
 	| 'description'
 	| 'url'
 >;
 
 type LeadFingerprintInput = Pick<
 	Lead,
-	'name' | 'category' | 'address' | 'distanceMeters' | 'website' | 'email'
+	'name' | 'category' | 'address' | 'matchedOsmTags' | 'distanceMeters' | 'website' | 'email'
 >;
 
 function canonical(value: unknown): string {
@@ -51,6 +53,8 @@ export function listingContentHash(input: ListingFingerprintInput): string {
 		location: input.location ?? null,
 		salary: input.salary ?? null,
 		postedAt: dateValue(input.postedAt),
+		discoveryKeyword: input.discoveryKeyword ?? null,
+		discoveryCity: input.discoveryCity ?? null,
 		description: input.description ?? null,
 		url: input.url
 	});
@@ -65,6 +69,8 @@ export function rawListingContentHash(source: string, input: RawListing): string
 		location: input.location ?? null,
 		salary: input.salary ?? null,
 		postedAt: input.postedAt ?? null,
+		discoveryKeyword: input.discoveryKeyword ?? null,
+		discoveryCity: input.discoveryCity ?? null,
 		description: input.description ?? null,
 		url: input.url
 	});
@@ -75,6 +81,7 @@ export function leadContentHash(input: LeadFingerprintInput): string {
 		name: input.name,
 		category: input.category ?? null,
 		address: input.address ?? null,
+		matchedOsmTags: input.matchedOsmTags,
 		distanceMeters: input.distanceMeters,
 		website: input.website ?? null,
 		email: input.email ?? null

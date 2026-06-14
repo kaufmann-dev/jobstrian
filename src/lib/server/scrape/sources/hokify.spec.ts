@@ -54,14 +54,18 @@ describe('hokify scraper', () => {
 				url: 'https://hokify.at/job/27309889',
 				title: 'Service- & Buffet Mitarbeiter/in',
 				company: 'GIGERL – DER STADTHEURIGE',
-				location: 'Wien'
+				location: 'Wien',
+				discoveryKeyword: 'Service Hilfskraft',
+				discoveryCity: 'Wien'
 			},
 			{
 				externalId: '28974126',
 				url: 'https://hokify.at/job/28974126',
 				title: 'Bar Assistant / Barback',
 				company: 'Topgolf Wien',
-				location: 'Brunn am Gebirge'
+				location: 'Brunn am Gebirge',
+				discoveryKeyword: 'Service Hilfskraft',
+				discoveryCity: 'Wien'
 			}
 		]);
 	});

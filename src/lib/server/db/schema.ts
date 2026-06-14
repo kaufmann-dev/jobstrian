@@ -13,7 +13,7 @@ import {
 } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
 import type { Certification, EducationHistory, WorkExperience } from '$lib/profile';
-import type { OsmBusinessTag } from '$lib/search-config';
+import type { OsmBusinessTag, OsmBusinessTagSuggestion } from '$lib/search-config';
 
 /** PostgreSQL bytea, surfaced as a Node Buffer. */
 const bytea = customType<{ data: Buffer; default: false }>({
@@ -126,6 +126,7 @@ export const settings = pgTable('settings', {
 	rankingNotes: text('ranking_notes').notNull().default(''),
 	// Home location for the nearby-business search.
 	homeAddress: text('home_address').notNull().default(''),
+	homeCity: text('home_city').notNull().default(''),
 	homeLat: doublePrecision('home_lat'),
 	homeLon: doublePrecision('home_lon'),
 	// Manual search configuration.
@@ -192,6 +193,8 @@ export const listing = pgTable(
 		description: text('description'),
 		salary: text('salary'),
 		postedAt: timestamp('posted_at'),
+		discoveryKeyword: text('discovery_keyword'),
+		discoveryCity: text('discovery_city'),
 		status: text('status', { enum: ['active', 'closed'] })
 			.notNull()
 			.default('active'),
@@ -232,6 +235,10 @@ export const lead = pgTable(
 		lon: doublePrecision('lon').notNull(),
 		distanceMeters: integer('distance_meters').notNull(),
 		address: text('address'),
+		matchedOsmTags: jsonb('matched_osm_tags')
+			.$type<OsmBusinessTagSuggestion[]>()
+			.notNull()
+			.default([]),
 		website: text('website'),
 		websiteManual: boolean('website_manual').notNull().default(false),
 		phone: text('phone'),

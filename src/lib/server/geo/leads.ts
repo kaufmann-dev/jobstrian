@@ -137,6 +137,7 @@ async function upsertLead(
 			lon: place.lon,
 			distanceMeters: distance,
 			address: place.address,
+			matchedOsmTags: place.matchedOsmTags,
 			website: place.website,
 			websiteManual: false,
 			phone: place.phone,
@@ -148,6 +149,7 @@ async function upsertLead(
 				name: place.name,
 				category: place.category,
 				address: place.address ?? null,
+				matchedOsmTags: place.matchedOsmTags,
 				distanceMeters: distance,
 				website: place.website ?? null,
 				email: email ?? null
@@ -161,6 +163,7 @@ async function upsertLead(
 				category: place.category,
 				distanceMeters: distance,
 				address: place.address,
+				matchedOsmTags: place.matchedOsmTags,
 				website: sql`case when ${lead.websiteManual} then ${lead.website} else ${place.website ?? null} end`,
 				phone: sql`case when ${lead.phoneManual} then ${lead.phone} else ${place.phone ?? null} end`,
 				email: sql`case when ${lead.emailManual} then ${lead.email} else coalesce(${lead.email}, ${email ?? null}) end`,
