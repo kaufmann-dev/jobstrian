@@ -34,6 +34,9 @@ function settings(patch: Partial<Settings> = {}): Settings {
 		availability: '',
 		rankingNotes: '',
 		homeAddress: 'Alte Adresse',
+		homeLocationProvider: 'geoapify',
+		homeLocationId: 'old-place',
+		homePostcode: '1010',
 		homeCity: 'Wien',
 		homeLat: 48.2,
 		homeLon: 16.3,
@@ -71,7 +74,15 @@ describe('selectedProfilePatch', () => {
 				selected: ['homeAddress'],
 				profile: { homeAddress: 'Neue Adresse' }
 			})
-		).toEqual({ homeAddress: 'Neue Adresse', homeCity: '', homeLat: null, homeLon: null });
+		).toEqual({
+			homeAddress: 'Neue Adresse',
+			homeLocationProvider: null,
+			homeLocationId: null,
+			homePostcode: '',
+			homeCity: '',
+			homeLat: null,
+			homeLon: null
+		});
 	});
 });
 

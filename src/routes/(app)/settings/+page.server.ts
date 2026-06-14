@@ -1,10 +1,9 @@
 import { superValidate } from 'sveltekit-superforms/server';
 import { zod4 } from 'sveltekit-superforms/adapters';
 import { fail } from '@sveltejs/kit';
-import { getSettings, updateSettings, ALL_SOURCES } from '$lib/server/settings';
+import { getSettings, updateSettings } from '$lib/server/settings';
 import { getCvMeta } from '$lib/server/cv';
 import { apiKeySchema, settingsSchema } from './schema';
-import { resolveHomeAddressSave } from './settings-save';
 import type { Settings } from '$lib/server/db/schema';
 import type { Actions, PageServerLoad } from './$types';
 
@@ -47,58 +46,6 @@ async function settingsForm(s: Settings) {
 	return superValidate(settingsFormData(s), zod4(settingsSchema));
 }
 
-async function saveSettings(request: Request) {
-	const form = await superValidate(request, zod4(settingsSchema));
-	if (!form.valid) return fail(400, { form });
-
-	const current = await getSettings();
-	const data = form.data;
-	const enabledSources = ALL_SOURCES.filter((src) => {
-		if (src === 'hokify') return data.sourceHokify;
-		if (src === 'willhaben') return data.sourceWillhaben;
-		if (src === 'karriere') return data.sourceKarriere;
-		return data.sourceAms;
-	});
-
-	const homeAddressSave = await resolveHomeAddressSave(current, data.homeAddress);
-	form.data.homeAddress = homeAddressSave.homeAddress;
-
-	const updated = await updateSettings({
-		fullName: data.fullName,
-		phone: data.phone,
-		email: data.email,
-		profileText: data.profileText,
-		languages: data.languages,
-		skills: data.skills,
-		workExperience: data.workExperience,
-		educationHistory: data.educationHistory,
-		certifications: data.certifications,
-		germanLevel: data.germanLevel,
-		experienceYears: data.experienceYears,
-		educationStatus: data.educationStatus,
-		availability: data.availability,
-		rankingNotes: data.rankingNotes,
-		homeAddress: homeAddressSave.homeAddress,
-		...('homeCity' in homeAddressSave ? { homeCity: homeAddressSave.homeCity } : {}),
-		jobSearchKeywords: data.jobSearchKeywords,
-		jobSearchLocations: data.jobSearchLocations,
-		businessOsmTags: data.businessOsmTags,
-		businessRadiusMeters: data.businessRadiusMeters,
-		enabledSources,
-		llmBaseUrl: data.llmBaseUrl,
-		llmModel: data.llmModel,
-		llmRequestsPerMinute: data.llmRequestsPerMinute,
-		llmMaxConcurrent: data.llmMaxConcurrent,
-		...('homeLat' in homeAddressSave ? { homeLat: homeAddressSave.homeLat } : {}),
-		...('homeLon' in homeAddressSave ? { homeLon: homeAddressSave.homeLon } : {})
-	});
-
-	const responseForm = await settingsForm(updated);
-	// Autosave must neither persist nor clear a key that is currently being edited.
-	responseForm.data.llmApiKey = data.llmApiKey;
-	return { form: responseForm, saved: 'settings' as const };
-}
-
 export const load: PageServerLoad = async () => {
 	const s = await getSettings();
 	const form = await settingsForm(s);
@@ -106,12 +53,14 @@ export const load: PageServerLoad = async () => {
 		form,
 		hasApiKey: Boolean(s.llmApiKey),
 		hasLlmConfig: Boolean(s.llmBaseUrl && s.llmModel),
+		homeLocationVerified: Boolean(
+			s.homeLocationProvider && s.homeLocationId && s.homeCity && s.homeLat != null && s.homeLon != null
+		),
 		cv: await getCvMeta()
 	};
 };
 
 export const actions: Actions = {
-	autosave: async ({ request }) => saveSettings(request),
 	saveApiKey: async ({ request }) => {
 		const keyForm = await superValidate(request, zod4(apiKeySchema));
 		if (!keyForm.valid) {

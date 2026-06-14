@@ -1,6 +1,7 @@
 <script lang="ts">
 	import {
 		normalizeOsmBusinessTags,
+		osmBusinessTagSuggestions,
 		osmBusinessTagLabel,
 		osmBusinessTagRaw,
 		parseOsmBusinessTag,
@@ -13,15 +14,9 @@
 	import { Checkbox } from '$lib/components/ui/checkbox/index.js';
 	import { Badge } from '$lib/components/ui/badge/index.js';
 	import { Button } from '$lib/components/ui/button/index.js';
-	import { anchoredDropdown } from '$lib/actions/anchored-dropdown';
+	import type { GeoSuggestion } from '$lib/geo';
+	import RemoteAutocomplete from './remote-autocomplete.svelte';
 	import X from '@lucide/svelte/icons/x';
-
-	type CitySuggestion = {
-		label: string;
-		city: string | null;
-		postcode: string | null;
-		placeId: number | null;
-	};
 
 	let {
 		config = $bindable(),
@@ -42,20 +37,11 @@
 	const visibleFields = $derived(fields ?? allFields);
 	const selectable = $derived(Boolean(fields));
 	let cityInput = $state('');
-	let citySuggestions = $state.raw<CitySuggestion[]>([]);
-	let cityLookupStatus = $state<'idle' | 'loading' | 'error'>('idle');
-	let citySuggestionTimer: ReturnType<typeof setTimeout> | undefined;
-	let citySuggestionController: AbortController | undefined;
-	let citySuggestionRequest = 0;
-	let cityAnchor = $state<HTMLElement>();
 	let tagInput = $state('');
 	let tagInputError = $state('');
-	let tagSuggestions = $state.raw<OsmBusinessTagSuggestion[]>([]);
-	let tagLookupStatus = $state<'idle' | 'loading' | 'error'>('idle');
-	let tagSuggestionTimer: ReturnType<typeof setTimeout> | undefined;
-	let tagSuggestionController: AbortController | undefined;
-	let tagSuggestionRequest = 0;
-	let tagAnchor = $state<HTMLElement>();
+	const tagSuggestions = $derived<OsmBusinessTagSuggestion[]>(
+		tagInput.trim().length >= 2 ? osmBusinessTagSuggestions(tagInput) : []
+	);
 
 	function visible(field: SearchConfigField): boolean {
 		return visibleFields.includes(field);
@@ -87,8 +73,6 @@
 		if (!normalized) return;
 		setField('jobSearchLocations', [...new Set([...config.jobSearchLocations, normalized])]);
 		cityInput = '';
-		citySuggestions = [];
-		cityLookupStatus = 'idle';
 	}
 
 	function removeCity(city: string) {
@@ -98,65 +82,18 @@
 		);
 	}
 
-	async function loadCitySuggestions(query: string, requestId: number, signal: AbortSignal) {
-		try {
-			cityLookupStatus = 'loading';
-			const response = await fetch(`/api/geo/city-suggestions?q=${encodeURIComponent(query)}`, {
-				signal
-			});
-			if (!response.ok) throw new Error('City suggestions failed');
-			const body = (await response.json()) as { suggestions?: CitySuggestion[] };
-			if (requestId !== citySuggestionRequest) return;
-			citySuggestions = body.suggestions ?? [];
-			cityLookupStatus = 'idle';
-		} catch (error) {
-			if (signal.aborted) return;
-			citySuggestions = [];
-			cityLookupStatus = 'error';
-		}
-	}
-
-	function scheduleCitySuggestions(query: string) {
-		clearTimeout(citySuggestionTimer);
-		citySuggestionController?.abort();
-
-		const trimmed = query.trim();
-		if (trimmed.length < 2) {
-			citySuggestions = [];
-			cityLookupStatus = 'idle';
-			return;
-		}
-
-		const requestId = ++citySuggestionRequest;
-		citySuggestionTimer = setTimeout(() => {
-			citySuggestionController = new AbortController();
-			void loadCitySuggestions(trimmed, requestId, citySuggestionController.signal);
-		}, 250);
-	}
-
 	function onCityInput(value: string) {
 		cityInput = value;
-		scheduleCitySuggestions(value);
 	}
 
-	function onCityKeydown(event: KeyboardEvent) {
-		if (event.key !== 'Enter' && event.key !== ',') return;
-		event.preventDefault();
-		addCity(cityInput);
-	}
-
-	function clearTagSuggestions() {
-		clearTimeout(tagSuggestionTimer);
-		tagSuggestionController?.abort();
-		tagSuggestions = [];
-		tagLookupStatus = 'idle';
+	function selectCity(suggestion: GeoSuggestion) {
+		addCity(suggestion.city || suggestion.label);
 	}
 
 	function addTag(tag: OsmBusinessTag) {
 		setField('businessOsmTags', normalizeOsmBusinessTags([...config.businessOsmTags, tag]));
 		tagInput = '';
 		tagInputError = '';
-		clearTagSuggestions();
 	}
 
 	function addTypedTag() {
@@ -173,7 +110,6 @@
 
 	function onTagBlur() {
 		addTypedTag();
-		clearTagSuggestions();
 	}
 
 	function removeTag(tag: OsmBusinessTag) {
@@ -183,46 +119,9 @@
 		);
 	}
 
-	async function loadTagSuggestions(query: string, requestId: number, signal: AbortSignal) {
-		try {
-			tagLookupStatus = 'loading';
-			const response = await fetch(`/api/osm-tag-suggestions?q=${encodeURIComponent(query)}`, {
-				signal
-			});
-			if (!response.ok) throw new Error('OSM tag suggestions failed');
-			const body = (await response.json()) as { suggestions?: OsmBusinessTagSuggestion[] };
-			if (requestId !== tagSuggestionRequest) return;
-			tagSuggestions = body.suggestions ?? [];
-			tagLookupStatus = 'idle';
-		} catch (error) {
-			if (signal.aborted) return;
-			tagSuggestions = [];
-			tagLookupStatus = 'error';
-		}
-	}
-
-	function scheduleTagSuggestions(query: string) {
-		clearTimeout(tagSuggestionTimer);
-		tagSuggestionController?.abort();
-
-		const trimmed = query.trim();
-		if (trimmed.length < 2) {
-			tagSuggestions = [];
-			tagLookupStatus = 'idle';
-			return;
-		}
-
-		const requestId = ++tagSuggestionRequest;
-		tagSuggestionTimer = setTimeout(() => {
-			tagSuggestionController = new AbortController();
-			void loadTagSuggestions(trimmed, requestId, tagSuggestionController.signal);
-		}, 250);
-	}
-
 	function onTagInput(value: string) {
 		tagInput = value;
 		tagInputError = '';
-		scheduleTagSuggestions(value);
 	}
 
 	function onTagKeydown(event: KeyboardEvent) {
@@ -277,46 +176,15 @@
 					</Badge>
 				{/each}
 			</div>
-			<div class="relative" bind:this={cityAnchor}>
-				<Input
-					value={cityInput}
-					oninput={(event) => onCityInput(event.currentTarget.value)}
-					onkeydown={onCityKeydown}
-					onblur={() => addCity(cityInput)}
-					aria-expanded={citySuggestions.length > 0}
-					aria-label="Job-Suchort hinzufügen"
-					placeholder="Graz, Linz, Salzburg"
-				/>
-				{#if citySuggestions.length > 0 && cityAnchor}
-					<div
-						use:anchoredDropdown={cityAnchor}
-						onmousedown={(event) => event.preventDefault()}
-						role="listbox"
-						tabindex="-1"
-						class="z-50 max-h-60 overflow-auto rounded-xl border bg-popover p-1 text-popover-foreground shadow-md"
-					>
-						{#each citySuggestions as suggestion (suggestion.placeId ?? suggestion.label)}
-							<button
-								type="button"
-								role="option"
-								aria-selected="false"
-								class="w-full rounded-lg px-2 py-1.5 text-left text-sm hover:bg-muted"
-								onmousedown={(event) => {
-									event.preventDefault();
-									addCity(suggestion.city ?? suggestion.label);
-								}}
-							>
-								{suggestion.label}
-							</button>
-						{/each}
-					</div>
-				{/if}
-			</div>
-			{#if cityLookupStatus === 'loading'}
-				<p class="text-sm text-muted-foreground">Ortsvorschläge werden geladen …</p>
-			{:else if cityLookupStatus === 'error'}
-				<p class="text-sm text-destructive">Ortsvorschläge konnten nicht geladen werden.</p>
-			{/if}
+			<RemoteAutocomplete
+				kind="city"
+				bind:value={cityInput}
+				onInput={onCityInput}
+				onSelect={selectCity}
+				onBlur={() => addCity(cityInput)}
+				label="Job-Suchort hinzufügen"
+				placeholder="Graz, Linz, Salzburg"
+			/>
 		</div>
 	{/if}
 
@@ -342,7 +210,7 @@
 					</Badge>
 				{/each}
 			</div>
-			<div class="relative" bind:this={tagAnchor}>
+			<div class="relative">
 				<Input
 					value={tagInput}
 					oninput={(event) => onTagInput(event.currentTarget.value)}
@@ -353,13 +221,12 @@
 					aria-label="OSM-Kategorie hinzufügen"
 					placeholder="amenity=cafe"
 				/>
-				{#if tagSuggestions.length > 0 && tagAnchor}
+				{#if tagSuggestions.length > 0}
 					<div
-						use:anchoredDropdown={tagAnchor}
 						onmousedown={(event) => event.preventDefault()}
 						role="listbox"
 						tabindex="-1"
-						class="z-50 max-h-60 overflow-auto rounded-xl border bg-popover p-1 text-popover-foreground shadow-md"
+						class="absolute z-50 mt-1 max-h-60 w-full overflow-auto rounded-xl border bg-popover p-1 text-popover-foreground shadow-md"
 					>
 						{#each tagSuggestions as suggestion (suggestion.raw)}
 							<button
@@ -379,11 +246,6 @@
 					</div>
 				{/if}
 			</div>
-			{#if tagLookupStatus === 'loading'}
-				<p class="text-sm text-muted-foreground">Kategorien werden geladen …</p>
-			{:else if tagLookupStatus === 'error'}
-				<p class="text-sm text-destructive">Kategorien konnten nicht geladen werden.</p>
-			{/if}
 			{#if tagInputError}
 				<p class="text-sm font-medium text-destructive">{tagInputError}</p>
 			{/if}

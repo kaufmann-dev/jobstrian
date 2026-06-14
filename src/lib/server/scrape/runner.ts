@@ -10,8 +10,7 @@ import {
 	type RunProgress,
 	type Settings
 } from '../db/schema';
-import { getSettings, updateSettings } from '../settings';
-import { geocode } from '../geo/nominatim';
+import { getSettings } from '../settings';
 import { syncLeads } from '../geo/leads';
 import { OverpassUnavailableError } from '../geo/overpass';
 import { getLlmConfig, LlmNotConfiguredError, type LlmConfig } from '../llm/client';
@@ -179,28 +178,44 @@ async function upsertListing(source: string, r: RawListing, runId: number): Prom
 	return res[0]?.inserted === true;
 }
 
-async function ensureHomeLocation(settings: Settings, signal: AbortSignal): Promise<Settings> {
-	if (settings.homeLat != null && settings.homeLon != null && settings.homeCity.trim()) {
-		return settings;
-	}
-	if (!settings.homeAddress) return settings;
-	throwIfAborted(signal);
-	const point = await geocode(settings.homeAddress);
-	throwIfAborted(signal);
-	if (!point) return settings;
-	return updateSettings({ homeLat: point.lat, homeLon: point.lon, homeCity: point.city ?? '' });
+export function hasVerifiedHomeLocation(
+	settings: Pick<
+		Settings,
+		'homeLocationProvider' | 'homeLocationId' | 'homeCity' | 'homeLat' | 'homeLon'
+	>
+): boolean {
+	return Boolean(
+		settings.homeLocationProvider &&
+			settings.homeLocationId &&
+			settings.homeCity.trim() &&
+			settings.homeLat != null &&
+			settings.homeLon != null
+	);
 }
 
 export function jobSearchLocations(
-	settings: Pick<Settings, 'jobSearchLocations' | 'homeCity'>
+	settings: Pick<
+		Settings,
+		'jobSearchLocations' | 'homeLocationProvider' | 'homeLocationId' | 'homeCity' | 'homeLat' | 'homeLon'
+	>
 ): string[] {
 	if (settings.jobSearchLocations.length) return settings.jobSearchLocations;
+	if (!hasVerifiedHomeLocation(settings)) return [];
 	const city = settings.homeCity.trim();
 	return city ? [city] : [];
 }
 
 export function buildProfileQuery(
-	settings: Pick<Settings, 'jobSearchKeywords' | 'jobSearchLocations' | 'homeCity'>
+	settings: Pick<
+		Settings,
+		| 'jobSearchKeywords'
+		| 'jobSearchLocations'
+		| 'homeLocationProvider'
+		| 'homeLocationId'
+		| 'homeCity'
+		| 'homeLat'
+		| 'homeLon'
+	>
 ): ProfileQuery | null {
 	const keywords = settings.jobSearchKeywords;
 	const locations = jobSearchLocations(settings);
@@ -277,7 +292,7 @@ export async function runRefresh(
 	let finalDetail = '';
 
 	try {
-		let settings = await ensureHomeLocation(await getSettings(), signal);
+		const settings = await getSettings();
 		const limiter = new LlmLimiter({
 			requestsPerMinute: settings.llmRequestsPerMinute,
 			maxConcurrent: settings.llmMaxConcurrent
@@ -377,7 +392,7 @@ export async function runRefresh(
 				detail: 'Keine Betriebskategorien konfiguriert',
 				skipped: 1
 			});
-		} else if (settings.homeLat != null && settings.homeLon != null) {
+		} else if (hasVerifiedHomeLocation(settings)) {
 			try {
 				const leadResult = await syncLeads(settings, runId, signal);
 				counts.leads = leadResult.total;

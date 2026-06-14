@@ -1,106 +1,59 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
+import { toSettingsDbPatch } from '$lib/server/settings-patch';
 import type { Settings } from '$lib/server/db/schema';
 
-const { validateAustrianAddress } = vi.hoisted(() => ({ validateAustrianAddress: vi.fn() }));
+const current = {
+	enabledSources: ['ams'],
+	homeAddress: 'Old',
+	homeLocationProvider: 'geoapify',
+	homeLocationId: 'old',
+	homePostcode: '1010',
+	homeCity: 'Wien',
+	homeLat: 48.2,
+	homeLon: 16.3
+} as Settings;
 
-vi.mock('$lib/server/geo/nominatim', () => ({
-	validateAustrianAddress
-}));
-
-vi.mock('$lib/server/settings', () => ({
-	ALL_SOURCES: ['hokify', 'willhaben', 'karriere', 'ams'],
-	getSettings: vi.fn(),
-	updateSettings: vi.fn()
-}));
-
-vi.mock('$lib/server/cv', () => ({
-	getCvMeta: vi.fn()
-}));
-
-import { resolveHomeAddressSave } from './settings-save';
-
-function settings(overrides: Partial<Settings> = {}): Settings {
-	return {
-		id: 1,
-		fullName: '',
-		phone: '',
-		email: '',
-		profileText: '',
-		languages: [],
-		skills: [],
-		workExperience: [],
-		educationHistory: [],
-		certifications: [],
-		germanLevel: '',
-		experienceYears: null,
-		educationStatus: '',
-		availability: '',
-		rankingNotes: '',
-		homeAddress: '',
-		homeCity: '',
-		homeLat: null,
-		homeLon: null,
-		jobSearchKeywords: [],
-		jobSearchLocations: [],
-		businessOsmTags: [],
-		businessRadiusMeters: 5000,
-		enabledSources: [],
-		llmBaseUrl: '',
-		llmModel: '',
-		llmApiKey: '',
-		llmRequestsPerMinute: 300,
-		llmMaxConcurrent: 50,
-		updatedAt: new Date(0),
-		...overrides
-	};
-}
-
-describe('settings address save validation', () => {
-	it('keeps the typed address but leaves geo fields untouched when unresolved', async () => {
-		validateAustrianAddress.mockResolvedValue(null);
-
-		await expect(resolveHomeAddressSave(settings(), 'Not Real')).resolves.toEqual({
-			ok: true,
-			homeAddress: 'Not Real'
-		});
-	});
-
-	it('keeps the typed address and enriches geo fields for resolved changed addresses', async () => {
-		validateAustrianAddress.mockResolvedValue({
-			label: 'Herrengasse 14, 1010 Wien',
-			lat: 48.2101,
-			lon: 16.3652,
-			city: 'Wien',
-			postcode: '1010',
-			placeId: 123
-		});
-
-		await expect(
-			resolveHomeAddressSave(
-				settings({ homeAddress: 'Alte Adresse', homeLat: 47, homeLon: 13 }),
-				'Herrengasse 14 Wien'
-			)
-		).resolves.toEqual({
-			ok: true,
-			homeAddress: 'Herrengasse 14 Wien',
-			homeCity: 'Wien',
-			homeLat: 48.2101,
-			homeLon: 16.3652
-		});
-	});
-
-	it('clears stale coordinates when the address is removed', async () => {
-		await expect(
-			resolveHomeAddressSave(
-				settings({ homeAddress: 'Herrengasse 14, 1010 Wien', homeLat: 48.2, homeLon: 16.3 }),
-				''
-			)
-		).resolves.toEqual({
-			ok: true,
-			homeAddress: '',
+describe('settings patch persistence', () => {
+	it('atomically clears all derived location data when address text changes', () => {
+		expect(
+			toSettingsDbPatch({ patch: {}, homeLocation: { address: 'Typed exactly', verified: false } })
+		).toEqual({
+			homeAddress: 'Typed exactly',
+			homeLocationProvider: null,
+			homeLocationId: null,
+			homePostcode: '',
 			homeCity: '',
 			homeLat: null,
 			homeLon: null
 		});
+	});
+
+	it('atomically stores a selected verified suggestion', () => {
+		expect(
+			toSettingsDbPatch({
+				patch: {},
+				homeLocation: {
+					address: 'Herrengasse 14, 1010 Wien',
+					verified: true,
+					provider: 'geoapify',
+					id: 'place-1',
+					postcode: '1010',
+					city: 'Wien',
+					lat: 48.2,
+					lon: 16.3
+				}
+			})
+		).toMatchObject({
+			homeLocationProvider: 'geoapify',
+			homeLocationId: 'place-1',
+			homePostcode: '1010',
+			homeCity: 'Wien',
+			homeLat: 48.2,
+			homeLon: 16.3
+		});
+	});
+
+	it('does not overwrite unrelated fields', () => {
+		expect(toSettingsDbPatch({ patch: { fullName: 'Ada' } }, current)).toEqual({ fullName: 'Ada' });
 	});
 });

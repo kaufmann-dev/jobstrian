@@ -246,6 +246,9 @@ export function selectedProfilePatch(current: Settings, input: ProfilePatch): Pa
 		input.profile.homeAddress?.trim() !== current.homeAddress.trim()
 	) {
 		patch.homeCity = '';
+		patch.homePostcode = '';
+		patch.homeLocationProvider = null;
+		patch.homeLocationId = null;
 		patch.homeLat = null;
 		patch.homeLon = null;
 	}

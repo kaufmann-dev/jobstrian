@@ -30,16 +30,29 @@ describe('SearchConfigEditor autocomplete', () => {
 			'fetch',
 			vi.fn().mockResolvedValue(
 				jsonResponse({
-					suggestions: [{ label: 'Wien (1010)', city: 'Wien', postcode: '1010', placeId: 1 }]
+					suggestions: [
+						{
+							id: '1',
+							label: 'Wien (1010)',
+							secondaryLabel: 'Österreich',
+							city: 'Wien',
+							postcode: '1010',
+							lat: 48.2,
+							lon: 16.3,
+							countryCode: 'at',
+							kind: 'city',
+							verifiable: false
+						}
+					]
 				})
 			)
 		);
 		render(SearchConfigEditor, { config });
 
-		const input = page.getByRole('textbox', { name: 'Job-Suchort hinzufügen' });
+		const input = page.getByRole('combobox', { name: 'Job-Suchort hinzufügen' });
 		await input.fill('Wie');
 		await waitForDebounce();
-		const suggestion = page.getByRole('button', { name: 'Wien (1010)' });
+		const suggestion = page.getByRole('option', { name: /Wien \(1010\)/ });
 
 		await expect.element(suggestion).toBeVisible();
 		await suggestion.click();
@@ -47,22 +60,12 @@ describe('SearchConfigEditor autocomplete', () => {
 	});
 
 	it('adds and removes an OSM tag chip from suggestions', async () => {
-		vi.stubGlobal(
-			'fetch',
-			vi.fn().mockResolvedValue(
-				jsonResponse({
-					suggestions: [
-						{ key: 'amenity', value: 'cafe', raw: 'amenity=cafe', label: 'Amenity: Cafe' }
-					]
-				})
-			)
-		);
 		render(SearchConfigEditor, { config: { ...config, jobSearchLocations: [] } });
 
 		const input = page.getByRole('textbox', { name: 'OSM-Kategorie hinzufügen' });
 		await input.fill('amenity=cafe');
 		await waitForDebounce();
-		const suggestion = page.getByRole('button', { name: /Amenity: Cafe/ });
+		const suggestion = page.getByRole('option', { name: /Amenity: Cafe/ });
 
 		await expect.element(suggestion).toBeVisible();
 		await suggestion.click();

@@ -130,6 +130,9 @@ export const settings = pgTable('settings', {
 	rankingNotes: text('ranking_notes').notNull().default(''),
 	// Home location for the nearby-business search.
 	homeAddress: text('home_address').notNull().default(''),
+	homeLocationProvider: text('home_location_provider'),
+	homeLocationId: text('home_location_id'),
+	homePostcode: text('home_postcode').notNull().default(''),
 	homeCity: text('home_city').notNull().default(''),
 	homeLat: doublePrecision('home_lat'),
 	homeLon: doublePrecision('home_lon'),

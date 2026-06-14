@@ -39,14 +39,14 @@ OpenAI-compatible LLM.
 
 ## Tech Stack
 
-| Area         | Tools                                                                    |
-| ------------ | ------------------------------------------------------------------------ |
-| Framework    | SvelteKit, `@sveltejs/adapter-node`                                      |
-| UI           | Tailwind CSS, shadcn-svelte, `@lucide/svelte`, mode-watcher              |
-| Data & Auth  | PostgreSQL, Drizzle ORM, Better Auth                                     |
-| Forms        | Superforms, Zod                                                          |
-| Scraping     | `cheerio` (HTML), Playwright (browser adapter), OSM Overpass / Nominatim |
-| i18n / Tests | Paraglide, Vitest                                                        |
+| Area         | Tools                                                        |
+| ------------ | ------------------------------------------------------------ |
+| Framework    | SvelteKit, `@sveltejs/adapter-node`                          |
+| UI           | Tailwind CSS, shadcn-svelte, `@lucide/svelte`, mode-watcher  |
+| Data & Auth  | PostgreSQL, Drizzle ORM, Better Auth                         |
+| Forms        | Superforms, Zod                                              |
+| Scraping     | `cheerio` (HTML), Playwright (browser adapter), OSM Overpass |
+| i18n / Tests | Paraglide, Vitest                                            |
 
 ## Setup
 
@@ -67,6 +67,7 @@ DATABASE_URL="postgres://postgres:postgres@localhost:5432/jobstrian"
 ORIGIN="http://localhost:5173"
 BETTER_AUTH_SECRET="…"                   # openssl rand -hex 32
 BODY_SIZE_LIMIT="10M"                    # allows CV uploads up to the app's 10 MB limit
+GEOAPIFY_API_KEY="…"                     # Austrian address and city suggestions
 ```
 
 ### 3. Database (Podman)
@@ -133,9 +134,10 @@ post-deployment migration command is needed.
 
 #### Optional
 
-| Variable         | Default | Purpose                                    |
-| ---------------- | ------- | ------------------------------------------ |
-| `RESEND_API_KEY` | —       | Only needed if sending e-mails via Resend. |
+| Variable           | Default | Purpose                                         |
+| ------------------ | ------- | ----------------------------------------------- |
+| `RESEND_API_KEY`   | —       | Only needed if sending e-mails via Resend.      |
+| `GEOAPIFY_API_KEY` | —       | Enables Austrian address and city autocomplete. |
 
 ## Notes
 

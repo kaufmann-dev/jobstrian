@@ -14,7 +14,11 @@ describe('refresh search profile', () => {
 		const profile = buildProfileQuery({
 			jobSearchKeywords: ['Pflegeassistenz'],
 			jobSearchLocations: ['Linz'],
-			homeCity: 'Graz'
+			homeLocationProvider: null,
+			homeLocationId: null,
+			homeCity: 'Graz',
+			homeLat: null,
+			homeLon: null
 		});
 
 		expect(profile).toEqual({ keywords: ['Pflegeassistenz'], locations: ['Linz'] });
@@ -24,7 +28,11 @@ describe('refresh search profile', () => {
 		expect(
 			jobSearchLocations({
 				jobSearchLocations: [],
-				homeCity: 'Graz'
+				homeLocationProvider: 'geoapify',
+				homeLocationId: 'place',
+				homeCity: 'Graz',
+				homeLat: 47.07,
+				homeLon: 15.44
 			})
 		).toEqual(['Graz']);
 	});
@@ -33,7 +41,11 @@ describe('refresh search profile', () => {
 		const profile = buildProfileQuery({
 			jobSearchKeywords: ['Verkauf'],
 			jobSearchLocations: [],
-			homeCity: ''
+			homeLocationProvider: null,
+			homeLocationId: null,
+			homeCity: 'Graz',
+			homeLat: 47.07,
+			homeLon: 15.44
 		});
 
 		expect(profile).toBeNull();

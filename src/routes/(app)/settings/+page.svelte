@@ -6,7 +6,13 @@
 	import { fromAction } from 'svelte/attachments';
 	import { toast } from 'svelte-sonner';
 	import type { ProfileField, ProfilePreview } from '$lib/profile';
+	import type { GeoSuggestion } from '$lib/geo';
 	import { settingsSchema } from './schema';
+	import {
+		SettingsAutosaveQueue,
+		type HomeLocationPatch,
+		type SaveStatus
+	} from './settings-autosave';
 	import ProfileEditor from './profile-editor.svelte';
 	import SearchConfigEditor from './search-config-editor.svelte';
 	import * as Form from '$lib/components/ui/form/index.js';
@@ -30,7 +36,26 @@
 	} from '$lib/search-config';
 
 	let { data } = $props();
-	const hasApiKey = $derived(data.hasApiKey);
+	let hasApiKey = $state(untrack(() => data.hasApiKey));
+	let saveStatus = $state<SaveStatus>('idle');
+	let autosaveDirty = $state(false);
+	let homeLocationVerified = $state(untrack(() => data.homeLocationVerified));
+
+	const autosave = new SettingsAutosaveQueue(
+		async (patch) => {
+			const response = await fetch('/api/settings', {
+				method: 'PATCH',
+				headers: { 'content-type': 'application/json' },
+				body: JSON.stringify(patch)
+			});
+			if (!response.ok)
+				throw new Error(await responseMessage(response, 'Speichern fehlgeschlagen'));
+		},
+		(status) => {
+			saveStatus = status;
+			if (status === 'saved') autosaveDirty = false;
+		}
+	);
 
 	const form = superForm(
 		untrack(() => data.form),
@@ -42,34 +67,32 @@
 			applyAction: false,
 			multipleSubmits: 'abort',
 			onChange: ({ paths }) => {
-				if (!paths.includes('llmApiKey')) scheduleAutosave();
+				const fields = new Set(paths.map((path) => path.split(/[.[\]]/, 1)[0]));
+				for (const field of fields) {
+					if (!field || field === 'llmApiKey' || field === 'homeAddress') continue;
+					autosaveDirty = true;
+					autosave.enqueueField(field, $formData[field as keyof typeof $formData]);
+				}
 			},
 			onSubmit: ({ submitter, validators }) => {
 				if (submitter?.getAttribute('formaction') === '?/saveApiKey') {
-					clearTimeout(autosaveTimer);
 					validators(false);
 				}
-				saveStatus = 'saving';
 			},
 			onResult: ({ result, formElement }) => {
-				const saved =
-					result.type === 'success' && result.data && 'saved' in result.data
-						? result.data.saved
-						: undefined;
-				saveStatus = result.type === 'success' ? 'saved' : 'error';
+				const resultData = result.type === 'success' ? result.data : undefined;
+				const saved = resultData && 'saved' in resultData ? resultData.saved : undefined;
 				if (saved === 'apiKey') {
 					toast.success('API-Key gespeichert');
+					hasApiKey = Boolean(resultData && 'hasApiKey' in resultData && resultData.hasApiKey);
 					const input = formElement.elements.namedItem('llmApiKey');
 					if (input instanceof HTMLInputElement) input.value = '';
-					void invalidateAll();
 				}
 			}
 		}
 	);
-	const { form: formData, enhance, submitting, tainted, errors } = form;
+	const { form: formData, enhance, submitting, errors } = form;
 	const enhanceAttachment = fromAction(enhance);
-	let autosaveTimer: ReturnType<typeof setTimeout> | undefined;
-	let saveStatus = $state<'idle' | 'saving' | 'saved' | 'error'>('idle');
 
 	const sources = [
 		{ name: 'sourceHokify', label: 'hokify' },
@@ -114,14 +137,28 @@
 		businessRadiusMeters: 5000
 	});
 
-	const hasUnsavedChanges = $derived(Boolean($tainted));
+	const hasUnsavedChanges = $derived(
+		autosaveDirty || saveStatus === 'saving' || saveStatus === 'error'
+	);
 	const canImport = $derived(Boolean(data.cv && data.hasLlmConfig && !hasUnsavedChanges));
 	const canGenerateSearchConfig = $derived(Boolean(data.hasLlmConfig && !hasUnsavedChanges));
 
-	function scheduleAutosave() {
-		clearTimeout(autosaveTimer);
-		saveStatus = 'idle';
-		autosaveTimer = setTimeout(() => form.submit(), 700);
+	function saveHomeAddress(value: string, suggestion?: GeoSuggestion) {
+		autosaveDirty = true;
+		homeLocationVerified = Boolean(suggestion?.verifiable);
+		const homeLocation: HomeLocationPatch = suggestion?.verifiable
+			? {
+					address: suggestion.label,
+					verified: true,
+					provider: 'geoapify',
+					id: suggestion.id,
+					postcode: suggestion.postcode,
+					city: suggestion.city,
+					lat: suggestion.lat,
+					lon: suggestion.lon
+				}
+			: { address: value, verified: false };
+		autosave.enqueueHomeLocation(homeLocation);
 	}
 
 	function fmtSize(bytes: number): string {
@@ -288,12 +325,7 @@
 	}
 </script>
 
-<form
-	method="POST"
-	action="?/autosave"
-	{@attach enhanceAttachment}
-	class="mx-auto max-w-3xl space-y-6"
->
+<form method="POST" {@attach enhanceAttachment} class="mx-auto max-w-3xl space-y-6">
 	<div class="flex items-start justify-between gap-4">
 		<div>
 			<h1 class="text-2xl font-semibold tracking-tight">Einstellungen</h1>
@@ -305,7 +337,9 @@
 			{:else if saveStatus === 'saved'}
 				Gespeichert
 			{:else if saveStatus === 'error'}
-				Speichern fehlgeschlagen
+				<button type="button" class="underline" onclick={() => autosave.retry()}>
+					Speichern fehlgeschlagen · erneut versuchen
+				</button>
 			{/if}
 		</p>
 	</div>
@@ -318,7 +352,12 @@
 			</Card.Description>
 		</Card.Header>
 		<Card.Content class="space-y-6">
-			<ProfileEditor bind:profile={$formData} homeAddressErrors={$errors.homeAddress} />
+			<ProfileEditor
+				bind:profile={$formData}
+				homeAddressErrors={$errors.homeAddress}
+				homeAddressVerified={homeLocationVerified}
+				onHomeAddressChange={saveHomeAddress}
+			/>
 
 			<div class="space-y-4 border-t pt-6">
 				<div>

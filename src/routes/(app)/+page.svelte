@@ -341,10 +341,10 @@
 	{#if !hasHome}
 		<Alert.Root>
 			<TriangleAlert class="size-4" />
-			<Alert.Title>Adresse fehlt</Alert.Title>
+			<Alert.Title>Adresse nicht bestätigt</Alert.Title>
 			<Alert.Description>
-				Trage deine Adresse in den <a class="underline" href={resolve('/settings')}>Einstellungen</a
-				> ein, um Job-Suchorte abzuleiten und nahe potenzielle Arbeitgeber zu finden.
+				Wähle deine Adresse in den <a class="underline" href={resolve('/settings')}>Einstellungen</a
+				> aus den Vorschlägen aus, um Job-Suchorte abzuleiten und nahe potenzielle Arbeitgeber zu finden.
 			</Alert.Description>
 		</Alert.Root>
 	{/if}

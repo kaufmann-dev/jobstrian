@@ -1,6 +1,8 @@
 <script lang="ts">
 	import type { ProfileField, ProfilePreview } from '$lib/profile';
-	import { anchoredDropdown } from '$lib/actions/anchored-dropdown';
+	import type { GeoSuggestion } from '$lib/geo';
+	import { untrack } from 'svelte';
+	import RemoteAutocomplete from './remote-autocomplete.svelte';
 	import { Input } from '$lib/components/ui/input/index.js';
 	import { Textarea } from '$lib/components/ui/textarea/index.js';
 	import { Checkbox } from '$lib/components/ui/checkbox/index.js';
@@ -9,40 +11,27 @@
 	import Trash2 from '@lucide/svelte/icons/trash-2';
 
 	type EditableProfile = Required<ProfilePreview>;
-	type AddressSuggestion = {
-		label: string;
-		lat: number;
-		lon: number;
-		city: string | null;
-		postcode: string | null;
-		placeId: number | null;
-	};
-
 	let {
 		profile = $bindable(),
 		fields,
 		selected = $bindable([]),
-		homeAddressErrors = []
+		homeAddressErrors = [],
+		homeAddressVerified = false,
+		onHomeAddressChange
 	}: {
 		profile: EditableProfile;
 		fields?: ProfileField[];
 		selected?: ProfileField[];
 		homeAddressErrors?: string[];
+		homeAddressVerified?: boolean;
+		onHomeAddressChange?: (value: string, suggestion?: GeoSuggestion) => void;
 	} = $props();
 
 	const allFields = Object.keys(profile) as ProfileField[];
 	const visibleFields = $derived(fields ?? allFields);
 	const selectable = $derived(Boolean(fields));
-	let addressSuggestions = $state.raw<AddressSuggestion[]>([]);
-	let addressLookupStatus = $state<'idle' | 'loading'>('idle');
-	let addressValidationError = $state('');
-	const addressError = $derived(homeAddressErrors[0] ?? addressValidationError);
-	let addressSuggestionTimer: ReturnType<typeof setTimeout> | undefined;
-	let addressSuggestionController: AbortController | undefined;
-	let addressValidationController: AbortController | undefined;
-	let addressSuggestionRequest = 0;
-	let addressValidationRequest = 0;
-	let addressAnchor = $state<HTMLElement>();
+	let addressVerified = $state(untrack(() => homeAddressVerified));
+	const addressError = $derived(homeAddressErrors[0]);
 
 	function visible(field: ProfileField): boolean {
 		return visibleFields.includes(field);
@@ -68,99 +57,17 @@
 		profile = { ...profile, [field]: value };
 	}
 
-	function clearAddressSuggestions() {
-		clearTimeout(addressSuggestionTimer);
-		addressSuggestionController?.abort();
-		addressSuggestions = [];
-		addressLookupStatus = 'idle';
-	}
-
-	async function loadAddressSuggestions(query: string, requestId: number, signal: AbortSignal) {
-		try {
-			addressLookupStatus = 'loading';
-			const response = await fetch(`/api/geo/address-suggestions?q=${encodeURIComponent(query)}`, {
-				signal
-			});
-			if (!response.ok) throw new Error('Address suggestions failed');
-			const body = (await response.json()) as { suggestions?: AddressSuggestion[] };
-			if (requestId !== addressSuggestionRequest) return;
-			addressSuggestions = body.suggestions ?? [];
-			addressLookupStatus = 'idle';
-		} catch (error) {
-			if (signal.aborted) return;
-			addressSuggestions = [];
-			addressLookupStatus = 'idle';
-		}
-	}
-
-	function scheduleAddressSuggestions(query: string) {
-		clearTimeout(addressSuggestionTimer);
-		addressSuggestionController?.abort();
-
-		const trimmed = query.trim();
-		if (trimmed.length < 3) {
-			addressSuggestions = [];
-			addressLookupStatus = 'idle';
-			return;
-		}
-
-		const requestId = ++addressSuggestionRequest;
-		addressSuggestionTimer = setTimeout(() => {
-			addressSuggestionController = new AbortController();
-			void loadAddressSuggestions(trimmed, requestId, addressSuggestionController.signal);
-		}, 400);
-	}
-
 	function onHomeAddressInput(value: string) {
-		addressValidationError = '';
+		addressVerified = false;
 		setField('homeAddress', value);
-		scheduleAddressSuggestions(value);
+		onHomeAddressChange?.(value);
 	}
 
-	function selectAddressSuggestion(suggestion: AddressSuggestion) {
-		addressValidationController?.abort();
-		addressValidationError = '';
+	function selectAddressSuggestion(suggestion: GeoSuggestion) {
+		if (!suggestion.verifiable) return;
+		addressVerified = true;
 		setField('homeAddress', suggestion.label);
-		clearAddressSuggestions();
-	}
-
-	function onHomeAddressBlur() {
-		clearAddressSuggestions();
-		void validateHomeAddress();
-	}
-
-	async function validateHomeAddress() {
-		const address = profile.homeAddress.trim();
-		addressValidationController?.abort();
-		addressValidationError = '';
-		if (!address) return;
-		if (address.length < 3) {
-			addressValidationError = 'Adresse ist zu kurz.';
-			return;
-		}
-
-		const requestId = ++addressValidationRequest;
-		addressValidationController = new AbortController();
-		try {
-			const response = await fetch('/api/geo/validate-address', {
-				method: 'POST',
-				headers: { 'content-type': 'application/json' },
-				body: JSON.stringify({ address }),
-				signal: addressValidationController.signal
-			});
-			if (!response.ok) throw new Error('Address validation failed');
-			const body = (await response.json()) as {
-				valid?: boolean;
-				suggestion?: AddressSuggestion | null;
-			};
-			if (requestId !== addressValidationRequest) return;
-			if (!body.valid || !body.suggestion) {
-				addressValidationError = 'Adresse konnte in Österreich nicht gefunden werden.';
-			}
-		} catch (error) {
-			if (addressValidationController.signal.aborted) return;
-			addressValidationError = 'Adresse konnte nicht geprüft werden.';
-		}
+		onHomeAddressChange?.(suggestion.label, suggestion);
 	}
 
 	function updateEntry<
@@ -365,49 +272,18 @@
 	{#if visible('homeAddress')}
 		<div class="space-y-2">
 			{@render heading('homeAddress', 'Adresse')}
-			<div class="relative" bind:this={addressAnchor}>
-				<Input
-					value={profile.homeAddress}
-					oninput={(event) => onHomeAddressInput(event.currentTarget.value)}
-					onblur={onHomeAddressBlur}
-					aria-invalid={Boolean(addressError)}
-					aria-expanded={addressSuggestions.length > 0}
-					aria-label="Adresse"
-					autocomplete="off"
-					placeholder="Straße Hausnr, PLZ Ort"
-				/>
-				{#if addressSuggestions.length > 0 && addressAnchor}
-					<div
-						use:anchoredDropdown={addressAnchor}
-						onmousedown={(event) => event.preventDefault()}
-						role="listbox"
-						tabindex="-1"
-						class="z-50 max-h-60 overflow-auto rounded-xl border bg-popover p-1 text-popover-foreground shadow-md"
-					>
-						{#each addressSuggestions as suggestion (suggestion.placeId ?? suggestion.label)}
-							<button
-								type="button"
-								role="option"
-								aria-selected="false"
-								class="w-full rounded-lg px-2 py-1.5 text-left text-sm hover:bg-muted"
-								onmousedown={(event) => {
-									event.preventDefault();
-									selectAddressSuggestion(suggestion);
-								}}
-							>
-								<span class="block">{suggestion.label}</span>
-								{#if suggestion.city || suggestion.postcode}
-									<span class="block text-xs text-muted-foreground">
-										{[suggestion.postcode, suggestion.city].filter(Boolean).join(' ')}
-									</span>
-								{/if}
-							</button>
-						{/each}
-					</div>
-				{/if}
-			</div>
-			{#if addressLookupStatus === 'loading'}
-				<p class="text-sm text-muted-foreground">Adressvorschläge werden geladen …</p>
+			<RemoteAutocomplete
+				kind="address"
+				value={profile.homeAddress}
+				onInput={onHomeAddressInput}
+				onSelect={selectAddressSuggestion}
+				label="Adresse"
+				placeholder="Straße Hausnr, PLZ Ort"
+			/>
+			{#if profile.homeAddress.trim() && !addressVerified}
+				<p class="text-sm text-muted-foreground">
+					Wähle einen Adressvorschlag aus, um ortsabhängige Funktionen zu aktivieren.
+				</p>
 			{/if}
 			{#if addressError}
 				<p class="text-sm font-medium text-destructive">{addressError}</p>
