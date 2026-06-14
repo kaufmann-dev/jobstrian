@@ -3,7 +3,7 @@ import { zod4 } from 'sveltekit-superforms/adapters';
 import { fail } from '@sveltejs/kit';
 import { getSettings, updateSettings, ALL_SOURCES } from '$lib/server/settings';
 import { getCvMeta } from '$lib/server/cv';
-import { settingsSchema } from './schema';
+import { apiKeySchema, settingsSchema } from './schema';
 import type { Settings } from '$lib/server/db/schema';
 import type { Actions, PageServerLoad } from './$types';
 
@@ -42,6 +42,52 @@ async function settingsForm(s: Settings) {
 	return superValidate(settingsFormData(s), zod4(settingsSchema));
 }
 
+async function saveSettings(request: Request) {
+	const form = await superValidate(request, zod4(settingsSchema));
+	if (!form.valid) return fail(400, { form });
+
+	const current = await getSettings();
+	const data = form.data;
+	const enabledSources = ALL_SOURCES.filter((src) => {
+		if (src === 'hokify') return data.sourceHokify;
+		if (src === 'willhaben') return data.sourceWillhaben;
+		if (src === 'karriere') return data.sourceKarriere;
+		return data.sourceAms;
+	});
+
+	const addressChanged = data.homeAddress.trim() !== current.homeAddress.trim();
+
+	const updated = await updateSettings({
+		profileText: data.profileText,
+		roleKeywords: data.roleKeywords,
+		languages: data.languages,
+		skills: data.skills,
+		workExperience: data.workExperience,
+		educationHistory: data.educationHistory,
+		certifications: data.certifications,
+		germanLevel: data.germanLevel,
+		experienceYears: data.experienceYears,
+		educationStatus: data.educationStatus,
+		workPermit: data.workPermit,
+		availability: data.availability,
+		rankingNotes: data.rankingNotes,
+		homeAddress: data.homeAddress,
+		radiusMeters: data.radiusMeters,
+		enabledSources,
+		llmBaseUrl: data.llmBaseUrl,
+		llmModel: data.llmModel,
+		llmRequestsPerMinute: data.llmRequestsPerMinute,
+		llmMaxConcurrent: data.llmMaxConcurrent,
+		// Re-geocode on next run if the address changed.
+		...(addressChanged ? { homeLat: null, homeLon: null } : {})
+	});
+
+	const responseForm = await settingsForm(updated);
+	// Autosave must neither persist nor clear a key that is currently being edited.
+	responseForm.data.llmApiKey = data.llmApiKey;
+	return { form: responseForm, saved: 'settings' as const };
+}
+
 export const load: PageServerLoad = async () => {
 	const s = await getSettings();
 	const form = await settingsForm(s);
@@ -54,51 +100,25 @@ export const load: PageServerLoad = async () => {
 };
 
 export const actions: Actions = {
-	default: async ({ request }) => {
-		const form = await superValidate(request, zod4(settingsSchema));
-		if (!form.valid) return fail(400, { form });
+	autosave: async ({ request }) => saveSettings(request),
+	saveApiKey: async ({ request }) => {
+		const keyForm = await superValidate(request, zod4(apiKeySchema));
+		if (!keyForm.valid) {
+			const form = await settingsForm(await getSettings());
+			form.valid = false;
+			form.data.llmApiKey = keyForm.data.llmApiKey;
+			form.errors.llmApiKey = keyForm.errors.llmApiKey;
+			return fail(400, { form });
+		}
 
 		const current = await getSettings();
-		const data = form.data;
-		const enabledSources = ALL_SOURCES.filter((src) => {
-			if (src === 'hokify') return data.sourceHokify;
-			if (src === 'willhaben') return data.sourceWillhaben;
-			if (src === 'karriere') return data.sourceKarriere;
-			return data.sourceAms;
-		});
-
-		const addressChanged = data.homeAddress.trim() !== current.homeAddress.trim();
-
-		const updated = await updateSettings({
-			profileText: data.profileText,
-			roleKeywords: data.roleKeywords,
-			languages: data.languages,
-			skills: data.skills,
-			workExperience: data.workExperience,
-			educationHistory: data.educationHistory,
-			certifications: data.certifications,
-			germanLevel: data.germanLevel,
-			experienceYears: data.experienceYears,
-			educationStatus: data.educationStatus,
-			workPermit: data.workPermit,
-			availability: data.availability,
-			rankingNotes: data.rankingNotes,
-			homeAddress: data.homeAddress,
-			radiusMeters: data.radiusMeters,
-			enabledSources,
-			llmBaseUrl: data.llmBaseUrl,
-			llmModel: data.llmModel,
-			llmRequestsPerMinute: data.llmRequestsPerMinute,
-			llmMaxConcurrent: data.llmMaxConcurrent,
-			// Only overwrite the key when a new value was entered.
-			...(data.llmApiKey ? { llmApiKey: data.llmApiKey } : {}),
-			// Re-geocode on next run if the address changed.
-			...(addressChanged ? { homeLat: null, homeLon: null } : {})
-		});
-
+		const updated = keyForm.data.llmApiKey
+			? await updateSettings({ llmApiKey: keyForm.data.llmApiKey })
+			: current;
 		return {
 			form: await settingsForm(updated),
-			hasApiKey: Boolean(updated.llmApiKey)
+			hasApiKey: Boolean(updated.llmApiKey),
+			saved: 'apiKey' as const
 		};
 	}
 };

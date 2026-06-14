@@ -34,4 +34,6 @@ export const settingsSchema = z.object({
 	llmApiKey: z.string().max(500).default('')
 });
 
+export const apiKeySchema = settingsSchema.pick({ llmApiKey: true });
+
 export type SettingsSchema = typeof settingsSchema;

@@ -505,7 +505,9 @@
 									>
 										{card.value.toLocaleString('de-AT')}
 									</Card.Title>
-									<Card.Description class="sm:min-h-10">{card.label}</Card.Description>
+									<Card.Description class="w-full truncate" title={card.label}>
+										{card.label}
+									</Card.Description>
 								</div>
 							</Card.Root>
 						</a>

@@ -32,13 +32,35 @@
 			dataType: 'json',
 			resetForm: false,
 			invalidateAll: 'pessimistic',
-			onUpdated: ({ form: updated }) => {
-				if (updated.valid) toast.success('Einstellungen gespeichert');
+			multipleSubmits: 'abort',
+			onChange: ({ paths }) => {
+				if (!paths.includes('llmApiKey')) scheduleAutosave();
+			},
+			onSubmit: ({ submitter, validators }) => {
+				if (submitter?.getAttribute('formaction') === '?/saveApiKey') {
+					clearTimeout(autosaveTimer);
+					validators(false);
+				}
+				saveStatus = 'saving';
+			},
+			onResult: ({ result, formElement }) => {
+				const saved =
+					result.type === 'success' && result.data && 'saved' in result.data
+						? result.data.saved
+						: undefined;
+				saveStatus = result.type === 'success' ? 'saved' : 'error';
+				if (saved === 'apiKey') {
+					toast.success('API-Key gespeichert');
+					const input = formElement.elements.namedItem('llmApiKey');
+					if (input instanceof HTMLInputElement) input.value = '';
+				}
 			}
 		}
 	);
 	const { form: formData, enhance, submitting, tainted } = form;
 	const enhanceAttachment = fromAction(enhance);
+	let autosaveTimer: ReturnType<typeof setTimeout> | undefined;
+	let saveStatus = $state<'idle' | 'saving' | 'saved' | 'error'>('idle');
 
 	const sources = [
 		{ name: 'sourceHokify', label: 'hokify' },
@@ -71,6 +93,12 @@
 
 	const hasUnsavedChanges = $derived(Boolean($tainted));
 	const canImport = $derived(Boolean(data.cv && data.hasLlmConfig && !hasUnsavedChanges));
+
+	function scheduleAutosave() {
+		clearTimeout(autosaveTimer);
+		saveStatus = 'idle';
+		autosaveTimer = setTimeout(() => form.submit(), 700);
+	}
 
 	function fmtSize(bytes: number): string {
 		return bytes < 1024 * 1024
@@ -166,10 +194,26 @@
 	}
 </script>
 
-<form method="POST" {@attach enhanceAttachment} class="mx-auto max-w-3xl space-y-6">
-	<div>
-		<h1 class="text-2xl font-semibold tracking-tight">Einstellungen</h1>
-		<p class="text-sm text-muted-foreground">Profil, Portale und KI-Konfiguration.</p>
+<form
+	method="POST"
+	action="?/autosave"
+	{@attach enhanceAttachment}
+	class="mx-auto max-w-3xl space-y-6"
+>
+	<div class="flex items-start justify-between gap-4">
+		<div>
+			<h1 class="text-2xl font-semibold tracking-tight">Einstellungen</h1>
+			<p class="text-sm text-muted-foreground">Profil, Portale und KI-Konfiguration.</p>
+		</div>
+		<p class="pt-1 text-xs text-muted-foreground" aria-live="polite">
+			{#if saveStatus === 'saving'}
+				Wird gespeichert …
+			{:else if saveStatus === 'saved'}
+				Gespeichert
+			{:else if saveStatus === 'error'}
+				Speichern fehlgeschlagen
+			{/if}
+		</p>
 	</div>
 
 	<Card.Root>
@@ -349,6 +393,12 @@
 				</Form.Control>
 				<Form.FieldErrors />
 			</Form.Field>
+			<div>
+				<Button type="submit" formaction="?/saveApiKey" disabled={$submitting}>
+					{#if $submitting}<Spinner />{:else}<Save />{/if}
+					API-Key speichern
+				</Button>
+			</div>
 			<Form.Field {form} name="rankingNotes">
 				<Form.Control>
 					{#snippet children({ props })}
@@ -365,11 +415,6 @@
 			</Form.Field>
 		</Card.Content>
 	</Card.Root>
-
-	<Form.Button disabled={$submitting}>
-		{#if $submitting}<Spinner />{:else}<Save />{/if}
-		Speichern
-	</Form.Button>
 </form>
 
 <Dialog.Root bind:open={previewOpen}>

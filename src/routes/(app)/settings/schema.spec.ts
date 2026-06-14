@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { superValidate } from 'sveltekit-superforms';
 import { zod4 } from 'sveltekit-superforms/adapters';
-import { settingsSchema } from './schema';
+import { apiKeySchema, settingsSchema } from './schema';
 
 describe('settingsSchema', () => {
 	it('defaults omitted portal checkbox fields to disabled', async () => {
@@ -25,6 +25,12 @@ describe('settingsSchema', () => {
 		expect(form.valid).toBe(false);
 		expect(form.errors.llmRequestsPerMinute).toBeDefined();
 		expect(form.errors.llmMaxConcurrent).toBeDefined();
+	});
+
+	it('validates the API key independently from other settings', () => {
+		const result = apiKeySchema.safeParse({ llmApiKey: 'sk-test' });
+
+		expect(result).toMatchObject({ success: true, data: { llmApiKey: 'sk-test' } });
 	});
 
 	it('validates bounded nested CV profile entries', async () => {
