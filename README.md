@@ -17,9 +17,12 @@ user-configured OpenAI-compatible LLM.
   radius; missing e-mail addresses are extracted from the respective website
   (imprint / contact page). If Overpass is temporarily overloaded, the update
   skips this business sync and still completes the job scraping / ranking run.
+  Phone numbers and e-mail addresses can be manually added, edited, or deleted;
+  manual changes remain authoritative during later updates.
 - **LLM ranking**: jobs receive a score + verdict + reasoning; for businesses
-  without a listing a German e-mail draft is generated in addition. Unchanged
-  jobs / businesses are skipped using content and ranking-context fingerprints.
+  without a listing a score is generated, and every business receives a German
+  e-mail draft even when no contact address was found. Unchanged jobs /
+  businesses are skipped using content and ranking-context fingerprints.
 - **Structured CV profile**: maintain skills, employment, education and
   certifications manually, or upload a PDF and selectively apply an editable
   AI-extracted preview.

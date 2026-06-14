@@ -5,6 +5,7 @@ import {
 	draftContextHash,
 	leadContentHash,
 	listingContentHash,
+	planLeadLlmWork,
 	rankingContextHash,
 	shouldDraftLead,
 	shouldRankLead,
@@ -87,7 +88,9 @@ function leadRow(patch: Partial<Lead> = {}): Lead {
 		address: 'Testgasse 1, Wien',
 		website: 'https://cafe.example.test',
 		phone: null,
+		phoneManual: false,
 		email: 'jobs@cafe.example.test',
+		emailManual: false,
 		emailSource: 'website',
 		hasActivePosting: false,
 		rankScore: 70,
@@ -186,5 +189,31 @@ describe('LLM fingerprints', () => {
 
 		expect(shouldRankLead(unchanged, rankContext)).toBe(false);
 		expect(shouldDraftLead(unchanged, emailContext)).toBe(false);
+	});
+
+	it('drafts every lead but only ranks leads without active postings', () => {
+		const rankContext = rankingContextHash(settings(), cfg);
+		const emailContext = draftContextHash(settings(), cfg);
+
+		expect(
+			planLeadLlmWork(
+				leadRow({
+					email: null,
+					emailSource: null,
+					hasActivePosting: true,
+					draftSubject: null,
+					draftBody: null
+				}),
+				rankContext,
+				emailContext
+			)
+		).toMatchObject({ rank: false, draft: true });
+		expect(
+			planLeadLlmWork(
+				leadRow({ email: null, emailSource: null, draftSubject: null, draftBody: null }),
+				rankContext,
+				emailContext
+			)
+		).toMatchObject({ rank: true, draft: true });
 	});
 });

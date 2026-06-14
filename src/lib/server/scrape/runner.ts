@@ -17,12 +17,10 @@ import { OverpassUnavailableError } from '../geo/overpass';
 import { getLlmConfig, LlmNotConfiguredError, type LlmConfig } from '../llm/client';
 import {
 	draftContextHash,
-	leadContentHash,
 	listingContentHash,
+	planLeadLlmWork,
 	rankingContextHash,
 	rawListingContentHash,
-	shouldDraftLead,
-	shouldRankLead,
 	shouldRankListing
 } from '../llm/fingerprints';
 import { isAbortError, LlmLimiter } from '../llm/limiter';
@@ -533,16 +531,8 @@ async function rankLeads(
 	writer: ProgressWriter,
 	signal: AbortSignal
 ): Promise<void> {
-	const rows = await db.select().from(lead).where(eq(lead.hasActivePosting, false));
-	const planned = rows.map((row) => {
-		const contentHash = row.contentHash ?? leadContentHash(row);
-		return {
-			row,
-			contentHash,
-			rank: shouldRankLead(row, rankContext, contentHash),
-			draft: shouldDraftLead(row, draftContext, contentHash)
-		};
-	});
+	const rows = await db.select().from(lead);
+	const planned = rows.map((row) => planLeadLlmWork(row, rankContext, draftContext));
 	const work = planned.filter((item) => item.rank || item.draft);
 	const skipped = planned.length - work.length;
 	let completed = 0;

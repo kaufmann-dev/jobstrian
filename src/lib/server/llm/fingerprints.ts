@@ -130,7 +130,16 @@ export function shouldDraftLead(
 	contextHash: string,
 	contentHash = row.contentHash ?? leadContentHash(row)
 ): boolean {
-	if (!row.email) return false;
 	const hasDraft = Boolean(row.draftSubject && row.draftBody);
 	return !hasDraft || row.draftContentHash !== contentHash || row.draftContextHash !== contextHash;
+}
+
+export function planLeadLlmWork(row: Lead, rankContext: string, draftContext: string) {
+	const contentHash = row.contentHash ?? leadContentHash(row);
+	return {
+		row,
+		contentHash,
+		rank: !row.hasActivePosting && shouldRankLead(row, rankContext, contentHash),
+		draft: shouldDraftLead(row, draftContext, contentHash)
+	};
 }

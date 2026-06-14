@@ -138,7 +138,9 @@ async function upsertLead(
 			address: place.address,
 			website: place.website,
 			phone: place.phone,
+			phoneManual: false,
 			email,
+			emailManual: false,
 			emailSource,
 			contentHash: leadContentHash({
 				name: place.name,
@@ -158,21 +160,12 @@ async function upsertLead(
 				distanceMeters: distance,
 				address: place.address,
 				website: place.website,
-				phone: place.phone,
-				// Only fill email/website-derived data; keep an existing email if newly missing.
-				email: sql`coalesce(${lead.email}, ${email ?? null})`,
-				emailSource: sql`coalesce(${lead.emailSource}, ${emailSource})`,
-				contentHash:
-					email == null
-						? null
-						: leadContentHash({
-								name: place.name,
-								category: place.category,
-								address: place.address ?? null,
-								distanceMeters: distance,
-								website: place.website ?? null,
-								email
-							}),
+				phone: sql`case when ${lead.phoneManual} then ${lead.phone} else ${place.phone ?? null} end`,
+				email: sql`case when ${lead.emailManual} then ${lead.email} else coalesce(${lead.email}, ${email ?? null}) end`,
+				emailSource: sql`case when ${lead.emailManual} then ${lead.emailSource} else coalesce(${lead.emailSource}, ${emailSource}) end`,
+				// Recompute from the persisted row in the LLM phase so manual overrides
+				// and newly discovered contact data are reflected correctly.
+				contentHash: null,
 				lastSeenRunId: runId
 			}
 		})

@@ -57,27 +57,27 @@
 				{
 					label: 'Aktive Stellen',
 					value: stats.activeListings,
-					href: resolve('/jobs'),
+					href: '/jobs',
 					icon: Briefcase
 				},
 				{
 					label: 'Davon bewertet',
 					value: stats.rankedListings,
-					href: resolve('/jobs'),
+					href: '/jobs',
 					icon: Sparkles
 				},
-				{ label: 'Geschlossen', value: stats.closedListings, href: resolve('/jobs'), icon: Archive }
+				{ label: 'Geschlossen', value: stats.closedListings, href: '/jobs', icon: Archive }
 			]
 		},
 		{
 			title: 'Betriebe',
 			cards: [
-				{ label: 'In der Nähe', value: stats.totalLeads, href: resolve('/leads'), icon: MapPin },
-				{ label: 'Mit E-Mail', value: stats.leadsWithEmail, href: resolve('/leads'), icon: Mail },
+				{ label: 'In der Nähe', value: stats.totalLeads, href: '/leads', icon: MapPin },
+				{ label: 'Mit E-Mail', value: stats.leadsWithEmail, href: '/leads', icon: Mail },
 				{
 					label: 'Ohne Ausschreibung',
 					value: stats.openLeads,
-					href: resolve('/leads'),
+					href: '/leads',
 					icon: DoorOpen
 				}
 			]
@@ -443,7 +443,9 @@
 										<p class="pl-[26px] text-xs text-muted-foreground">
 											{#if phase.failed > 0}<span class="text-amber-600 dark:text-amber-400"
 													>{phase.failed} fehlgeschlagen</span
-												>{/if}{#if phase.failed > 0 && phase.skipped > 0}{' · '}{/if}{#if phase.skipped > 0}{phase.skipped}
+												>{/if}{#if phase.failed > 0 && phase.skipped > 0}
+												·
+											{/if}{#if phase.skipped > 0}{phase.skipped}
 												übersprungen{/if}
 										</p>
 									{/if}
@@ -484,13 +486,15 @@
 				<div class="grid grid-cols-1 gap-3 sm:grid-cols-3">
 					{#each group.cards as card (card.label)}
 						<a
-							href={card.href}
+							href={resolve(card.href as '/jobs' | '/leads')}
 							class="rounded-xl outline-none focus-visible:ring-2 focus-visible:ring-ring"
 						>
 							<Card.Root
-								class="h-full py-3 transition-all hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-md sm:py-5"
+								class="h-24 py-3 transition-all hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-md sm:h-52 sm:py-5"
 							>
-								<div class="flex items-center gap-3 px-5 sm:flex-col sm:items-start sm:gap-2">
+								<div
+									class="flex h-full items-center gap-3 px-5 sm:flex-col sm:items-start sm:gap-2"
+								>
 									<span
 										class="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary sm:size-8"
 									>
@@ -501,7 +505,7 @@
 									>
 										{card.value.toLocaleString('de-AT')}
 									</Card.Title>
-									<Card.Description>{card.label}</Card.Description>
+									<Card.Description class="sm:min-h-10">{card.label}</Card.Description>
 								</div>
 							</Card.Root>
 						</a>

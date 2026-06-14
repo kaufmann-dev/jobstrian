@@ -1,8 +1,11 @@
 <script lang="ts">
 	import type { ColumnDef } from '@tanstack/table-core';
+	import { superForm } from 'sveltekit-superforms';
+	import { zod4Client } from 'sveltekit-superforms/adapters';
 	import { untrack } from 'svelte';
 	import { resolve } from '$app/paths';
 	import { toast } from 'svelte-sonner';
+	import { leadContactFormSchema } from '$lib/lead-contact';
 	import * as Sheet from '$lib/components/ui/sheet/index.js';
 	import { Badge } from '$lib/components/ui/badge/index.js';
 	import { Button } from '$lib/components/ui/button/index.js';
@@ -10,6 +13,7 @@
 	import { Label } from '$lib/components/ui/label/index.js';
 	import { Textarea } from '$lib/components/ui/textarea/index.js';
 	import { Input } from '$lib/components/ui/input/index.js';
+	import { Spinner } from '$lib/components/ui/spinner/index.js';
 	import ServerDataTable from '$lib/components/server-data-table.svelte';
 	import { ServerListController } from '$lib/components/server-list-controller.svelte.js';
 	import { renderSnippet } from '$lib/components/ui/data-table/render-helpers.js';
@@ -20,6 +24,9 @@
 	import Download from '@lucide/svelte/icons/download';
 	import Paperclip from '@lucide/svelte/icons/paperclip';
 	import Star from '@lucide/svelte/icons/star';
+	import Pencil from '@lucide/svelte/icons/pencil';
+	import Save from '@lucide/svelte/icons/save';
+	import X from '@lucide/svelte/icons/x';
 	import type { Lead } from '$lib/server/db/schema';
 
 	let { data } = $props();
@@ -33,12 +40,97 @@
 	let onlyOpen = $state(true);
 	let hideIgnored = $state(true);
 	let selected = $state<Lead | null>(null);
+	let editingContact = $state(false);
+	let contactSaving = $state(false);
+
+	const contactForm = superForm(
+		{ phone: '', email: '' },
+		{
+			id: 'lead-contact',
+			validators: zod4Client(leadContactFormSchema),
+			resetForm: false
+		}
+	);
+	const { form: contactData, errors: contactErrors } = contactForm;
 
 	function resetFilters(): void {
 		onlyWithEmail = false;
 		onlyOpen = true;
 		hideIgnored = true;
 		selected = null;
+	}
+
+	function selectLead(item: Lead): void {
+		selected = item;
+		editingContact = false;
+	}
+
+	function closeDetails(): void {
+		selected = null;
+		editingContact = false;
+	}
+
+	function beginContactEdit(): void {
+		if (!selected) return;
+		contactForm.reset({
+			data: { phone: selected.phone ?? '', email: selected.email ?? '' }
+		});
+		editingContact = true;
+	}
+
+	function cancelContactEdit(): void {
+		editingContact = false;
+		contactForm.reset();
+	}
+
+	async function responseMessage(response: Response, fallback: string): Promise<string> {
+		const body = (await response.json().catch(() => ({}))) as { message?: string };
+		return body.message ?? fallback;
+	}
+
+	async function saveContact(): Promise<void> {
+		if (!selected) return;
+		const validation = await contactForm.validateForm({ update: true });
+		if (!validation.valid) return;
+
+		const phone = validation.data.phone?.trim() || null;
+		const email = validation.data.email?.trim().toLowerCase() || null;
+		const patch: { phone?: string | null; email?: string | null } = {};
+		if (phone !== selected.phone) patch.phone = phone;
+		if (email !== selected.email) patch.email = email;
+		if (patch.phone === undefined && patch.email === undefined) {
+			editingContact = false;
+			return;
+		}
+
+		contactSaving = true;
+		try {
+			const response = await fetch(`/api/leads/${selected.id}/contact`, {
+				method: 'PATCH',
+				headers: { 'content-type': 'application/json' },
+				body: JSON.stringify(patch)
+			});
+			if (!response.ok) {
+				throw new Error(
+					await responseMessage(response, 'Kontaktdaten konnten nicht gespeichert werden.')
+				);
+			}
+			const updated = (await response.json()) as Lead;
+			selected = updated;
+			controller.patch(
+				(item) => item.id === updated.id,
+				() => updated
+			);
+			editingContact = false;
+			await controller.reset();
+			toast.success('Kontaktdaten gespeichert');
+		} catch (error) {
+			toast.error(
+				error instanceof Error ? error.message : 'Kontaktdaten konnten nicht gespeichert werden.'
+			);
+		} finally {
+			contactSaving = false;
+		}
 	}
 
 	/** Client-side mirror of the server's "recommended" order, for instant reordering on star. */
@@ -295,7 +387,7 @@
 		{controller}
 		{columns}
 		{filters}
-		onRowClick={(item) => (selected = item)}
+		onRowClick={selectLead}
 		onResetFilters={resetFilters}
 		searchPlaceholder="Betrieb, Kategorie, Adresse oder E-Mail suchen"
 		defaultSort="recommended"
@@ -304,7 +396,7 @@
 	/>
 </div>
 
-<Sheet.Root open={selected !== null} onOpenChange={(open) => !open && (selected = null)}>
+<Sheet.Root open={selected !== null} onOpenChange={(open) => !open && closeDetails()}>
 	<Sheet.Content class="w-full overflow-y-auto sm:max-w-xl">
 		{#if selected}
 			<Sheet.Header>
@@ -324,21 +416,88 @@
 				{#if selected.rankReason}<p class="text-sm text-muted-foreground">
 						{selected.rankReason}
 					</p>{/if}
-				<div class="space-y-2 text-sm">
+				<div class="space-y-3 text-sm">
 					{#if selected.address}<p>{selected.address}</p>{/if}
-					{#if selected.email}
-						<button
-							class="flex items-center gap-2 underline"
-							onclick={() => copy(selected!.email!, 'E-Mail')}
+					<div class="flex items-center justify-between gap-3">
+						<p class="font-medium">Kontakt</p>
+						{#if !editingContact}
+							<Button variant="ghost" size="sm" onclick={beginContactEdit}>
+								<Pencil class="size-4" /> Bearbeiten
+							</Button>
+						{/if}
+					</div>
+					{#if editingContact}
+						<form
+							class="space-y-3 rounded-xl border p-3"
+							onsubmit={(event) => {
+								event.preventDefault();
+								void saveContact();
+							}}
 						>
-							<Mail class="size-4" />
-							{selected.email}
-						</button>
+							<div class="space-y-1">
+								<Label for="contact-phone">Telefon</Label>
+								<Input
+									id="contact-phone"
+									type="tel"
+									bind:value={$contactData.phone}
+									aria-invalid={Boolean($contactErrors.phone)}
+								/>
+								{#if $contactErrors.phone}
+									<p class="text-xs text-destructive">{$contactErrors.phone.join(' ')}</p>
+								{/if}
+							</div>
+							<div class="space-y-1">
+								<Label for="contact-email">E-Mail</Label>
+								<Input
+									id="contact-email"
+									type="email"
+									bind:value={$contactData.email}
+									aria-invalid={Boolean($contactErrors.email)}
+								/>
+								{#if $contactErrors.email}
+									<p class="text-xs text-destructive">{$contactErrors.email.join(' ')}</p>
+								{/if}
+							</div>
+							<p class="text-xs text-muted-foreground">
+								Leere Felder werden gelöscht und bei Aktualisierungen nicht erneut befüllt.
+							</p>
+							<div class="flex justify-end gap-2">
+								<Button variant="ghost" onclick={cancelContactEdit} disabled={contactSaving}>
+									<X class="size-4" /> Abbrechen
+								</Button>
+								<Button type="submit" disabled={contactSaving}>
+									{#if contactSaving}<Spinner class="size-4" />{:else}<Save class="size-4" />{/if}
+									Speichern
+								</Button>
+							</div>
+						</form>
+					{:else}
+						<div class="space-y-2">
+							{#if selected.email}
+								<button
+									class="flex items-center gap-2 underline"
+									onclick={() => copy(selected!.email!, 'E-Mail')}
+								>
+									<Mail class="size-4" />
+									{selected.email}
+								</button>
+							{:else}
+								<p class="flex items-center gap-2 text-muted-foreground">
+									<Mail class="size-4" /> Keine E-Mail
+								</p>
+							{/if}
+							{#if selected.phone}
+								<p class="flex items-center gap-2">
+									<Phone class="size-4" />
+									{selected.phone}
+								</p>
+							{:else}
+								<p class="flex items-center gap-2 text-muted-foreground">
+									<Phone class="size-4" /> Kein Telefon
+								</p>
+							{/if}
+						</div>
 					{/if}
-					{#if selected.phone}<p class="flex items-center gap-2">
-							<Phone class="size-4" />
-							{selected.phone}
-						</p>{/if}
 					{#if selected.website}
 						<Button
 							variant="link"
