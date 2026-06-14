@@ -185,6 +185,13 @@
 			: [];
 	}
 
+	function attachCvInput(input: HTMLInputElement) {
+		cvInput = input;
+		return () => {
+			cvInput = null;
+		};
+	}
+
 	async function onCvSelected(event: Event) {
 		const input = event.currentTarget as HTMLInputElement;
 		const file = input.files?.[0];
@@ -443,8 +450,8 @@
 					</div>
 				{/if}
 
-				<Input
-					bind:ref={cvInput}
+				<input
+					{@attach attachCvInput}
 					type="file"
 					accept=".pdf,application/pdf"
 					aria-label="Lebenslauf als PDF auswählen"
