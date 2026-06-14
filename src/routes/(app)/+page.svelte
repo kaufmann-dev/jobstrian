@@ -363,48 +363,48 @@
 	{#if run}
 		<Card.Root>
 			<Card.Header class="gap-3 py-4">
-				<div class="grid min-w-0 gap-3 sm:flex sm:items-center sm:justify-between">
-					<div class="flex min-w-0 items-start gap-2 sm:flex-1 sm:items-center">
+				<div class="flex min-w-0 items-start justify-between gap-2">
+					<div class="flex min-w-0 items-center gap-2">
 						{#if isActive}<Spinner class="size-4 shrink-0 text-primary" />{/if}
-						<Badge class="shrink-0" variant={statusVariant(run.status)}
-							>{statusLabel(run.status)}</Badge
-						>
 						<Card.Title class="min-w-0 text-base leading-snug sm:truncate">
 							{progress.headline}
 						</Card.Title>
 					</div>
-					<div class="flex items-center justify-between gap-2 sm:shrink-0 sm:justify-end">
-						<span class="text-xs whitespace-nowrap text-muted-foreground">{elapsedLabel(run)}</span>
-						<div class="flex items-center gap-2">
+					<div class="flex shrink-0 items-center gap-2">
+						<Button
+							variant="ghost"
+							size="icon-sm"
+							aria-label={progressExpanded ? 'Details einklappen' : 'Details ausklappen'}
+							aria-expanded={progressExpanded}
+							onclick={() => (progressExpanded = !progressExpanded)}
+						>
+							{#if progressExpanded}<ChevronUp class="size-4" />{:else}<ChevronDown
+									class="size-4"
+								/>{/if}
+						</Button>
+						{#if isActive}
 							<Button
-								variant="ghost"
-								size="icon-sm"
-								aria-label={progressExpanded ? 'Details einklappen' : 'Details ausklappen'}
-								aria-expanded={progressExpanded}
-								onclick={() => (progressExpanded = !progressExpanded)}
+								variant="outline"
+								size="sm"
+								class="border-destructive text-destructive hover:bg-destructive/10"
+								onclick={cancelRun}
+								disabled={canceling || run.status === 'canceling'}
 							>
-								{#if progressExpanded}<ChevronUp class="size-4" />{:else}<ChevronDown
-										class="size-4"
-									/>{/if}
+								{#if canceling || run.status === 'canceling'}
+									<Spinner class="size-4" />
+								{:else}
+									<X class="size-4" />
+								{/if}
+								Abbrechen
 							</Button>
-							{#if isActive}
-								<Button
-									variant="outline"
-									size="sm"
-									class="border-destructive text-destructive hover:bg-destructive/10"
-									onclick={cancelRun}
-									disabled={canceling || run.status === 'canceling'}
-								>
-									{#if canceling || run.status === 'canceling'}
-										<Spinner class="size-4" />
-									{:else}
-										<X class="size-4" />
-									{/if}
-									Abbrechen
-								</Button>
-							{/if}
-						</div>
+						{/if}
 					</div>
+				</div>
+				<div class="flex items-center gap-2">
+					<Badge class="shrink-0" variant={statusVariant(run.status)}
+						>{statusLabel(run.status)}</Badge
+					>
+					<span class="text-xs whitespace-nowrap text-muted-foreground">{elapsedLabel(run)}</span>
 				</div>
 				{#if isActive}
 					<Card.Description>
