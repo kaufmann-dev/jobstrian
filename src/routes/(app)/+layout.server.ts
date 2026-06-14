@@ -1,4 +1,5 @@
 import { getSettings } from '$lib/server/settings';
+import { hasSavedHomeLocation } from '$lib/server/settings-status';
 import type { LayoutServerLoad } from './$types';
 
 export const load: LayoutServerLoad = async ({ locals, depends }) => {
@@ -7,13 +8,7 @@ export const load: LayoutServerLoad = async ({ locals, depends }) => {
 	return {
 		user: locals.user,
 		configured: Boolean(settings.llmBaseUrl && settings.llmModel),
-		hasHome: Boolean(
-			settings.homeLocationProvider &&
-			settings.homeLocationId &&
-			settings.homeCity.trim() &&
-			settings.homeLat != null &&
-			settings.homeLon != null
-		),
+		hasHome: hasSavedHomeLocation(settings),
 		hasSearchConfig: settings.jobSearchKeywords.length > 0 && settings.businessOsmTags.length > 0
 	};
 };
