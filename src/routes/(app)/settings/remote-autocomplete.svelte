@@ -31,6 +31,7 @@
 	let timer: ReturnType<typeof setTimeout> | undefined;
 	let controller: AbortController | undefined;
 	let requestId = 0;
+	let skipNextBlurCommit = false;
 
 	function close(): void {
 		clearTimeout(timer);
@@ -95,11 +96,16 @@
 	function selectSuggestion(suggestion: GeoSuggestion): void {
 		value = suggestion.label;
 		selectedValue = suggestion.id;
+		skipNextBlurCommit = true;
 		onSelect(suggestion);
 		close();
 	}
 
 	function handleBlur(): void {
+		if (skipNextBlurCommit) {
+			skipNextBlurCommit = false;
+			return;
+		}
 		const exactSuggestion = suggestions.find(
 			(suggestion) => suggestion.verifiable && suggestion.label.trim() === value.trim()
 		);
@@ -157,12 +163,16 @@
 							label={suggestion.label}
 							class="min-w-0 overflow-hidden rounded-lg px-2 py-1.5 text-sm outline-none data-highlighted:bg-muted"
 						>
-							<span class="block truncate">{suggestion.label}</span>
-							{#if suggestion.secondaryLabel}
-								<span class="block truncate text-xs text-muted-foreground">
-									{suggestion.secondaryLabel}
-								</span>
-							{/if}
+							{#snippet child({ props })}
+								<div {...props} onpointerdowncapture={() => selectSuggestion(suggestion)}>
+									<span class="block truncate">{suggestion.label}</span>
+									{#if suggestion.secondaryLabel}
+										<span class="block truncate text-xs text-muted-foreground">
+											{suggestion.secondaryLabel}
+										</span>
+									{/if}
+								</div>
+							{/snippet}
 						</Combobox.Item>
 					{/each}
 				</Combobox.Viewport>

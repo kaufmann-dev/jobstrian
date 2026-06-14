@@ -38,7 +38,11 @@
 	const visibleFields = $derived(fields ?? allFields);
 	const selectable = $derived(Boolean(fields));
 	let addressVerified = $state(untrack(() => homeAddressVerified));
+	let addressCommitted = $state(false);
 	const addressError = $derived(homeAddressErrors[0]);
+	const unverifiedCommittedAddress = $derived(
+		Boolean(profile.homeAddress.trim() && addressCommitted && !addressVerified)
+	);
 
 	function visible(field: ProfileField): boolean {
 		return visibleFields.includes(field);
@@ -59,6 +63,7 @@
 
 	function onHomeAddressInput(value: string) {
 		addressVerified = false;
+		addressCommitted = false;
 		setField('homeAddress', value);
 		onHomeAddressChange?.(value);
 	}
@@ -66,8 +71,14 @@
 	function selectAddressSuggestion(suggestion: GeoSuggestion) {
 		if (!suggestion.verifiable) return;
 		addressVerified = true;
+		addressCommitted = true;
 		setField('homeAddress', suggestion.label);
 		onHomeAddressChange?.(suggestion.label, suggestion);
+	}
+
+	function commitHomeAddress() {
+		addressCommitted = true;
+		onHomeAddressCommit?.(profile.homeAddress);
 	}
 
 	function updateEntry<
@@ -508,11 +519,15 @@
 				value={profile.homeAddress}
 				onInput={onHomeAddressInput}
 				onSelect={selectAddressSuggestion}
-				onBlur={() => onHomeAddressCommit?.(profile.homeAddress)}
+				onBlur={commitHomeAddress}
 				label="Adresse"
 				placeholder="Straße Hausnr, PLZ Ort"
 			/>
-			{#if profile.homeAddress.trim() && !addressVerified}
+			{#if unverifiedCommittedAddress}
+				<p class="text-sm font-medium text-destructive">
+					Adresse ungültig. Wähle eine Adresse aus den Vorschlägen aus.
+				</p>
+			{:else if profile.homeAddress.trim() && !addressVerified}
 				<p class="text-sm text-muted-foreground">
 					Wähle einen Adressvorschlag aus, um ortsabhängige Funktionen zu aktivieren.
 				</p>

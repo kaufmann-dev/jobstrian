@@ -102,6 +102,16 @@ it('commits typed address text when the address field blurs', async () => {
 	expect(onHomeAddressCommit).toHaveBeenCalledWith('Fuhrmannsgasse 18a');
 });
 
+it('shows an error after committing invalid address text', async () => {
+	render(ProfileEditor, { profile: { ...profile } });
+	const input = page.getByRole('combobox', { name: 'Adresse' });
+
+	await input.fill('532535');
+	(await input.element()).blur();
+
+	await expect.element(page.getByText('Adresse ungültig.')).toBeVisible();
+});
+
 it('passes verified suggestion metadata when an address suggestion is selected', async () => {
 	vi.stubGlobal(
 		'fetch',
@@ -124,6 +134,32 @@ it('passes verified suggestion metadata when an address suggestion is selected',
 			postcode: '1080'
 		})
 	);
+});
+
+it('does not overwrite a selected address with an unverified blur commit', async () => {
+	vi.stubGlobal(
+		'fetch',
+		vi.fn().mockResolvedValue(jsonResponse({ suggestions: [verifiedAddressSuggestion] }))
+	);
+	const onHomeAddressChange = vi.fn();
+	const onHomeAddressCommit = vi.fn();
+	render(ProfileEditor, {
+		profile: { ...profile },
+		onHomeAddressChange,
+		onHomeAddressCommit
+	});
+
+	const input = page.getByRole('combobox', { name: 'Adresse' });
+	await input.fill('Fuhrmannsgasse 18');
+	await waitForDebounce();
+	await page.getByRole('option', { name: /Fuhrmannsgasse 18a/ }).click();
+	(await input.element()).blur();
+
+	expect(onHomeAddressChange).toHaveBeenLastCalledWith(
+		'Fuhrmannsgasse 18a, 1080 Wien, Österreich',
+		expect.objectContaining({ id: 'geoapify-address-1', verifiable: true })
+	);
+	expect(onHomeAddressCommit).not.toHaveBeenCalled();
 });
 
 it('promotes exact loaded address text on blur to a verified suggestion', async () => {
