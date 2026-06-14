@@ -17,6 +17,10 @@ function settings(patch: Partial<Settings> = {}): Settings {
 		profileText: 'Servicekraft mit Barista-Erfahrung',
 		roleKeywords: ['Barista'],
 		languages: ['Deutsch (B1)', 'Englisch (C1)'],
+		skills: [],
+		workExperience: [],
+		educationHistory: [],
+		certifications: [],
 		germanLevel: 'B1',
 		experienceYears: 2,
 		educationStatus: 'Studium laufend',
@@ -156,6 +160,13 @@ describe('LLM fingerprints', () => {
 				newContext
 			)
 		).toBe(true);
+	});
+
+	it('reranks when structured CV data changes', () => {
+		const oldContext = rankingContextHash(settings(), cfg);
+		const newContext = rankingContextHash(settings({ skills: ['Latte Art'] }), cfg);
+
+		expect(newContext).not.toBe(oldContext);
 	});
 
 	it('skips unchanged lead draft and ranking work', () => {

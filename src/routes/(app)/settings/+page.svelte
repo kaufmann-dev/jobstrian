@@ -3,10 +3,14 @@
 	import { zod4Client } from 'sveltekit-superforms/adapters';
 	import { invalidateAll } from '$app/navigation';
 	import { untrack } from 'svelte';
+	import { fromAction } from 'svelte/attachments';
 	import { toast } from 'svelte-sonner';
+	import type { ProfileField, ProfilePreview } from '$lib/profile';
 	import { settingsSchema } from './schema';
+	import ProfileEditor from './profile-editor.svelte';
 	import * as Form from '$lib/components/ui/form/index.js';
 	import * as Card from '$lib/components/ui/card/index.js';
+	import * as Dialog from '$lib/components/ui/dialog/index.js';
 	import { Input } from '$lib/components/ui/input/index.js';
 	import { Textarea } from '$lib/components/ui/textarea/index.js';
 	import { Checkbox } from '$lib/components/ui/checkbox/index.js';
@@ -16,7 +20,7 @@
 	import FileText from '@lucide/svelte/icons/file-text';
 	import Download from '@lucide/svelte/icons/download';
 	import Trash2 from '@lucide/svelte/icons/trash-2';
-	import Upload from '@lucide/svelte/icons/upload';
+	import Sparkles from '@lucide/svelte/icons/sparkles';
 
 	let { data } = $props();
 	const hasApiKey = $derived(data.hasApiKey);
@@ -25,14 +29,16 @@
 		untrack(() => data.form),
 		{
 			validators: zod4Client(settingsSchema),
+			dataType: 'json',
 			resetForm: false,
 			invalidateAll: 'pessimistic',
-			onUpdated: ({ form: f }) => {
-				if (f.valid) toast.success('Einstellungen gespeichert');
+			onUpdated: ({ form: updated }) => {
+				if (updated.valid) toast.success('Einstellungen gespeichert');
 			}
 		}
 	);
-	const { form: formData, enhance, submitting } = form;
+	const { form: formData, enhance, submitting, tainted } = form;
+	const enhanceAttachment = fromAction(enhance);
 
 	const sources = [
 		{ name: 'sourceHokify', label: 'hokify' },
@@ -42,12 +48,39 @@
 	] as const;
 
 	let cvBusy = $state(false);
-	let fileInput = $state<HTMLInputElement | null>(null);
+	let importBusy = $state(false);
+	let applyBusy = $state(false);
+	let previewOpen = $state(false);
+	let previewFields = $state<ProfileField[]>([]);
+	let selectedFields = $state<ProfileField[]>([]);
+	let preview = $state<Required<ProfilePreview>>({
+		profileText: '',
+		roleKeywords: [],
+		languages: [],
+		germanLevel: '',
+		experienceYears: null,
+		educationStatus: '',
+		workPermit: false,
+		availability: '',
+		homeAddress: '',
+		skills: [],
+		workExperience: [],
+		educationHistory: [],
+		certifications: []
+	});
+
+	const hasUnsavedChanges = $derived(Boolean($tainted));
+	const canImport = $derived(Boolean(data.cv && data.hasLlmConfig && !hasUnsavedChanges));
 
 	function fmtSize(bytes: number): string {
 		return bytes < 1024 * 1024
 			? `${Math.round(bytes / 1024)} KB`
 			: `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+	}
+
+	async function responseMessage(response: Response, fallback: string): Promise<string> {
+		const body = (await response.json().catch(() => ({}))) as { message?: string };
+		return body.message ?? fallback;
 	}
 
 	async function onCvSelected(event: Event) {
@@ -56,174 +89,168 @@
 		if (!file) return;
 		cvBusy = true;
 		try {
-			const fd = new FormData();
-			fd.append('file', file);
-			const res = await fetch('/api/cv', { method: 'POST', body: fd });
-			if (res.ok) {
-				toast.success('Lebenslauf gespeichert');
-				await invalidateAll();
-			} else {
-				const body = (await res.json().catch(() => ({}))) as { message?: string };
-				toast.error(body.message ?? 'Upload fehlgeschlagen');
-			}
+			const body = new FormData();
+			body.append('file', file);
+			const response = await fetch('/api/cv', { method: 'POST', body });
+			if (!response.ok) throw new Error(await responseMessage(response, 'Upload fehlgeschlagen'));
+			toast.success('Lebenslauf gespeichert');
+			await invalidateAll();
+		} catch (error) {
+			toast.error(error instanceof Error ? error.message : 'Upload fehlgeschlagen');
 		} finally {
 			cvBusy = false;
-			if (fileInput) fileInput.value = '';
+			input.value = '';
 		}
 	}
 
 	async function deleteCv() {
 		cvBusy = true;
 		try {
-			const res = await fetch('/api/cv', { method: 'DELETE' });
-			if (res.ok) {
-				toast.success('Lebenslauf gelöscht');
-				await invalidateAll();
-			}
+			const response = await fetch('/api/cv', { method: 'DELETE' });
+			if (!response.ok) throw new Error(await responseMessage(response, 'Löschen fehlgeschlagen'));
+			toast.success('Lebenslauf gelöscht');
+			await invalidateAll();
+		} catch (error) {
+			toast.error(error instanceof Error ? error.message : 'Löschen fehlgeschlagen');
 		} finally {
 			cvBusy = false;
 		}
 	}
+
+	async function createPreview() {
+		if (!canImport) return;
+		importBusy = true;
+		try {
+			const response = await fetch('/api/cv/profile-preview', { method: 'POST' });
+			if (!response.ok) {
+				throw new Error(
+					await responseMessage(response, 'Lebenslauf konnte nicht ausgewertet werden')
+				);
+			}
+			const body = (await response.json()) as { profile: ProfilePreview };
+			previewFields = Object.keys(body.profile) as ProfileField[];
+			selectedFields = [...previewFields];
+			preview = { ...preview, ...body.profile };
+			previewOpen = true;
+		} catch (error) {
+			toast.error(
+				error instanceof Error ? error.message : 'Lebenslauf konnte nicht ausgewertet werden'
+			);
+		} finally {
+			importBusy = false;
+		}
+	}
+
+	async function applyPreview() {
+		applyBusy = true;
+		try {
+			const response = await fetch('/api/cv/profile', {
+				method: 'PATCH',
+				headers: { 'content-type': 'application/json' },
+				body: JSON.stringify({ selected: selectedFields, profile: $state.snapshot(preview) })
+			});
+			if (!response.ok) {
+				throw new Error(await responseMessage(response, 'Profil konnte nicht aktualisiert werden'));
+			}
+			previewOpen = false;
+			await invalidateAll();
+			form.reset({ data: data.form.data });
+			toast.success('Profil aus Lebenslauf aktualisiert');
+		} catch (error) {
+			toast.error(
+				error instanceof Error ? error.message : 'Profil konnte nicht aktualisiert werden'
+			);
+		} finally {
+			applyBusy = false;
+		}
+	}
 </script>
 
-<form method="POST" use:enhance class="mx-auto max-w-2xl space-y-6">
+<form method="POST" {@attach enhanceAttachment} class="mx-auto max-w-3xl space-y-6">
 	<div>
 		<h1 class="text-2xl font-semibold tracking-tight">Einstellungen</h1>
-		<p class="text-sm text-muted-foreground">Profil, Standort, Portale und KI-Konfiguration.</p>
+		<p class="text-sm text-muted-foreground">Profil, Portale und KI-Konfiguration.</p>
 	</div>
 
 	<Card.Root>
 		<Card.Header>
 			<Card.Title>Profil</Card.Title>
 			<Card.Description>
-				Diese Angaben nutzt die KI, um Stellen gegen dein Profil zu bewerten.
+				Diese Angaben nutzt die KI, um Stellen und Betriebe gegen dein Profil zu bewerten.
 			</Card.Description>
 		</Card.Header>
-		<Card.Content class="space-y-4">
-			<Form.Field {form} name="profileText">
-				<Form.Control>
-					{#snippet children({ props })}
-						<Form.Label>Über dich</Form.Label>
-						<Textarea
-							{...props}
-							bind:value={$formData.profileText}
-							rows={5}
-							placeholder="Erfahrung, Stärken, was du suchst …"
-						/>
-					{/snippet}
-				</Form.Control>
-				<Form.FieldErrors />
-			</Form.Field>
-			<Form.Field {form} name="roleKeywords">
-				<Form.Control>
-					{#snippet children({ props })}
-						<Form.Label>Gesuchte Rollen (kommagetrennt)</Form.Label>
-						<Input {...props} bind:value={$formData.roleKeywords} />
-					{/snippet}
-				</Form.Control>
-				<Form.FieldErrors />
-			</Form.Field>
-			<Form.Field {form} name="languages">
-				<Form.Control>
-					{#snippet children({ props })}
-						<Form.Label>Sprachen mit Niveau (kommagetrennt)</Form.Label>
-						<Input
-							{...props}
-							bind:value={$formData.languages}
-							placeholder="Deutsch (A2), Englisch (B2) …"
-						/>
-					{/snippet}
-				</Form.Control>
-				<Form.FieldErrors />
-			</Form.Field>
-			<div class="grid gap-4 sm:grid-cols-3">
-				<Form.Field {form} name="germanLevel">
-					<Form.Control>
-						{#snippet children({ props })}
-							<Form.Label>Deutschniveau</Form.Label>
-							<Input {...props} bind:value={$formData.germanLevel} placeholder="A2" />
-						{/snippet}
-					</Form.Control>
-					<Form.FieldErrors />
-				</Form.Field>
-				<Form.Field {form} name="experienceYears">
-					<Form.Control>
-						{#snippet children({ props })}
-							<Form.Label>Erfahrung (Jahre)</Form.Label>
-							<Input {...props} type="number" bind:value={$formData.experienceYears} />
-						{/snippet}
-					</Form.Control>
-					<Form.FieldErrors />
-				</Form.Field>
-				<Form.Field {form} name="availability">
-					<Form.Control>
-						{#snippet children({ props })}
-							<Form.Label>Verfügbarkeit</Form.Label>
-							<Input
-								{...props}
-								bind:value={$formData.availability}
-								placeholder="Vollzeit, ab sofort"
-							/>
-						{/snippet}
-					</Form.Control>
-					<Form.FieldErrors />
-				</Form.Field>
-			</div>
-			<Form.Field {form} name="educationStatus">
-				<Form.Control>
-					{#snippet children({ props })}
-						<Form.Label>Ausbildung / Status</Form.Label>
-						<Input
-							{...props}
-							bind:value={$formData.educationStatus}
-							placeholder="z.B. laufendes Studium, Matura"
-						/>
-					{/snippet}
-				</Form.Control>
-				<Form.FieldErrors />
-			</Form.Field>
-			<Form.Field {form} name="workPermit" class="flex flex-row items-center gap-2 space-y-0">
-				<Form.Control>
-					{#snippet children({ props })}
-						<Checkbox {...props} bind:checked={$formData.workPermit} />
-						<Form.Label class="font-normal">Arbeitsberechtigung für Österreich vorhanden</Form.Label
-						>
-					{/snippet}
-				</Form.Control>
-			</Form.Field>
-		</Card.Content>
-	</Card.Root>
+		<Card.Content class="space-y-6">
+			<ProfileEditor profile={$formData} />
 
-	<Card.Root>
-		<Card.Header>
-			<Card.Title>Standort</Card.Title>
-			<Card.Description>Für die Suche nach Betrieben in deiner Nähe.</Card.Description>
-		</Card.Header>
-		<Card.Content class="grid gap-4 sm:grid-cols-3">
-			<div class="sm:col-span-2">
-				<Form.Field {form} name="homeAddress">
+			<div class="grid gap-4 border-t pt-6 sm:grid-cols-3">
+				<p class="text-sm text-muted-foreground sm:col-span-2">
+					Der Suchradius steuert, welche Betriebe rund um deine Adresse gefunden werden.
+				</p>
+				<Form.Field {form} name="radiusMeters">
 					<Form.Control>
 						{#snippet children({ props })}
-							<Form.Label>Adresse</Form.Label>
-							<Input
-								{...props}
-								bind:value={$formData.homeAddress}
-								placeholder="Straße Hausnr, PLZ Ort"
-							/>
+							<Form.Label>Suchradius (m)</Form.Label>
+							<Input {...props} type="number" bind:value={$formData.radiusMeters} />
 						{/snippet}
 					</Form.Control>
 					<Form.FieldErrors />
 				</Form.Field>
 			</div>
-			<Form.Field {form} name="radiusMeters">
-				<Form.Control>
-					{#snippet children({ props })}
-						<Form.Label>Radius (m)</Form.Label>
-						<Input {...props} type="number" bind:value={$formData.radiusMeters} />
-					{/snippet}
-				</Form.Control>
-				<Form.FieldErrors />
-			</Form.Field>
+
+			<div class="space-y-4 border-t pt-6">
+				<div>
+					<h3 class="text-sm font-medium">Lebenslauf</h3>
+					<p class="text-sm text-muted-foreground">
+						PDF, max. 10 MB. Wird als Anhang und auf Wunsch für den Profilimport verwendet.
+					</p>
+				</div>
+				{#if data.cv}
+					<div class="flex flex-wrap items-center gap-3 rounded-2xl border p-3">
+						<FileText class="size-8 shrink-0 text-muted-foreground" />
+						<div class="min-w-0 flex-1">
+							<p class="truncate font-medium">{data.cv.filename}</p>
+							<p class="text-sm text-muted-foreground">
+								{fmtSize(data.cv.size)} · hochgeladen
+								{new Date(data.cv.uploadedAt).toLocaleDateString('de-AT')}
+							</p>
+						</div>
+						<Button href="/api/cv" variant="outline" size="sm"><Download /> Download</Button>
+						<Button variant="ghost" size="sm" disabled={cvBusy} onclick={deleteCv}>
+							<Trash2 /> Löschen
+						</Button>
+					</div>
+				{:else}
+					<p class="text-sm text-muted-foreground">Noch kein Lebenslauf hinterlegt.</p>
+				{/if}
+
+				<Input
+					type="file"
+					accept=".pdf,application/pdf"
+					disabled={cvBusy}
+					class="max-w-sm"
+					onchange={onCvSelected}
+				/>
+				<div class="flex flex-wrap gap-2">
+					<Button
+						variant="outline"
+						disabled={!canImport || importBusy}
+						onclick={createPreview}
+						title={hasUnsavedChanges ? 'Speichere zuerst die offenen Profiländerungen.' : undefined}
+					>
+						{#if importBusy}<Spinner />{:else}<Sparkles />{/if}
+						Profil aus Lebenslauf aktualisieren
+					</Button>
+				</div>
+				{#if data.cv && !data.hasLlmConfig}
+					<p class="text-sm text-muted-foreground">
+						Für den Profilimport müssen Base URL und Modell gespeichert sein.
+					</p>
+				{:else if hasUnsavedChanges}
+					<p class="text-sm text-muted-foreground">
+						Speichere die offenen Änderungen, bevor du das Profil importierst.
+					</p>
+				{/if}
+			</div>
 		</Card.Content>
 	</Card.Root>
 
@@ -233,12 +260,12 @@
 			<Card.Description>Welche Jobportale durchsucht werden.</Card.Description>
 		</Card.Header>
 		<Card.Content class="grid gap-3 sm:grid-cols-2">
-			{#each sources as src (src.name)}
-				<Form.Field {form} name={src.name} class="flex flex-row items-center gap-2 space-y-0">
+			{#each sources as source (source.name)}
+				<Form.Field {form} name={source.name} class="flex flex-row items-center gap-2 space-y-0">
 					<Form.Control>
 						{#snippet children({ props })}
-							<Checkbox {...props} bind:checked={$formData[src.name]} />
-							<Form.Label class="font-normal">{src.label}</Form.Label>
+							<Checkbox {...props} bind:checked={$formData[source.name]} />
+							<Form.Label class="font-normal">{source.label}</Form.Label>
 						{/snippet}
 					</Form.Control>
 				</Form.Field>
@@ -250,7 +277,7 @@
 		<Card.Header>
 			<Card.Title>KI-Bewertung (OpenAI-kompatibel)</Card.Title>
 			<Card.Description>
-				Endpoint zum Bewerten der Stellen und Erstellen der Bewerbungs-Entwürfe.
+				Endpoint zum Bewerten, für den Profilimport und für Bewerbungsentwürfe.
 			</Card.Description>
 		</Card.Header>
 		<Card.Content class="space-y-4">
@@ -308,10 +335,6 @@
 					<Form.FieldErrors />
 				</Form.Field>
 			</div>
-			<p class="text-sm text-muted-foreground">
-				Die Limits schützen den KI-Anbieter vor zu vielen Anfragen. Änderungen gelten ab der
-				nächsten Aktualisierung.
-			</p>
 			<Form.Field {form} name="llmApiKey">
 				<Form.Control>
 					{#snippet children({ props })}
@@ -320,18 +343,11 @@
 							{...props}
 							type="password"
 							bind:value={$formData.llmApiKey}
-							placeholder={hasApiKey ? '•••••••• (gespeichert — leer lassen zum Behalten)' : 'sk-…'}
+							placeholder={hasApiKey ? '•••••••• (gespeichert, leer lassen zum Behalten)' : 'sk-…'}
 						/>
 					{/snippet}
 				</Form.Control>
 				<Form.FieldErrors />
-				<p class="text-sm text-muted-foreground">
-					{#if hasApiKey}
-						API-Key ist gespeichert. Das Feld bleibt leer, damit der Schlüssel nicht angezeigt wird.
-					{:else}
-						Noch kein API-Key gespeichert.
-					{/if}
-				</p>
 			</Form.Field>
 			<Form.Field {form} name="rankingNotes">
 				<Form.Control>
@@ -341,7 +357,7 @@
 							{...props}
 							bind:value={$formData.rankingNotes}
 							rows={3}
-							placeholder="z.B. Stellen ohne Deutsch-Pflicht bevorzugen; kurze Anfahrt wichtig …"
+							placeholder="z.B. Stellen ohne Deutsch-Pflicht bevorzugen; kurze Anfahrt wichtig"
 						/>
 					{/snippet}
 				</Form.Control>
@@ -351,58 +367,26 @@
 	</Card.Root>
 
 	<Form.Button disabled={$submitting}>
-		{#if $submitting}<Spinner class="size-4" />{:else}<Save class="size-4" />{/if}
+		{#if $submitting}<Spinner />{:else}<Save />{/if}
 		Speichern
 	</Form.Button>
 </form>
 
-<!-- CV is handled outside the Superform via /api/cv -->
-<div class="mx-auto mt-6 max-w-2xl">
-	<Card.Root>
-		<Card.Header>
-			<Card.Title>Lebenslauf</Card.Title>
-			<Card.Description>
-				Wird für Initiativbewerbungen als Anhang verwendet. PDF oder Word, max. 10 MB.
-			</Card.Description>
-		</Card.Header>
-		<Card.Content class="space-y-4">
-			{#if data.cv}
-				<div class="flex items-center gap-3 rounded-md border p-3">
-					<FileText class="size-8 shrink-0 text-muted-foreground" />
-					<div class="min-w-0 flex-1">
-						<p class="truncate font-medium">{data.cv.filename}</p>
-						<p class="text-sm text-muted-foreground">
-							{fmtSize(data.cv.size)} · hochgeladen
-							{new Date(data.cv.uploadedAt).toLocaleDateString('de-AT')}
-						</p>
-					</div>
-					<Button href="/api/cv" variant="outline" size="sm">
-						<Download class="size-4" /> Download
-					</Button>
-					<Button variant="ghost" size="sm" disabled={cvBusy} onclick={deleteCv}>
-						<Trash2 class="size-4" /> Löschen
-					</Button>
-				</div>
-			{:else}
-				<p class="text-sm text-muted-foreground">Noch kein Lebenslauf hinterlegt.</p>
-			{/if}
-
-			<input
-				bind:this={fileInput}
-				type="file"
-				accept=".pdf,.doc,.docx,application/pdf"
-				class="hidden"
-				onchange={onCvSelected}
-			/>
-			<Button
-				type="button"
-				variant="secondary"
-				disabled={cvBusy}
-				onclick={() => fileInput?.click()}
-			>
-				{#if cvBusy}<Spinner class="size-4" />{:else}<Upload class="size-4" />{/if}
-				{data.cv ? 'Ersetzen' : 'Hochladen'}
+<Dialog.Root bind:open={previewOpen}>
+	<Dialog.Content class="max-h-[90vh] overflow-y-auto sm:max-w-3xl">
+		<Dialog.Header>
+			<Dialog.Title>Profil aus Lebenslauf aktualisieren</Dialog.Title>
+			<Dialog.Description>
+				Prüfe die erkannten Angaben. Nur ausgewählte Bereiche werden sofort gespeichert.
+			</Dialog.Description>
+		</Dialog.Header>
+		<ProfileEditor bind:profile={preview} fields={previewFields} bind:selected={selectedFields} />
+		<Dialog.Footer>
+			<Button variant="outline" onclick={() => (previewOpen = false)}>Abbrechen</Button>
+			<Button disabled={applyBusy || selectedFields.length === 0} onclick={applyPreview}>
+				{#if applyBusy}<Spinner />{:else}<Save />{/if}
+				Auswahl übernehmen
 			</Button>
-		</Card.Content>
-	</Card.Root>
-</div>
+		</Dialog.Footer>
+	</Dialog.Content>
+</Dialog.Root>

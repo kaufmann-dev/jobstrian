@@ -2,7 +2,7 @@ import type { Settings, Listing, Lead } from '../db/schema';
 import { chatJson, type LlmConfig } from './client';
 import type { LlmLimiter } from './limiter';
 
-export const RANK_PROMPT_VERSION = 'rank-v1';
+export const RANK_PROMPT_VERSION = 'rank-v2-structured-profile';
 
 export interface RankResult {
 	score: number; // 0-100
@@ -21,10 +21,32 @@ export function profileBlock(s: Settings): string {
 		exp,
 		s.germanLevel && `Deutschniveau: ${s.germanLevel}`,
 		s.languages.length && `Sprachen gesamt: ${s.languages.join(', ')}`,
+		s.skills.length && `Kenntnisse: ${s.skills.join(', ')}`,
 		s.educationStatus && `Ausbildung: ${s.educationStatus}`,
 		s.workPermit && `Arbeitsberechtigung für Österreich: ja`,
 		s.availability && `Verfügbarkeit: ${s.availability}`,
 		s.homeAddress && `Wohnort: ${s.homeAddress} (kurze Anfahrt ist ein Plus)`,
+		s.workExperience.length &&
+			`Berufserfahrung:\n${s.workExperience
+				.map(
+					(item) =>
+						`- ${[item.position, item.employer, item.location, [item.startDate, item.endDate].filter(Boolean).join(' bis ')].filter(Boolean).join(' | ')}${item.description ? `: ${item.description}` : ''}`
+				)
+				.join('\n')}`,
+		s.educationHistory.length &&
+			`Ausbildungsverlauf:\n${s.educationHistory
+				.map(
+					(item) =>
+						`- ${[item.qualification, item.field, item.institution, item.location, [item.startDate, item.endDate].filter(Boolean).join(' bis ')].filter(Boolean).join(' | ')}${item.description ? `: ${item.description}` : ''}`
+				)
+				.join('\n')}`,
+		s.certifications.length &&
+			`Zertifikate:\n${s.certifications
+				.map(
+					(item) =>
+						`- ${[item.name, item.issuer, item.date].filter(Boolean).join(' | ')}${item.description ? `: ${item.description}` : ''}`
+				)
+				.join('\n')}`,
 		s.rankingNotes && `Zusätzliche Gewichtung: ${s.rankingNotes}`
 	].filter(Boolean);
 	return parts.join('\n');
@@ -35,6 +57,7 @@ Gleiche die ANFORDERUNGEN der Stelle gegen das Profil ab und gewichte vor allem:
 - Sprachniveau: Verlangt die Stelle ein höheres Deutschniveau als der Bewerber hat (z.B. Stelle "Deutsch C1/fließend", Bewerber A2), senke den Score deutlich und nenne es. Andere Sprachen als Plus werten.
 - Erfahrung: Vergleiche geforderte Berufsjahre mit der vorhandenen Erfahrung. Weniger Erfahrung als gefordert => niedriger.
 - Ausbildung/Status: Studium/Schulabschluss und Verfügbarkeit/Arbeitsberechtigung berücksichtigen.
+- Kenntnisse und detaillierter Verlauf: Relevante Skills, konkrete Berufsstationen, Ausbildung und Zertifikate gegen die Anforderungen abgleichen.
 - Rolle & Ort: Passt die Rolle zu den gesuchten Rollen? Ist die Stelle in/nahe dem Wohnort?
 Wenn die Stellenbeschreibung keine Anforderung nennt, nimm an, dass sie erfüllbar ist (nicht bestrafen).
 Antworte ausschließlich als JSON-Objekt:

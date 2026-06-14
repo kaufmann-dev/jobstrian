@@ -12,6 +12,7 @@ import {
 	index
 } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
+import type { Certification, EducationHistory, WorkExperience } from '$lib/profile';
 
 /** PostgreSQL bytea, surfaced as a Node Buffer. */
 const bytea = customType<{ data: Buffer; default: false }>({
@@ -113,6 +114,10 @@ export const settings = pgTable('settings', {
 	roleKeywords: jsonb('role_keywords').$type<string[]>().notNull().default([]),
 	// Languages with levels, e.g. "Deutsch (A2)", "Englisch (B2)".
 	languages: jsonb('languages').$type<string[]>().notNull().default([]),
+	skills: jsonb('skills').$type<string[]>().notNull().default([]),
+	workExperience: jsonb('work_experience').$type<WorkExperience[]>().notNull().default([]),
+	educationHistory: jsonb('education_history').$type<EducationHistory[]>().notNull().default([]),
+	certifications: jsonb('certifications').$type<Certification[]>().notNull().default([]),
 	germanLevel: text('german_level').notNull().default(''), // e.g. "A2", "B1"
 	experienceYears: integer('experience_years'), // years of relevant experience
 	educationStatus: text('education_status').notNull().default(''),

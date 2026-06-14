@@ -20,6 +20,9 @@ user-configured OpenAI-compatible LLM.
 - **LLM ranking**: jobs receive a score + verdict + reasoning; for businesses
   without a listing a German e-mail draft is generated in addition. Unchanged
   jobs / businesses are skipped using content and ranking-context fingerprints.
+- **Structured CV profile**: maintain skills, employment, education and
+  certifications manually, or upload a PDF and selectively apply an editable
+  AI-extracted preview.
 - **Update button**: one run scrapes, deduplicates, closes vanished listings,
   synchronizes businesses and rates new or changed entries. Structured progress
   is shown live with per-phase counts, LLM queue metrics and cancellation.
@@ -78,7 +81,8 @@ Open `http://localhost:5173` and create the first user on the setup screen.
 The setup screen disables itself permanently once that single user exists.
 Afterwards log in at `/login`, enter your address, search terms and the
 OpenAI-compatible LLM (base URL including `/v1`, model, API key) in **Settings**,
-and click **Update** on the dashboard.
+Upload an optional PDF CV and trigger the AI profile import manually in
+**Settings**. Then click **Update** on the dashboard.
 
 ## Development
 

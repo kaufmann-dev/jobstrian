@@ -1,10 +1,19 @@
 import { z } from 'zod';
+import {
+	certificationsSchema,
+	educationHistoryListSchema,
+	skillsSchema,
+	workExperienceListSchema
+} from '$lib/profile';
 
 export const settingsSchema = z.object({
 	profileText: z.string().max(5000).default(''),
-	// Comma-separated lists, split on save.
-	roleKeywords: z.string().max(1000).default(''),
-	languages: z.string().max(500).default(''),
+	roleKeywords: z.array(z.string().max(200)).max(100).default([]),
+	languages: z.array(z.string().max(200)).max(50).default([]),
+	skills: skillsSchema.default([]),
+	workExperience: workExperienceListSchema.default([]),
+	educationHistory: educationHistoryListSchema.default([]),
+	certifications: certificationsSchema.default([]),
 	germanLevel: z.string().max(20).default(''),
 	experienceYears: z.number().int().min(0).max(60).nullable().default(null),
 	educationStatus: z.string().max(500).default(''),

@@ -26,4 +26,22 @@ describe('settingsSchema', () => {
 		expect(form.errors.llmRequestsPerMinute).toBeDefined();
 		expect(form.errors.llmMaxConcurrent).toBeDefined();
 	});
+
+	it('validates bounded nested CV profile entries', async () => {
+		const result = settingsSchema.safeParse({
+			skills: Array.from({ length: 101 }, (_, index) => `Skill ${index}`),
+			workExperience: [
+				{
+					position: 'A'.repeat(501),
+					employer: '',
+					location: '',
+					startDate: '',
+					endDate: '',
+					description: ''
+				}
+			]
+		});
+
+		expect(result.success).toBe(false);
+	});
 });

@@ -7,20 +7,17 @@ import { settingsSchema } from './schema';
 import type { Settings } from '$lib/server/db/schema';
 import type { Actions, PageServerLoad } from './$types';
 
-function splitList(value: string): string[] {
-	return value
-		.split(',')
-		.map((s) => s.trim())
-		.filter(Boolean);
-}
-
 function settingsFormData(s: Settings) {
 	const enabled = new Set(s.enabledSources);
 
 	return {
 		profileText: s.profileText,
-		roleKeywords: s.roleKeywords.join(', '),
-		languages: s.languages.join(', '),
+		roleKeywords: s.roleKeywords,
+		languages: s.languages,
+		skills: s.skills,
+		workExperience: s.workExperience,
+		educationHistory: s.educationHistory,
+		certifications: s.certifications,
 		germanLevel: s.germanLevel,
 		experienceYears: s.experienceYears,
 		educationStatus: s.educationStatus,
@@ -48,7 +45,12 @@ async function settingsForm(s: Settings) {
 export const load: PageServerLoad = async () => {
 	const s = await getSettings();
 	const form = await settingsForm(s);
-	return { form, hasApiKey: Boolean(s.llmApiKey), cv: await getCvMeta() };
+	return {
+		form,
+		hasApiKey: Boolean(s.llmApiKey),
+		hasLlmConfig: Boolean(s.llmBaseUrl && s.llmModel),
+		cv: await getCvMeta()
+	};
 };
 
 export const actions: Actions = {
@@ -69,8 +71,12 @@ export const actions: Actions = {
 
 		const updated = await updateSettings({
 			profileText: data.profileText,
-			roleKeywords: splitList(data.roleKeywords),
-			languages: splitList(data.languages),
+			roleKeywords: data.roleKeywords,
+			languages: data.languages,
+			skills: data.skills,
+			workExperience: data.workExperience,
+			educationHistory: data.educationHistory,
+			certifications: data.certifications,
 			germanLevel: data.germanLevel,
 			experienceYears: data.experienceYears,
 			educationStatus: data.educationStatus,

@@ -50,6 +50,13 @@
       "when": 1781423872534,
       "tag": "0006_pink_landau",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1781426212435,
+      "tag": "0007_dapper_king_bedlam",
+      "breakpoints": true
     }
   ]
 }
