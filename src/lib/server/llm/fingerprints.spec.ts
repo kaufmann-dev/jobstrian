@@ -87,6 +87,7 @@ function leadRow(patch: Partial<Lead> = {}): Lead {
 		distanceMeters: 350,
 		address: 'Testgasse 1, Wien',
 		website: 'https://cafe.example.test',
+		websiteManual: false,
 		phone: null,
 		phoneManual: false,
 		email: 'jobs@cafe.example.test',

@@ -22,6 +22,11 @@ export const PATCH: RequestHandler = async ({ params, request }) => {
 		update.emailSource = body.data.email ? 'manual' : null;
 		update.contentHash = null;
 	}
+	if (body.data.website !== undefined) {
+		update.website = body.data.website;
+		update.websiteManual = true;
+		update.contentHash = null;
+	}
 
 	const [updated] = await db.update(lead).set(update).where(eq(lead.id, id.data)).returning();
 	if (!updated) return json({ message: 'Betrieb nicht gefunden' }, { status: 404 });

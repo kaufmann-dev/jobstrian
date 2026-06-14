@@ -44,7 +44,7 @@
 	let contactSaving = $state(false);
 
 	const contactForm = superForm(
-		{ phone: '', email: '' },
+		{ phone: '', email: '', website: '' },
 		{
 			id: 'lead-contact',
 			validators: zod4Client(leadContactFormSchema),
@@ -73,7 +73,11 @@
 	function beginContactEdit(): void {
 		if (!selected) return;
 		contactForm.reset({
-			data: { phone: selected.phone ?? '', email: selected.email ?? '' }
+			data: {
+				phone: selected.phone ?? '',
+				email: selected.email ?? '',
+				website: selected.website ?? ''
+			}
 		});
 		editingContact = true;
 	}
@@ -95,10 +99,12 @@
 
 		const phone = validation.data.phone?.trim() || null;
 		const email = validation.data.email?.trim().toLowerCase() || null;
-		const patch: { phone?: string | null; email?: string | null } = {};
+		const website = validation.data.website?.trim() || null;
+		const patch: { phone?: string | null; email?: string | null; website?: string | null } = {};
 		if (phone !== selected.phone) patch.phone = phone;
 		if (email !== selected.email) patch.email = email;
-		if (patch.phone === undefined && patch.email === undefined) {
+		if (website !== selected.website) patch.website = website;
+		if (patch.phone === undefined && patch.email === undefined && patch.website === undefined) {
 			editingContact = false;
 			return;
 		}
@@ -458,6 +464,18 @@
 									<p class="text-xs text-destructive">{$contactErrors.email.join(' ')}</p>
 								{/if}
 							</div>
+							<div class="space-y-1">
+								<Label for="contact-website">Website</Label>
+								<Input
+									id="contact-website"
+									type="url"
+									bind:value={$contactData.website}
+									aria-invalid={Boolean($contactErrors.website)}
+								/>
+								{#if $contactErrors.website}
+									<p class="text-xs text-destructive">{$contactErrors.website.join(' ')}</p>
+								{/if}
+							</div>
 							<p class="text-xs text-muted-foreground">
 								Leere Felder werden gelöscht und bei Aktualisierungen nicht erneut befüllt.
 							</p>
@@ -496,17 +514,21 @@
 									<Phone class="size-4" /> Kein Telefon
 								</p>
 							{/if}
+							{#if selected.website}
+								<Button
+									variant="link"
+									href={selected.website}
+									target="_blank"
+									class="h-auto p-0 font-normal"
+								>
+									<Globe class="size-4" /> Website
+								</Button>
+							{:else}
+								<p class="flex items-center gap-2 text-muted-foreground">
+									<Globe class="size-4" /> Keine Website
+								</p>
+							{/if}
 						</div>
-					{/if}
-					{#if selected.website}
-						<Button
-							variant="link"
-							href={selected.website}
-							target="_blank"
-							class="h-auto p-0 font-normal"
-						>
-							<Globe class="size-4" /> Website
-						</Button>
 					{/if}
 				</div>
 				<div class="flex flex-wrap gap-2">

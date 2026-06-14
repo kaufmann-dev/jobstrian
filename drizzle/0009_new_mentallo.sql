@@ -1,0 +1,1 @@
+ALTER TABLE "lead" ADD COLUMN "website_manual" boolean DEFAULT false NOT NULL;

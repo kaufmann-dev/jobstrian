@@ -230,6 +230,7 @@ export const lead = pgTable(
 		distanceMeters: integer('distance_meters').notNull(),
 		address: text('address'),
 		website: text('website'),
+		websiteManual: boolean('website_manual').notNull().default(false),
 		phone: text('phone'),
 		phoneManual: boolean('phone_manual').notNull().default(false),
 		email: text('email'),

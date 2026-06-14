@@ -490,11 +490,9 @@
 							class="rounded-xl outline-none focus-visible:ring-2 focus-visible:ring-ring"
 						>
 							<Card.Root
-								class="h-24 py-3 transition-all hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-md sm:h-52 sm:py-5"
+								class="h-full py-3 transition-all hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-md sm:py-5"
 							>
-								<div
-									class="flex h-full items-center gap-3 px-5 sm:flex-col sm:items-start sm:gap-2"
-								>
+								<div class="flex items-center gap-3 px-5 sm:flex-col sm:items-start sm:gap-2">
 									<span
 										class="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary sm:size-8"
 									>

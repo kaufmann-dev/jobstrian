@@ -22,14 +22,25 @@ describe('PATCH /api/leads/[id]/contact', () => {
 	});
 
 	it('stores normalized manual contact values', async () => {
-		returning.mockResolvedValue([{ id: 7, phone: '+43 1 234', email: 'jobs@example.com' }]);
+		returning.mockResolvedValue([
+			{
+				id: 7,
+				phone: '+43 1 234',
+				email: 'jobs@example.com',
+				website: 'https://example.com/jobs'
+			}
+		]);
 
 		const response = await PATCH({
 			params: { id: '7' },
 			request: new Request('http://localhost/api/leads/7/contact', {
 				method: 'PATCH',
 				headers: { 'content-type': 'application/json' },
-				body: JSON.stringify({ phone: ' +43 1 234 ', email: ' JOBS@EXAMPLE.COM ' })
+				body: JSON.stringify({
+					phone: ' +43 1 234 ',
+					email: ' JOBS@EXAMPLE.COM ',
+					website: ' https://example.com/jobs '
+				})
 			})
 		} as never);
 
@@ -40,19 +51,21 @@ describe('PATCH /api/leads/[id]/contact', () => {
 			email: 'jobs@example.com',
 			emailManual: true,
 			emailSource: 'manual',
+			website: 'https://example.com/jobs',
+			websiteManual: true,
 			contentHash: null
 		});
 	});
 
-	it('persists a manual email deletion', async () => {
-		returning.mockResolvedValue([{ id: 7, email: null }]);
+	it('persists manual contact deletions', async () => {
+		returning.mockResolvedValue([{ id: 7, email: null, website: null }]);
 
 		const response = await PATCH({
 			params: { id: '7' },
 			request: new Request('http://localhost/api/leads/7/contact', {
 				method: 'PATCH',
 				headers: { 'content-type': 'application/json' },
-				body: JSON.stringify({ email: '' })
+				body: JSON.stringify({ email: '', website: '' })
 			})
 		} as never);
 
@@ -61,6 +74,8 @@ describe('PATCH /api/leads/[id]/contact', () => {
 			email: null,
 			emailManual: true,
 			emailSource: null,
+			website: null,
+			websiteManual: true,
 			contentHash: null
 		});
 	});
