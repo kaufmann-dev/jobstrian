@@ -86,8 +86,11 @@ export const rankingCriterionSchema = z.object({
 		.min(1, 'ID fehlt.')
 		.max(80, 'ID ist zu lang.')
 		.regex(/^[a-z0-9][a-z0-9_-]*$/, 'ID darf nur Kleinbuchstaben, Zahlen, _ und - enthalten.'),
-	label: z.string().trim().min(1, 'Label fehlt.').max(80, 'Label ist zu lang.'),
-	description: z.string().trim().max(500, 'Beschreibung ist zu lang.').default(''),
+	label: z
+		.string()
+		.max(80, 'Label ist zu lang.')
+		.refine((value) => value.trim().length >= 1, 'Label fehlt.'),
+	description: z.string().max(500, 'Beschreibung ist zu lang.').default(''),
 	weight: z.number().int('Gewicht muss eine ganze Zahl sein.').min(1).max(5)
 });
 
