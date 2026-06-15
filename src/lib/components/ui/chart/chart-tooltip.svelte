@@ -5,9 +5,8 @@
 	import { getChartContext, Tooltip as TooltipPrimitive } from 'layerchart';
 	import type { Snippet } from 'svelte';
 
-	// eslint-disable-next-line @typescript-eslint/no-explicit-any
-	function defaultFormatter(value: any, _payload: TooltipPayload[]) {
-		return `${value}`;
+	function defaultFormatter(value: unknown) {
+		return String(value);
 	}
 
 	let {
@@ -32,8 +31,9 @@
 		labelKey?: string;
 		hideIndicator?: boolean;
 		labelClassName?: string;
-		labelFormatter?: // eslint-disable-next-line @typescript-eslint/no-explicit-any
-			((value: any, payload: TooltipPayload[]) => string | number | Snippet) | null;
+		labelFormatter?:
+			| ((value: unknown, payload: TooltipPayload[]) => string | number | Snippet)
+			| null;
 		formatter?: Snippet<
 			[
 				{
@@ -49,6 +49,13 @@
 
 	const chart = useChart();
 	const chartCtx = getChartContext();
+
+	function attachRef(node: HTMLDivElement) {
+		ref = node;
+		return () => {
+			if (ref === node) ref = null;
+		};
+	}
 
 	// Filter to series with defined values (important for item-based charts like Pie/Arc
 	// where only the hovered item has a value)
@@ -104,7 +111,7 @@
 
 <TooltipPrimitive.Root variant="none">
 	<div
-		bind:this={ref}
+		{@attach attachRef}
 		class={cn(
 			'grid min-w-[9rem] items-start gap-1.5 rounded-lg border border-border/50 bg-background px-2.5 py-1.5 text-xs shadow-xl',
 			className

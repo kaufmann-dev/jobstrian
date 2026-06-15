@@ -47,6 +47,9 @@
 </script>
 
 <script lang="ts">
+	import { resolve } from '$app/paths';
+	import type { Pathname } from '$app/types';
+
 	let {
 		class: className,
 		variant = 'default',
@@ -58,24 +61,53 @@
 		children,
 		...restProps
 	}: ButtonProps = $props();
+
+	function attachRef(node: HTMLAnchorElement | HTMLButtonElement) {
+		ref = node;
+		return () => {
+			if (ref === node) ref = null;
+		};
+	}
 </script>
 
 {#if href}
-	<a
-		bind:this={ref}
-		data-slot="button"
-		class={cn(buttonVariants({ variant, size }), className)}
-		href={disabled ? undefined : href}
-		aria-disabled={disabled}
-		role={disabled ? 'link' : undefined}
-		tabindex={disabled ? -1 : undefined}
-		{...restProps}
-	>
-		{@render children?.()}
-	</a>
+	{#if disabled}
+		<a
+			{@attach attachRef}
+			data-slot="button"
+			class={cn(buttonVariants({ variant, size }), className)}
+			aria-disabled="true"
+			role="link"
+			tabindex="-1"
+			{...restProps}
+		>
+			{@render children?.()}
+		</a>
+	{:else if href.startsWith('/')}
+		<a
+			{@attach attachRef}
+			data-slot="button"
+			class={cn(buttonVariants({ variant, size }), className)}
+			href={resolve(href as Pathname)}
+			{...restProps}
+		>
+			{@render children?.()}
+		</a>
+	{:else}
+		<a
+			{@attach attachRef}
+			data-slot="button"
+			class={cn(buttonVariants({ variant, size }), className)}
+			{href}
+			{...restProps}
+			rel="external noopener noreferrer"
+		>
+			{@render children?.()}
+		</a>
+	{/if}
 {:else}
 	<button
-		bind:this={ref}
+		{@attach attachRef}
 		data-slot="button"
 		class={cn(buttonVariants({ variant, size }), className)}
 		{type}

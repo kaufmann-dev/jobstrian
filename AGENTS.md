@@ -174,6 +174,7 @@ Avoid these legacy Svelte features in new or refactored code:
 - Available shadcn-svelte components: `accordion alert alert-dialog aspect-ratio avatar badge breadcrumb button calendar card carousel chart checkbox collapsible combobox command context-menu data-table date-picker dialog drawer dropdown-menu form hover-card input input-otp label menubar navigation-menu pagination popover progress radio-group range-calendar resizable scroll-area select separator sheet sidebar skeleton slider sonner switch table tabs textarea toggle toggle-group tooltip`
 - **Icons**: Always use `@lucide/svelte` (e.g., `<Search class="size-4" />`).
 - **Theming**: Use `setMode("light" | "dark" | "system")` or `toggleMode` from `mode-watcher` for controls. Add `ModeWatcher` once in the root layout:
+
   ```svelte
   <script lang="ts">
   	import { ModeWatcher } from 'mode-watcher';

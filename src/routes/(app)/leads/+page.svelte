@@ -549,7 +549,8 @@
 						>
 					{/if}
 					{#if selected.status !== 'ignored'}
-						<Button variant="ghost" onclick={() => setStatus(selected!, 'ignored')}>Ignorieren</Button
+						<Button variant="ghost" onclick={() => setStatus(selected!, 'ignored')}
+							>Ignorieren</Button
 						>
 					{/if}
 				</div>

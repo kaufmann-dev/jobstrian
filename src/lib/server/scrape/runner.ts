@@ -186,17 +186,22 @@ export function hasVerifiedHomeLocation(
 ): boolean {
 	return Boolean(
 		settings.homeLocationProvider &&
-			settings.homeLocationId &&
-			settings.homeCity.trim() &&
-			settings.homeLat != null &&
-			settings.homeLon != null
+		settings.homeLocationId &&
+		settings.homeCity.trim() &&
+		settings.homeLat != null &&
+		settings.homeLon != null
 	);
 }
 
 export function jobSearchLocations(
 	settings: Pick<
 		Settings,
-		'jobSearchLocations' | 'homeLocationProvider' | 'homeLocationId' | 'homeCity' | 'homeLat' | 'homeLon'
+		| 'jobSearchLocations'
+		| 'homeLocationProvider'
+		| 'homeLocationId'
+		| 'homeCity'
+		| 'homeLat'
+		| 'homeLon'
 	>
 ): string[] {
 	if (settings.jobSearchLocations.length) return settings.jobSearchLocations;

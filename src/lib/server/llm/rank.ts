@@ -9,7 +9,7 @@ import {
 	type RankingCriterionScore
 } from '$lib/ranking-criteria';
 
-export const RANK_PROMPT_VERSION = 'rank-v4-weighted-criteria';
+export const RANK_PROMPT_VERSION = 'rank-v5-weighted-criteria-de';
 
 export interface RankResult {
 	score: number; // 0-100
@@ -62,36 +62,36 @@ export function profileBlock(s: Settings): string {
 	return parts.join('\n');
 }
 
-const SCORE_SCALE = `Use the full 0-5 scale, but do not force harshness or generosity.
-A score of 0 means: there is no explicit evidence of fit for this criterion, or there is an explicit mismatch. Do not assign 0 just to be strict.
-0 = no explicit evidence of fit, or explicit mismatch
-1 = very weak fit; only vague or indirect evidence
-2 = partial fit; some relevant evidence but important gaps
-3 = plausible fit; enough evidence to consider it
-4 = strong fit; most important requirements are clearly matched
-5 = excellent fit; direct match on nearly all important requirements`;
+const SCORE_SCALE = `Nutze die gesamte Skala von 0 bis 5, aber bewerte weder absichtlich streng noch großzügig.
+Eine Bewertung von 0 bedeutet: Für dieses Kriterium gibt es keinen ausdrücklichen Beleg für eine Passung oder es besteht ein ausdrücklicher Widerspruch. Vergib nicht allein aus Strenge eine 0.
+0 = kein ausdrücklicher Beleg für eine Passung oder ausdrücklicher Widerspruch
+1 = sehr schwache Passung; nur vage oder indirekte Belege
+2 = teilweise Passung; einige relevante Belege, aber wichtige Lücken
+3 = plausible Passung; genügend Belege, um sie in Betracht zu ziehen
+4 = starke Passung; die meisten wichtigen Anforderungen sind klar erfüllt
+5 = ausgezeichnete Passung; direkte Übereinstimmung mit nahezu allen wichtigen Anforderungen`;
 
 export const LISTING_SYSTEM = `Du bist ein Recruiting-Assistent. Bewerte, wie gut eine konkrete, ausgeschriebene Stelle zum Profil des Bewerbers passt.
 Gleiche die ANFORDERUNGEN der Stelle gegen das Profil und die konfigurierten Kriterien ab.
 Wenn die Stellenbeschreibung keine Anforderung nennt, nimm an, dass sie erfüllbar ist (nicht bestrafen).
 ${SCORE_SCALE}
 Antworte ausschließlich als JSON-Objekt:
-{"criteria":[{"criterionId":"<id aus den Kriterien>","score":<0-5>,"reason":"<kurze deutsche Begründung>"}]}
-Gib jedes konfigurierte Kriterium genau einmal zurück. Gib keinen finalen Score, kein verdict und keine Gesamtbegründung zurück.`;
+{"criteria":[{"criterionId":"<ID aus den Kriterien>","score":<0-5>,"reason":"<kurze deutsche Begründung>"}]}
+Die englischen JSON-Feldnamen sind technisch vorgegeben. Gib jedes konfigurierte Kriterium genau einmal zurück. Gib keine Gesamtpunktzahl, kein Gesamturteil und keine Gesamtbegründung zurück.`;
 
 export const LEAD_SYSTEM = `Du bist ein Recruiting-Assistent. Bewerte, wie sinnvoll und erfolgversprechend eine Initiativbewerbung (unaufgeforderte Bewerbung) des Bewerbers bei diesem Betrieb ist.
 WICHTIG: Es gibt KEINE ausgeschriebene Stelle und KEINE konkreten Anforderungen. Bewerte NICHT gegen Stellenanforderungen und erfinde keine.
 Sprachniveau und Berufsjahre NICHT als harte Anforderung bestrafen — es gibt keine Ausschreibung, gegen die man durchfallen könnte; nutze sie nur als grobe Plausibilität.
 ${SCORE_SCALE}
 Antworte ausschließlich als JSON-Objekt:
-{"criteria":[{"criterionId":"<id aus den Kriterien>","score":<0-5>,"reason":"<kurze deutsche Begründung>"}]}
-Gib jedes konfigurierte Kriterium genau einmal zurück. Gib keinen finalen Score, kein verdict und keine Gesamtbegründung zurück.`;
+{"criteria":[{"criterionId":"<ID aus den Kriterien>","score":<0-5>,"reason":"<kurze deutsche Begründung>"}]}
+Die englischen JSON-Feldnamen sind technisch vorgegeben. Gib jedes konfigurierte Kriterium genau einmal zurück. Gib keine Gesamtpunktzahl, kein Gesamturteil und keine Gesamtbegründung zurück.`;
 
 function criteriaBlock(criteria: RankingCriteria): string {
 	return criteria
 		.map(
 			(criterion) =>
-				`- id: ${criterion.id}\n  label: ${criterion.label}\n  gewicht: ${criterion.weight}\n  beschreibung: ${criterion.description || 'Keine Zusatzbeschreibung'}`
+				`- Kriterium-ID: ${criterion.id}\n  Bezeichnung: ${criterion.label}\n  Gewicht: ${criterion.weight}\n  Beschreibung: ${criterion.description || 'Keine Zusatzbeschreibung'}`
 		)
 		.join('\n');
 }
@@ -102,7 +102,7 @@ function rankedResult(raw: unknown, criteria: RankingCriteria): RankResult {
 }
 
 export function buildListingRankingPrompt(settings: Settings, listing: Listing): string {
-	return `BEWERBER:\n${profileBlock(settings)}\n\nKRITERIEN FUER STELLEN:
+	return `BEWERBER:\n${profileBlock(settings)}\n\nKRITERIEN FÜR STELLEN:
 ${criteriaBlock(settings.listingRankingCriteria)}
 
 STELLE:
@@ -122,7 +122,7 @@ export function buildLeadRankingPrompt(settings: Settings, lead: Lead): string {
 	const matchedTags = lead.matchedOsmTags.length
 		? lead.matchedOsmTags.map((tag) => tag.label).join(', ')
 		: 'keine gespeicherten OSM-Kategorien';
-	return `BEWERBER:\n${profileBlock(settings)}\n\nKRITERIEN FUER BETRIEBE:
+	return `BEWERBER:\n${profileBlock(settings)}\n\nKRITERIEN FÜR BETRIEBE:
 ${criteriaBlock(settings.leadRankingCriteria)}
 
 BETRIEB (potenzielle Initiativbewerbung):

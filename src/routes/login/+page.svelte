@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
+	import { resolve } from '$app/paths';
 	import { authClient } from '$lib/auth-client';
 	import * as Card from '$lib/components/ui/card/index.js';
 	import { Input } from '$lib/components/ui/input/index.js';
@@ -24,7 +25,7 @@
 			error = err.message ?? 'Anmeldung fehlgeschlagen';
 			return;
 		}
-		await goto('/');
+		await goto(resolve('/'));
 	}
 </script>
 

@@ -1,4 +1,5 @@
 import type { CursorPage } from '$lib/list-pages';
+import { SvelteURLSearchParams } from 'svelte/reactivity';
 
 export class ServerListController<T> {
 	items = $state.raw<T[]>([]);
@@ -7,7 +8,7 @@ export class ServerListController<T> {
 	total = $state(0);
 	loading = $state(false);
 	error = $state('');
-	private params = new URLSearchParams();
+	private params = new SvelteURLSearchParams();
 	private version = 0;
 
 	constructor(
@@ -15,7 +16,7 @@ export class ServerListController<T> {
 		initial: CursorPage<T>,
 		initialParams: Record<string, string> = {}
 	) {
-		this.params = new URLSearchParams(initialParams);
+		this.params = new SvelteURLSearchParams(initialParams);
 		this.apply(initial);
 	}
 
@@ -46,7 +47,7 @@ export class ServerListController<T> {
 	}
 
 	private async fetchPage(cursor: string | null): Promise<CursorPage<T>> {
-		const params = new URLSearchParams(this.params);
+		const params = new SvelteURLSearchParams(this.params);
 		if (cursor) params.set('cursor', cursor);
 		const response = await fetch(`${this.endpoint}?${params}`);
 		if (!response.ok) {
@@ -77,7 +78,7 @@ export class ServerListController<T> {
 	}
 
 	async replaceParams(params: Record<string, string>): Promise<void> {
-		this.params = new URLSearchParams(params);
+		this.params = new SvelteURLSearchParams(params);
 		await this.reset();
 	}
 

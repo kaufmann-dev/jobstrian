@@ -191,7 +191,10 @@
 
 {#snippet titleCell({ job }: { job: Listing })}
 	<div
-		class={['max-w-md font-medium break-words whitespace-normal', job.status === 'closed' && 'opacity-50']}
+		class={[
+			'max-w-md font-medium break-words whitespace-normal',
+			job.status === 'closed' && 'opacity-50'
+		]}
 	>
 		{job.title}
 	</div>

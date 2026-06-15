@@ -41,11 +41,11 @@ Regeln:
 - listingRankingCriteria bewertet konkrete ausgeschriebene Stellen.
 - leadRankingCriteria bewertet Betriebe für Initiativbewerbungen ohne konkrete Ausschreibung.
 - Jede Liste enthält 2 bis 8 Kriterien.
-- Jedes Kriterium hat id, label, description und weight.
-- id ist ein stabiler interner englischer slug aus Kleinbuchstaben, Zahlen, "-" oder "_".
-- label ist ein kurzes deutsches Label mit maximal 80 Zeichen.
-- description ist eine konkrete deutsche Scoring-Anweisung mit maximal 500 Zeichen.
-- weight ist eine ganze Zahl von 1 bis 5.
+- Jedes Kriterium hat die technisch vorgegebenen JSON-Felder id, label, description und weight.
+- id ist eine stabile interne englische Kennung aus Kleinbuchstaben, Zahlen, "-" oder "_".
+- label enthält eine kurze deutsche Bezeichnung mit maximal 80 Zeichen.
+- description enthält eine konkrete deutsche Bewertungsanweisung mit maximal 500 Zeichen.
+- weight ist eine ganze Zahl von 1 bis 5 und gibt die Gewichtung an.
 - Gewichte drücken Wichtigkeit aus; 5 ist am wichtigsten.
 - Nutze keine doppelten IDs innerhalb derselben Liste.
 - Kriterien sollen zum Nutzerwunsch, Profil und Suchkonfiguration passen.`;

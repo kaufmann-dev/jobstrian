@@ -8,9 +8,9 @@ export function hasSavedHomeLocation(
 ): boolean {
 	return Boolean(
 		settings.homeLocationProvider &&
-			settings.homeLocationId &&
-			settings.homeCity.trim() &&
-			settings.homeLat != null &&
-			settings.homeLon != null
+		settings.homeLocationId &&
+		settings.homeCity.trim() &&
+		settings.homeLat != null &&
+		settings.homeLon != null
 	);
 }

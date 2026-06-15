@@ -1,10 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import {
-	GeoLookupError,
-	geoSuggestions,
-	normalizeGeoapifyResult,
-	resetGeoapifyStateForTests
-} from './geoapify';
+import { geoSuggestions, normalizeGeoapifyResult, resetGeoapifyStateForTests } from './geoapify';
 
 const complete = {
 	place_id: 'place-1',

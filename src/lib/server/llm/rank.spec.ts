@@ -166,12 +166,15 @@ describe('lead ranking prompt', () => {
 			lead()
 		);
 
-		expect(prompt).toContain('id: nearby-fit');
-		expect(prompt).toContain('gewicht: 4');
+		expect(prompt).toContain('Kriterium-ID: nearby-fit');
+		expect(prompt).toContain('Gewicht: 4');
 		expect(prompt).toContain('Kurze und realistische Anfahrt bevorzugen.');
-		expect(LEAD_SYSTEM).toContain('Use the full 0-5 scale');
-		expect(LEAD_SYSTEM).toContain('0 = no explicit evidence of fit, or explicit mismatch');
-		expect(LEAD_SYSTEM).toContain('5 = excellent fit');
+		expect(LEAD_SYSTEM).toContain('Nutze die gesamte Skala von 0 bis 5');
+		expect(LEAD_SYSTEM).toContain(
+			'0 = kein ausdrücklicher Beleg für eine Passung oder ausdrücklicher Widerspruch'
+		);
+		expect(LEAD_SYSTEM).toContain('5 = ausgezeichnete Passung');
+		expect(LEAD_SYSTEM).not.toContain('Use the full');
 	});
 });
 
@@ -221,11 +224,14 @@ describe('listing ranking prompt', () => {
 			}
 		);
 
-		expect(prompt).toContain('id: language-fit');
-		expect(prompt).toContain('gewicht: 3');
+		expect(prompt).toContain('Kriterium-ID: language-fit');
+		expect(prompt).toContain('Gewicht: 3');
 		expect(prompt).toContain('Deutschpflicht gegen Profil abgleichen.');
-		expect(LISTING_SYSTEM).toContain('Use the full 0-5 scale');
-		expect(LISTING_SYSTEM).toContain('0 = no explicit evidence of fit, or explicit mismatch');
-		expect(LISTING_SYSTEM).toContain('5 = excellent fit');
+		expect(LISTING_SYSTEM).toContain('Nutze die gesamte Skala von 0 bis 5');
+		expect(LISTING_SYSTEM).toContain(
+			'0 = kein ausdrücklicher Beleg für eine Passung oder ausdrücklicher Widerspruch'
+		);
+		expect(LISTING_SYSTEM).toContain('5 = ausgezeichnete Passung');
+		expect(LISTING_SYSTEM).not.toContain('Use the full');
 	});
 });

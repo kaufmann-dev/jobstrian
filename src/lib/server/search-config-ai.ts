@@ -8,7 +8,6 @@ import {
 	parseOsmBusinessTag,
 	searchConfigPatchSchema,
 	searchConfigPreviewSchema,
-	type GeneratedSearchConfigField,
 	type OsmBusinessTag,
 	type OsmBusinessTagKey,
 	type SearchConfigPatch,
@@ -18,12 +17,6 @@ import type { Settings } from './db/schema';
 import { chatJson, getLlmConfig, LlmHttpError } from './llm/client';
 import { LlmLimiter } from './llm/limiter';
 import { getSettings, updateSettings } from './settings';
-
-const GENERATED_FIELDS = [
-	'jobSearchKeywords',
-	'businessOsmTags',
-	'jobSearchLocations'
-] as const satisfies GeneratedSearchConfigField[];
 
 export class SearchConfigAiError extends Error {
 	constructor(
