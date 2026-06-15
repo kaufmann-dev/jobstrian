@@ -378,41 +378,42 @@
 							{progress.headline}
 						</Card.Title>
 					</div>
-					<div class="flex shrink-0 items-center gap-2">
-						<Button
-							variant="ghost"
-							size="icon-sm"
-							aria-label={progressExpanded ? 'Details einklappen' : 'Details ausklappen'}
-							aria-expanded={progressExpanded}
-							onclick={() => (progressExpanded = !progressExpanded)}
-						>
-							{#if progressExpanded}<ChevronUp class="size-4" />{:else}<ChevronDown
-									class="size-4"
-								/>{/if}
-						</Button>
-						{#if isActive}
-							<Button
-								variant="outline"
-								size="sm"
-								class="border-destructive text-destructive hover:bg-destructive/10"
-								onclick={cancelRun}
-								disabled={canceling || run.status === 'canceling'}
-							>
-								{#if canceling || run.status === 'canceling'}
-									<Spinner class="size-4" />
-								{:else}
-									<X class="size-4" />
-								{/if}
-								Abbrechen
-							</Button>
-						{/if}
-					</div>
-				</div>
-				<div class="flex items-center gap-2">
-					<Badge class="shrink-0" variant={statusVariant(run.status)}
-						>{statusLabel(run.status)}</Badge
+					<Button
+						variant="ghost"
+						size="icon-sm"
+						class="shrink-0"
+						aria-label={progressExpanded ? 'Details einklappen' : 'Details ausklappen'}
+						aria-expanded={progressExpanded}
+						onclick={() => (progressExpanded = !progressExpanded)}
 					>
-					<span class="text-xs whitespace-nowrap text-muted-foreground">{elapsedLabel(run)}</span>
+						{#if progressExpanded}<ChevronUp class="size-4" />{:else}<ChevronDown
+								class="size-4"
+							/>{/if}
+					</Button>
+				</div>
+				<div class="flex items-center justify-between gap-2">
+					<div class="flex min-w-0 items-center gap-2">
+						<Badge class="shrink-0" variant={statusVariant(run.status)}
+							>{statusLabel(run.status)}</Badge
+						>
+						<span class="text-xs whitespace-nowrap text-muted-foreground">{elapsedLabel(run)}</span>
+					</div>
+					{#if isActive}
+						<Button
+							variant="outline"
+							size="sm"
+							class="shrink-0 border-destructive text-destructive hover:bg-destructive/10"
+							onclick={cancelRun}
+							disabled={canceling || run.status === 'canceling'}
+						>
+							{#if canceling || run.status === 'canceling'}
+								<Spinner class="size-4" />
+							{:else}
+								<X class="size-4" />
+							{/if}
+							Abbrechen
+						</Button>
+					{/if}
 				</div>
 				{#if isActive}
 					<Card.Description>
