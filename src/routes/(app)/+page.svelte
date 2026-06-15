@@ -310,6 +310,14 @@
 	});
 </script>
 
+<svelte:head>
+	<title>Übersicht · Jobstrian</title>
+	<meta
+		name="description"
+		content="Überblick über deine Suchläufe: Fortschritt, neue Stellen und Betriebe auf einen Blick."
+	/>
+</svelte:head>
+
 <div class="space-y-6">
 	<div class="flex flex-wrap items-center justify-between gap-4">
 		<div>

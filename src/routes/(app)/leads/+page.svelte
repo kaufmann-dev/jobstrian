@@ -293,6 +293,14 @@
 	];
 </script>
 
+<svelte:head>
+	<title>Betriebe · Jobstrian</title>
+	<meta
+		name="description"
+		content="Verwalte Betriebe und Kontaktdaten und nimm direkt Kontakt zu passenden Arbeitgebern auf."
+	/>
+</svelte:head>
+
 {#snippet scoreCell({ item }: { item: Lead })}
 	{#if item.rankScore != null}
 		<Badge class={['tabular-nums', scoreClass(item.rankScore)]}>{item.rankScore}</Badge>

@@ -166,6 +166,14 @@
 	];
 </script>
 
+<svelte:head>
+	<title>Stellen · Jobstrian</title>
+	<meta
+		name="description"
+		content="Durchsuche und filtere gefundene Stellenangebote, sortiert nach Empfehlung."
+	/>
+</svelte:head>
+
 {#snippet starCell({ job }: { job: Listing })}
 	<Button
 		variant="ghost"

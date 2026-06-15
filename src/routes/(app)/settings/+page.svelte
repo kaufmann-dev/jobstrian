@@ -443,6 +443,14 @@
 	}
 </script>
 
+<svelte:head>
+	<title>Einstellungen · Jobstrian</title>
+	<meta
+		name="description"
+		content="Profil, Bewertungskriterien und Sucheinstellungen für deine Stellensuche anpassen."
+	/>
+</svelte:head>
+
 <form method="POST" {@attach enhanceAttachment} class="mx-auto max-w-3xl space-y-6">
 	<div class="flex items-start justify-between gap-4">
 		<div>
@@ -800,7 +808,7 @@
 				id="search-config-intent"
 				bind:value={searchIntent}
 				rows={5}
-				placeholder="z.B. Teilzeit im Verkauf oder Büro in Wien, auch Cafés und Bars"
+				placeholder="z.B. Jobs in Wien im Verkauf, Kundenservice oder in der Büroassistenz"
 			/>
 			<p class="text-sm text-muted-foreground">
 				Wird für Portal-Suchen und Initiativbewerbungen verwendet. Es geht darum, möglichst passende

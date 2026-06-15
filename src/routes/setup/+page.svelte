@@ -22,6 +22,12 @@
 	const { form: formData, enhance, message, submitting } = form;
 </script>
 
+<svelte:head>
+	<title>Einrichtung · Jobstrian</title>
+	<meta name="description" content="Richte dein Jobstrian-Konto ein, um mit der Stellensuche zu starten." />
+	<meta name="robots" content="noindex" />
+</svelte:head>
+
 <div class="flex min-h-svh flex-col items-center justify-center gap-6 p-4">
 	<div class="flex items-center gap-3">
 		<span
