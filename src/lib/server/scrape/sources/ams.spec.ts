@@ -28,6 +28,7 @@ describe('AMS scraper', () => {
 							results: [
 								{
 									id: 1,
+									uuid: 'a5ba55e4-d305-39fa-9651-7636becc406d',
 									title: 'Office Assistenz',
 									company: {
 										name: 'Graz GmbH',
@@ -36,6 +37,7 @@ describe('AMS scraper', () => {
 								},
 								{
 									id: 2,
+									uuid: 'cc2a034f-4a4a-30c1-a5f2-e3b0c2420bf1',
 									title: 'Office Assistenz',
 									company: { name: 'Wien GmbH', address: { town: 'Wien', federalState: 'Wien' } }
 								}
@@ -50,7 +52,12 @@ describe('AMS scraper', () => {
 
 		const listings = await ams.search({ keywords: ['Office'], locations: ['Graz'] });
 
-		expect(listings.map((listing) => listing.externalId)).toEqual(['1']);
+		expect(listings.map((listing) => listing.externalId)).toEqual([
+			'a5ba55e4-d305-39fa-9651-7636becc406d'
+		]);
+		expect(listings[0]?.url).toBe(
+			'https://jobs.ams.at/public/emps/jobs/a5ba55e4-d305-39fa-9651-7636becc406d'
+		);
 		expect(listings[0]?.location).toBe('Graz, Steiermark');
 		expect(listings[0]).toMatchObject({ discoveryKeyword: 'Office', discoveryCity: 'Graz' });
 	});

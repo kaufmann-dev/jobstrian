@@ -49,8 +49,10 @@ function matchingAddressCity(
 }
 
 function toListing(r: AmsResult, cities: readonly string[], keyword: string): RawListing | null {
-	const id = r.id ?? r.uuid;
-	if (id == null || !r.title) return null;
+	// The public detail route /public/emps/jobs/{uuid} only resolves the uuid;
+	// the numeric `id` yields an error page, so the uuid is the job's identity.
+	const uuid = r.uuid;
+	if (!uuid || !r.title) return null;
 	const addr = r.company?.address;
 	const discoveryCity = matchingAddressCity(addr, cities);
 	if (!discoveryCity) return null;
@@ -58,8 +60,8 @@ function toListing(r: AmsResult, cities: readonly string[], keyword: string): Ra
 		.filter(Boolean)
 		.join(', ');
 	return {
-		externalId: String(id),
-		url: `https://jobs.ams.at/public/emps/jobs/${id}`,
+		externalId: uuid,
+		url: `https://jobs.ams.at/public/emps/jobs/${uuid}`,
 		title: r.title,
 		company: r.company?.name,
 		location: location || undefined,
