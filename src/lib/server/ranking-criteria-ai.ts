@@ -69,7 +69,7 @@ export async function createRankingCriteriaPreview(
 	const trimmedIntent = intent.trim();
 	if (!trimmedIntent) {
 		throw new RankingCriteriaAiError(
-			'Beschreibe kurz, welche Stellen und Betriebe gut bewertet werden sollen.'
+			'Beschreibe kurz, wonach Treffer bewertet werden sollen.'
 		);
 	}
 	if (trimmedIntent.length > 3000) {

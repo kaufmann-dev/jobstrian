@@ -610,7 +610,7 @@
 				title={hasUnsavedChanges ? 'Speichere zuerst die offenen Änderungen.' : undefined}
 			>
 				{#if searchPreviewBusy}<Spinner />{:else}<Sparkles />{/if}
-				Suchkonfiguration mit KI erstellen
+				Suchkonfiguration erstellen
 			</Button>
 		</Card.Footer>
 	</Card.Root>
@@ -730,7 +730,7 @@
 
 	<Card.Root>
 		<Card.Header>
-			<Card.Title>KI Bewertungskriterien</Card.Title>
+			<Card.Title>Bewertungskriterien</Card.Title>
 			<Card.Description>
 				Die KI vergibt pro Kriterium 0 bis 5 Punkte; die App berechnet daraus den Score.
 			</Card.Description>
@@ -758,7 +758,7 @@
 				title={hasUnsavedChanges ? 'Speichere zuerst die offenen Änderungen.' : undefined}
 			>
 				{#if rankingCriteriaPreviewBusy}<Spinner />{:else}<Sparkles />{/if}
-				KI-Bewertung mit KI erstellen
+				Bewertungskriterien erstellen
 			</Button>
 		</Card.Footer>
 	</Card.Root>
@@ -788,21 +788,23 @@
 		<Dialog.Header>
 			<Dialog.Title>Suchkonfiguration mit KI erstellen</Dialog.Title>
 			<Dialog.Description>
-				Nenne Rolle, Branche, Seniorität, Arbeitszeit oder Ausschlüsse, die wichtig sind.
+				Beschreibe, welche Jobs oder Betriebe gefunden werden sollen. Daraus werden Keywords,
+				Suchorte, Betriebskategorien und Entfernung vorgeschlagen.
 			</Dialog.Description>
 		</Dialog.Header>
 		<div class="space-y-2">
 			<label class="text-sm font-medium" for="search-config-intent">
-				Welche Jobs möchtest du finden?
+				Welche Stellen und Betriebe sollen gefunden werden?
 			</label>
 			<Textarea
 				id="search-config-intent"
 				bind:value={searchIntent}
 				rows={5}
-				placeholder="z.B. Teilzeit im Verkauf oder Büro in Graz, keine Nachtschichten"
+				placeholder="z.B. Teilzeit im Verkauf oder Büro in Wien, auch Cafés und Bars"
 			/>
 			<p class="text-sm text-muted-foreground">
-				Beispiele können Rolle, Branche, Seniorität, Arbeitszeit und Ausschlüsse enthalten.
+				Wird für Portal-Suchen und Initiativbewerbungen verwendet. Es geht darum, möglichst passende
+				Treffer zu finden.
 			</p>
 		</div>
 		<Dialog.Footer>
@@ -847,24 +849,25 @@
 <Dialog.Root bind:open={rankingCriteriaIntentOpen}>
 	<Dialog.Content class="sm:max-w-xl">
 		<Dialog.Header>
-			<Dialog.Title>KI-Bewertung mit KI erstellen</Dialog.Title>
+			<Dialog.Title>Bewertungskriterien aus Beschreibung erstellen</Dialog.Title>
 			<Dialog.Description>
-				Beschreibe, welche Passung für Stellen und Initiativbewerbungen wichtig ist.
+				Beschreibe, nach welchen Kriterien die Treffer bewertet werden sollen. Daraus werden
+				Bewertungskriterien und Gewichtungen vorgeschlagen.
 			</Dialog.Description>
 		</Dialog.Header>
 		<div class="space-y-2">
 			<label class="text-sm font-medium" for="ranking-criteria-intent">
-				Welche Stellen und Betriebe sollen gut bewertet werden?
+				Wonach sollen Treffer bewertet werden?
 			</label>
 			<Textarea
 				id="ranking-criteria-intent"
 				bind:value={rankingCriteriaIntent}
 				rows={5}
-				placeholder="z.B. Teilzeit im Büro oder Verkauf in Graz, Deutsch B1 reicht, kurze Anfahrt wichtig"
+				placeholder="z.B. Pflichtanforderungen erfüllt, Teilzeit bevorzugt, Deutsch B1 reicht"
 			/>
 			<p class="text-sm text-muted-foreground">
-				Beispiele können Rollen, Branchen, Ausschlüsse, Arbeitsmodell, Sprache und Entfernung
-				enthalten.
+				Wird für den Score verwendet. Es geht darum, gefundene Stellen und Betriebe richtig zu
+				bewerten.
 			</p>
 		</div>
 		<Dialog.Footer>
