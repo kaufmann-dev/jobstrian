@@ -1,5 +1,5 @@
 import * as cheerio from 'cheerio';
-import { sql } from 'drizzle-orm';
+import { and, eq, isNull, ne, or, sql } from 'drizzle-orm';
 import { db } from '../db';
 import { lead, type Settings } from '../db/schema';
 import { fetchText } from '../util/http';
@@ -118,6 +118,28 @@ export async function syncLeads(
 	);
 
 	return { total: places.length, newOsmIds: inserted.filter((x): x is string => x !== null) };
+}
+
+/**
+ * Remove leads that were not seen in the given run, except leads the user has
+ * engaged with (starred, contacted/ignored, or manually edited). Returns the
+ * number of removed leads. Call only after a successful, complete sync.
+ */
+export async function reconcileLeads(runId: number): Promise<number> {
+	const removed = await db
+		.delete(lead)
+		.where(
+			and(
+				or(isNull(lead.lastSeenRunId), ne(lead.lastSeenRunId, runId)),
+				eq(lead.starred, false),
+				eq(lead.status, 'new'),
+				eq(lead.emailManual, false),
+				eq(lead.websiteManual, false),
+				eq(lead.phoneManual, false)
+			)
+		)
+		.returning({ id: lead.id });
+	return removed.length;
 }
 
 async function upsertLead(

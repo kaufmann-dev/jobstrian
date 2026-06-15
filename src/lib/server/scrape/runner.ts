@@ -11,7 +11,7 @@ import {
 	type Settings
 } from '../db/schema';
 import { getSettings } from '../settings';
-import { syncLeads } from '../geo/leads';
+import { reconcileLeads, syncLeads } from '../geo/leads';
 import { OverpassUnavailableError } from '../geo/overpass';
 import { getLlmConfig, LlmNotConfiguredError, type LlmConfig } from '../llm/client';
 import {
@@ -402,11 +402,14 @@ export async function runRefresh(
 				const leadResult = await syncLeads(settings, runId, signal);
 				counts.leads = leadResult.total;
 				await markLeadsWithPostings();
+				const removedLeads = await reconcileLeads(runId);
 				writer.phase('leads', {
 					state: 'done',
 					current: 1,
 					total: 1,
-					detail: `${leadResult.total} Betriebe gefunden`
+					detail:
+						`${leadResult.total} Betriebe gefunden` +
+						(removedLeads > 0 ? `, ${removedLeads} veraltete entfernt` : '')
 				});
 			} catch (err) {
 				if (isAbortLike(err)) throw err;
