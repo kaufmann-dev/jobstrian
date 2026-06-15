@@ -92,7 +92,8 @@ export function rankingContextHash(settings: Settings, cfg: LlmConfig): string {
 	return hash({
 		promptVersion: RANK_PROMPT_VERSION,
 		profile: profileBlock(settings),
-		rankingNotes: settings.rankingNotes,
+		listingRankingCriteria: settings.listingRankingCriteria,
+		leadRankingCriteria: settings.leadRankingCriteria,
 		baseUrl: cfg.baseUrl,
 		model: cfg.model
 	});
@@ -102,7 +103,6 @@ export function draftContextHash(settings: Settings, cfg: LlmConfig): string {
 	return hash({
 		promptVersion: DRAFT_PROMPT_VERSION,
 		profile: profileBlock(settings),
-		rankingNotes: settings.rankingNotes,
 		baseUrl: cfg.baseUrl,
 		model: cfg.model
 	});

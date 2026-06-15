@@ -14,6 +14,11 @@ import {
 import { sql } from 'drizzle-orm';
 import type { Certification, EducationHistory, WorkExperience } from '$lib/profile';
 import type { OsmBusinessTag, OsmBusinessTagSuggestion } from '$lib/search-config';
+import {
+	DEFAULT_LEAD_RANKING_CRITERIA,
+	DEFAULT_LISTING_RANKING_CRITERIA,
+	type RankingCriteria
+} from '$lib/ranking-criteria';
 
 /** PostgreSQL bytea, surfaced as a Node Buffer. */
 const bytea = customType<{ data: Buffer; default: false }>({
@@ -126,8 +131,15 @@ export const settings = pgTable('settings', {
 	fullName: text('full_name').notNull().default(''),
 	phone: text('phone').notNull().default(''),
 	email: text('email').notNull().default(''),
-	// Extra free-text instructions steering how the LLM weighs the ranking.
-	rankingNotes: text('ranking_notes').notNull().default(''),
+	// Deterministic weighted criteria used by the LLM ranking flow.
+	listingRankingCriteria: jsonb('listing_ranking_criteria')
+		.$type<RankingCriteria>()
+		.notNull()
+		.default(DEFAULT_LISTING_RANKING_CRITERIA),
+	leadRankingCriteria: jsonb('lead_ranking_criteria')
+		.$type<RankingCriteria>()
+		.notNull()
+		.default(DEFAULT_LEAD_RANKING_CRITERIA),
 	// Home location for the nearby-business search.
 	homeAddress: text('home_address').notNull().default(''),
 	homeLocationProvider: text('home_location_provider'),

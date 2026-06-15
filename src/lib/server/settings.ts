@@ -1,4 +1,8 @@
 import { eq } from 'drizzle-orm';
+import {
+	DEFAULT_LEAD_RANKING_CRITERIA,
+	DEFAULT_LISTING_RANKING_CRITERIA
+} from '$lib/ranking-criteria';
 import { DEFAULT_BUSINESS_OSM_TAGS, DEFAULT_JOB_SEARCH_KEYWORDS } from '$lib/search-config';
 import { db } from './db';
 import { settings, type Settings } from './db/schema';
@@ -18,6 +22,8 @@ export async function getSettings(): Promise<Settings> {
 			id: 1,
 			jobSearchKeywords: DEFAULT_JOB_SEARCH_KEYWORDS,
 			businessOsmTags: DEFAULT_BUSINESS_OSM_TAGS,
+			listingRankingCriteria: DEFAULT_LISTING_RANKING_CRITERIA,
+			leadRankingCriteria: DEFAULT_LEAD_RANKING_CRITERIA,
 			enabledSources: [...DEFAULT_SOURCES],
 			businessRadiusMeters: 5000
 		})

@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import type { Lead, Listing, Settings } from '../db/schema';
+import {
+	DEFAULT_LEAD_RANKING_CRITERIA,
+	DEFAULT_LISTING_RANKING_CRITERIA
+} from '$lib/ranking-criteria';
 import type { OsmBusinessTag, OsmBusinessTagSuggestion } from '$lib/search-config';
 import type { LlmConfig } from './client';
 import {
@@ -34,7 +38,8 @@ function settings(patch: Partial<Settings> = {}): Settings {
 		experienceYears: 2,
 		educationStatus: 'Studium laufend',
 		availability: 'ab sofort',
-		rankingNotes: 'Kurze Anfahrt bevorzugen',
+		listingRankingCriteria: DEFAULT_LISTING_RANKING_CRITERIA,
+		leadRankingCriteria: DEFAULT_LEAD_RANKING_CRITERIA,
 		homeAddress: 'Wien',
 		homeLocationProvider: 'geoapify',
 		homeLocationId: 'place',
@@ -190,7 +195,17 @@ describe('LLM fingerprints', () => {
 		expect.hasAssertions();
 		const oldContext = rankingContextHash(settings(), cfg);
 		const newContext = rankingContextHash(
-			settings({ rankingNotes: 'Nur Vormittagsschichten' }),
+			settings({
+				listingRankingCriteria: [
+					...DEFAULT_LISTING_RANKING_CRITERIA,
+					{
+						id: 'morning-shifts',
+						label: 'Vormittag',
+						description: 'Vormittagsschichten bevorzugen.',
+						weight: 2
+					}
+				]
+			}),
 			cfg
 		);
 		const row = listingRow();

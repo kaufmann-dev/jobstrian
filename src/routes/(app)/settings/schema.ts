@@ -5,6 +5,11 @@ import {
 	skillsSchema,
 	workExperienceListSchema
 } from '$lib/profile';
+import {
+	DEFAULT_LEAD_RANKING_CRITERIA,
+	DEFAULT_LISTING_RANKING_CRITERIA,
+	rankingCriteriaSchema
+} from '$lib/ranking-criteria';
 import { businessOsmTagsSchema, stringListSchema } from '$lib/search-config';
 
 export const settingsSchema = z.object({
@@ -21,7 +26,8 @@ export const settingsSchema = z.object({
 	experienceYears: z.number().int().min(0).max(60).nullable().default(null),
 	educationStatus: z.string().max(500).default(''),
 	availability: z.string().max(500).default(''),
-	rankingNotes: z.string().max(2000).default(''),
+	listingRankingCriteria: rankingCriteriaSchema.default(DEFAULT_LISTING_RANKING_CRITERIA),
+	leadRankingCriteria: rankingCriteriaSchema.default(DEFAULT_LEAD_RANKING_CRITERIA),
 	homeAddress: z.string().max(500).default(''),
 	jobSearchKeywords: stringListSchema.default([]),
 	jobSearchLocations: stringListSchema.default([]),

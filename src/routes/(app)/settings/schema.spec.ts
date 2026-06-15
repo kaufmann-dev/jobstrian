@@ -2,6 +2,10 @@ import { describe, expect, it } from 'vitest';
 import { superValidate } from 'sveltekit-superforms';
 import { zod4 } from 'sveltekit-superforms/adapters';
 import { apiKeySchema, settingsSchema } from './schema';
+import {
+	DEFAULT_LEAD_RANKING_CRITERIA,
+	DEFAULT_LISTING_RANKING_CRITERIA
+} from '$lib/ranking-criteria';
 
 describe('settingsSchema', () => {
 	it('defaults omitted portal checkbox fields to disabled', async () => {
@@ -69,6 +73,21 @@ describe('settingsSchema', () => {
 		const result = apiKeySchema.safeParse({ llmApiKey: 'sk-test' });
 
 		expect(result).toMatchObject({ success: true, data: { llmApiKey: 'sk-test' } });
+	});
+
+	it('defaults and validates ranking criteria', () => {
+		expect(settingsSchema.parse({})).toMatchObject({
+			listingRankingCriteria: DEFAULT_LISTING_RANKING_CRITERIA,
+			leadRankingCriteria: DEFAULT_LEAD_RANKING_CRITERIA
+		});
+		expect(
+			settingsSchema.safeParse({
+				listingRankingCriteria: [
+					{ id: 'fit', label: 'Fit', description: '', weight: 5 },
+					{ id: 'fit', label: 'Noch ein Fit', description: '', weight: 3 }
+				]
+			}).success
+		).toBe(false);
 	});
 
 	it('validates bounded nested CV profile entries', async () => {

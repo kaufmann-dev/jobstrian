@@ -25,8 +25,9 @@ OpenAI-compatible LLM.
   scraping / ranking run.
   Websites, phone numbers and e-mail addresses can be manually added, edited,
   or deleted; manual changes remain authoritative during later updates.
-- **LLM ranking**: jobs receive a score + verdict + reasoning; for businesses
-  without a listing a score is generated, and every business receives a German
+- **LLM ranking**: jobs and businesses are scored through configurable weighted
+  criteria; the LLM scores each criterion from 0 to 5 and the app calculates the
+  final score, verdict and reasoning. Every business also receives a German
   e-mail draft even when no contact address was found. Unchanged jobs /
   businesses are skipped using content and ranking-context fingerprints.
 - **Structured CV profile**: maintain skills, employment, education and

@@ -1,6 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Settings } from './db/schema';
 import { DEFAULT_BUSINESS_OSM_TAGS } from '$lib/search-config';
+import {
+	DEFAULT_LEAD_RANKING_CRITERIA,
+	DEFAULT_LISTING_RANKING_CRITERIA
+} from '$lib/ranking-criteria';
 
 const { getCvData, getSettings } = vi.hoisted(() => ({
 	getCvData: vi.fn(),
@@ -32,7 +36,8 @@ function settings(patch: Partial<Settings> = {}): Settings {
 		experienceYears: 2,
 		educationStatus: '',
 		availability: '',
-		rankingNotes: '',
+		listingRankingCriteria: DEFAULT_LISTING_RANKING_CRITERIA,
+		leadRankingCriteria: DEFAULT_LEAD_RANKING_CRITERIA,
 		homeAddress: 'Alte Adresse',
 		homeLocationProvider: 'geoapify',
 		homeLocationId: 'old-place',

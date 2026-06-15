@@ -44,6 +44,20 @@ describe('SettingsAutosaveQueue', () => {
 		expect(queue.isSaved()).toBe(true);
 	});
 
+	it('snapshots ranking criteria fields for autosave patches', async () => {
+		const send = vi.fn().mockResolvedValue(undefined);
+		const queue = new SettingsAutosaveQueue(send, vi.fn(), 0);
+		const criteria = [{ id: 'fit', label: 'Fit', description: '', weight: 5 }];
+
+		queue.enqueueField('listingRankingCriteria', criteria);
+		criteria[0].weight = 1;
+		await vi.waitFor(() => expect(send).toHaveBeenCalledTimes(1));
+
+		expect(send).toHaveBeenCalledWith({
+			patch: { listingRankingCriteria: [{ id: 'fit', label: 'Fit', description: '', weight: 5 }] }
+		});
+	});
+
 	it('flush waits for edits queued during an in-flight save', async () => {
 		const sent: SettingsPatchRequest[] = [];
 		let release!: () => void;

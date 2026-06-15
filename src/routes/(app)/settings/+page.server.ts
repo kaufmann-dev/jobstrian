@@ -24,7 +24,8 @@ function settingsFormData(s: Settings) {
 		experienceYears: s.experienceYears,
 		educationStatus: s.educationStatus,
 		availability: s.availability,
-		rankingNotes: s.rankingNotes,
+		listingRankingCriteria: s.listingRankingCriteria,
+		leadRankingCriteria: s.leadRankingCriteria,
 		homeAddress: s.homeAddress,
 		jobSearchKeywords: s.jobSearchKeywords,
 		jobSearchLocations: s.jobSearchLocations,
@@ -54,7 +55,11 @@ export const load: PageServerLoad = async () => {
 		hasApiKey: Boolean(s.llmApiKey),
 		hasLlmConfig: Boolean(s.llmBaseUrl && s.llmModel),
 		homeLocationVerified: Boolean(
-			s.homeLocationProvider && s.homeLocationId && s.homeCity && s.homeLat != null && s.homeLon != null
+			s.homeLocationProvider &&
+			s.homeLocationId &&
+			s.homeCity &&
+			s.homeLat != null &&
+			s.homeLon != null
 		),
 		cv: await getCvMeta()
 	};

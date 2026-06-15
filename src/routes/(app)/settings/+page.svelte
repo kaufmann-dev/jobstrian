@@ -15,6 +15,7 @@
 		type SaveStatus
 	} from './settings-autosave';
 	import ProfileEditor from './profile-editor.svelte';
+	import RankingCriteriaEditor from './ranking-criteria-editor.svelte';
 	import SearchConfigEditor from './search-config-editor.svelte';
 	import * as Form from '$lib/components/ui/form/index.js';
 	import * as Card from '$lib/components/ui/card/index.js';
@@ -36,6 +37,12 @@
 		SearchConfigField,
 		SearchConfigPreview
 	} from '$lib/search-config';
+	import {
+		DEFAULT_LEAD_RANKING_CRITERIA,
+		DEFAULT_LISTING_RANKING_CRITERIA,
+		type GeneratedRankingCriteriaField,
+		type RankingCriteriaAiPreview
+	} from '$lib/ranking-criteria';
 
 	let { data } = $props();
 	let hasApiKey = $state(untrack(() => data.hasApiKey));
@@ -141,12 +148,24 @@
 		businessOsmTags: [],
 		businessRadiusMeters: 5000
 	});
+	let rankingCriteriaIntentOpen = $state(false);
+	let rankingCriteriaIntent = $state('');
+	let rankingCriteriaPreviewBusy = $state(false);
+	let rankingCriteriaApplyBusy = $state(false);
+	let rankingCriteriaPreviewOpen = $state(false);
+	let rankingCriteriaPreviewFields = $state<GeneratedRankingCriteriaField[]>([]);
+	let selectedRankingCriteriaFields = $state<GeneratedRankingCriteriaField[]>([]);
+	let rankingCriteriaPreview = $state<RankingCriteriaAiPreview>({
+		listingRankingCriteria: DEFAULT_LISTING_RANKING_CRITERIA,
+		leadRankingCriteria: DEFAULT_LEAD_RANKING_CRITERIA
+	});
 
 	const hasUnsavedChanges = $derived(
 		autosaveDirty || saveStatus === 'saving' || saveStatus === 'error'
 	);
 	const canImport = $derived(Boolean(data.cv && data.hasLlmConfig && !hasUnsavedChanges));
 	const canGenerateSearchConfig = $derived(Boolean(data.hasLlmConfig && !hasUnsavedChanges));
+	const canGenerateRankingCriteria = $derived(Boolean(data.hasLlmConfig && !hasUnsavedChanges));
 
 	onNavigate(() => autosave.flush());
 
@@ -360,6 +379,68 @@
 			searchApplyBusy = false;
 		}
 	}
+
+	async function createRankingCriteriaPreview() {
+		if (!canGenerateRankingCriteria) return;
+		rankingCriteriaPreviewBusy = true;
+		try {
+			const response = await fetch('/api/ranking-criteria/preview', {
+				method: 'POST',
+				headers: { 'content-type': 'application/json' },
+				body: JSON.stringify({ intent: rankingCriteriaIntent })
+			});
+			if (!response.ok) {
+				throw new Error(
+					await responseMessage(response, 'Bewertungskriterien konnten nicht erzeugt werden')
+				);
+			}
+			const body = (await response.json()) as { rankingCriteria: RankingCriteriaAiPreview };
+			rankingCriteriaPreviewFields = Object.keys(
+				body.rankingCriteria
+			) as GeneratedRankingCriteriaField[];
+			selectedRankingCriteriaFields = [...rankingCriteriaPreviewFields];
+			rankingCriteriaPreview = body.rankingCriteria;
+			rankingCriteriaIntentOpen = false;
+			rankingCriteriaPreviewOpen = true;
+		} catch (error) {
+			toast.error(
+				error instanceof Error ? error.message : 'Bewertungskriterien konnten nicht erzeugt werden'
+			);
+		} finally {
+			rankingCriteriaPreviewBusy = false;
+		}
+	}
+
+	async function applyRankingCriteriaPreview() {
+		rankingCriteriaApplyBusy = true;
+		try {
+			const response = await fetch('/api/ranking-criteria', {
+				method: 'PATCH',
+				headers: { 'content-type': 'application/json' },
+				body: JSON.stringify({
+					selected: selectedRankingCriteriaFields,
+					rankingCriteria: $state.snapshot(rankingCriteriaPreview)
+				})
+			});
+			if (!response.ok) {
+				throw new Error(
+					await responseMessage(response, 'Bewertungskriterien konnten nicht aktualisiert werden')
+				);
+			}
+			rankingCriteriaPreviewOpen = false;
+			await invalidateAll();
+			form.reset({ data: data.form.data });
+			toast.success('Bewertungskriterien aktualisiert');
+		} catch (error) {
+			toast.error(
+				error instanceof Error
+					? error.message
+					: 'Bewertungskriterien konnten nicht aktualisiert werden'
+			);
+		} finally {
+			rankingCriteriaApplyBusy = false;
+		}
+	}
 </script>
 
 <form method="POST" {@attach enhanceAttachment} class="mx-auto max-w-3xl space-y-6">
@@ -559,7 +640,7 @@
 
 	<Card.Root>
 		<Card.Header>
-			<Card.Title>KI-Bewertung (OpenAI-kompatibel)</Card.Title>
+			<Card.Title>KI-Anbindung (OpenAI-kompatibel)</Card.Title>
 			<Card.Description>
 				Endpoint zum Bewerten, für den Profilimport und für Bewerbungsentwürfe.
 			</Card.Description>
@@ -633,20 +714,6 @@
 				</Form.Control>
 				<Form.FieldErrors />
 			</Form.Field>
-			<Form.Field {form} name="rankingNotes">
-				<Form.Control>
-					{#snippet children({ props })}
-						<Form.Label>Gewichtung fürs Ranking (optional)</Form.Label>
-						<Textarea
-							{...props}
-							bind:value={$formData.rankingNotes}
-							rows={3}
-							placeholder="z.B. Stellen ohne Deutsch-Pflicht bevorzugen; kurze Anfahrt wichtig"
-						/>
-					{/snippet}
-				</Form.Control>
-				<Form.FieldErrors />
-			</Form.Field>
 		</Card.Content>
 		<Card.Footer class="border-t">
 			<Button
@@ -657,6 +724,41 @@
 			>
 				{#if $submitting}<Spinner />{:else}<Save />{/if}
 				API-Key speichern
+			</Button>
+		</Card.Footer>
+	</Card.Root>
+
+	<Card.Root>
+		<Card.Header>
+			<Card.Title>KI Bewertungskriterien</Card.Title>
+			<Card.Description>
+				Die KI vergibt pro Kriterium 0 bis 5 Punkte; die App berechnet daraus den Score.
+			</Card.Description>
+		</Card.Header>
+		<Card.Content class="space-y-4">
+			<RankingCriteriaEditor
+				bind:criteria={$formData}
+				errors={{
+					listingRankingCriteria: fieldErrors($errors.listingRankingCriteria),
+					leadRankingCriteria: fieldErrors($errors.leadRankingCriteria)
+				}}
+			/>
+			{#if !data.hasLlmConfig}
+				<p class="text-sm text-muted-foreground">
+					Für KI-generierte Bewertungskriterien müssen Base URL und Modell gespeichert sein.
+				</p>
+			{/if}
+		</Card.Content>
+		<Card.Footer class="border-t">
+			<Button
+				variant="outline"
+				class="w-full sm:w-auto"
+				disabled={!canGenerateRankingCriteria || rankingCriteriaPreviewBusy}
+				onclick={() => (rankingCriteriaIntentOpen = true)}
+				title={hasUnsavedChanges ? 'Speichere zuerst die offenen Änderungen.' : undefined}
+			>
+				{#if rankingCriteriaPreviewBusy}<Spinner />{:else}<Sparkles />{/if}
+				KI-Bewertung mit KI erstellen
 			</Button>
 		</Card.Footer>
 	</Card.Root>
@@ -736,6 +838,74 @@
 				onclick={applySearchPreview}
 			>
 				{#if searchApplyBusy}<Spinner />{:else}<Save />{/if}
+				Auswahl übernehmen
+			</Button>
+		</Dialog.Footer>
+	</Dialog.Content>
+</Dialog.Root>
+
+<Dialog.Root bind:open={rankingCriteriaIntentOpen}>
+	<Dialog.Content class="sm:max-w-xl">
+		<Dialog.Header>
+			<Dialog.Title>KI-Bewertung mit KI erstellen</Dialog.Title>
+			<Dialog.Description>
+				Beschreibe, welche Passung für Stellen und Initiativbewerbungen wichtig ist.
+			</Dialog.Description>
+		</Dialog.Header>
+		<div class="space-y-2">
+			<label class="text-sm font-medium" for="ranking-criteria-intent">
+				Welche Stellen und Betriebe sollen gut bewertet werden?
+			</label>
+			<Textarea
+				id="ranking-criteria-intent"
+				bind:value={rankingCriteriaIntent}
+				rows={5}
+				placeholder="z.B. Teilzeit im Büro oder Verkauf in Graz, Deutsch B1 reicht, kurze Anfahrt wichtig"
+			/>
+			<p class="text-sm text-muted-foreground">
+				Beispiele können Rollen, Branchen, Ausschlüsse, Arbeitsmodell, Sprache und Entfernung
+				enthalten.
+			</p>
+		</div>
+		<Dialog.Footer>
+			<Button variant="outline" onclick={() => (rankingCriteriaIntentOpen = false)}>
+				Abbrechen
+			</Button>
+			<Button
+				disabled={rankingCriteriaPreviewBusy ||
+					!rankingCriteriaIntent.trim() ||
+					!canGenerateRankingCriteria}
+				onclick={createRankingCriteriaPreview}
+			>
+				{#if rankingCriteriaPreviewBusy}<Spinner />{:else}<Sparkles />{/if}
+				Vorschlag erzeugen
+			</Button>
+		</Dialog.Footer>
+	</Dialog.Content>
+</Dialog.Root>
+
+<Dialog.Root bind:open={rankingCriteriaPreviewOpen}>
+	<Dialog.Content class="max-h-[90vh] overflow-y-auto sm:max-w-4xl">
+		<Dialog.Header>
+			<Dialog.Title>Bewertungskriterien prüfen</Dialog.Title>
+			<Dialog.Description>
+				Prüfe die KI-Vorschläge. Nur ausgewählte Kriterienlisten werden sofort gespeichert.
+			</Dialog.Description>
+		</Dialog.Header>
+		<RankingCriteriaEditor
+			bind:criteria={rankingCriteriaPreview}
+			fields={rankingCriteriaPreviewFields}
+			bind:selected={selectedRankingCriteriaFields}
+		/>
+		<Dialog.Footer>
+			<Button variant="outline" onclick={() => (rankingCriteriaPreviewOpen = false)}>
+				Abbrechen
+			</Button>
+			<Button
+				disabled={rankingCriteriaApplyBusy || selectedRankingCriteriaFields.length === 0}
+				onclick={applyRankingCriteriaPreview}
+			>
+				{#if rankingCriteriaApplyBusy}<Spinner />{:else}<Save />{/if}
 				Auswahl übernehmen
 			</Button>
 		</Dialog.Footer>

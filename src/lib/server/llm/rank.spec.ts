@@ -1,6 +1,16 @@
 import { describe, expect, it } from 'vitest';
 import type { Lead, Settings } from '../db/schema';
-import { buildLeadRankingPrompt, profileBlock } from './rank';
+import {
+	DEFAULT_LEAD_RANKING_CRITERIA,
+	DEFAULT_LISTING_RANKING_CRITERIA
+} from '$lib/ranking-criteria';
+import {
+	buildLeadRankingPrompt,
+	buildListingRankingPrompt,
+	LEAD_SYSTEM,
+	LISTING_SYSTEM,
+	profileBlock
+} from './rank';
 
 function settings(patch: Partial<Settings> = {}): Settings {
 	return {
@@ -18,6 +28,8 @@ function settings(patch: Partial<Settings> = {}): Settings {
 		experienceYears: null,
 		educationStatus: '',
 		availability: '',
+		listingRankingCriteria: DEFAULT_LISTING_RANKING_CRITERIA,
+		leadRankingCriteria: DEFAULT_LEAD_RANKING_CRITERIA,
 		homeAddress: '',
 		homeLocationProvider: null,
 		homeLocationId: null,
@@ -35,7 +47,6 @@ function settings(patch: Partial<Settings> = {}): Settings {
 		llmModel: '',
 		llmRequestsPerMinute: 300,
 		llmMaxConcurrent: 50,
-		rankingNotes: '',
 		updatedAt: new Date(0),
 		...patch
 	};
@@ -106,7 +117,8 @@ it('includes skills and detailed CV history in the ranking profile', () => {
 			jobSearchLocations: [],
 			businessOsmTags: [],
 			businessRadiusMeters: 5000,
-			rankingNotes: ''
+			listingRankingCriteria: DEFAULT_LISTING_RANKING_CRITERIA,
+			leadRankingCriteria: DEFAULT_LEAD_RANKING_CRITERIA
 		})
 	);
 
@@ -131,5 +143,89 @@ describe('lead ranking prompt', () => {
 		expect(prompt).toContain('Amenity: Pharmacy');
 		expect(prompt).toContain('Abgeleiteter Job-Suchort: Graz');
 		expect(prompt).not.toMatch(/Service-?\/?Barista|Servicekraft|Barista/);
+	});
+
+	it('includes criteria ids, weights, descriptions, and the full 0-5 scale', () => {
+		const prompt = buildLeadRankingPrompt(
+			settings({
+				leadRankingCriteria: [
+					{
+						id: 'nearby-fit',
+						label: 'Nähe',
+						description: 'Kurze und realistische Anfahrt bevorzugen.',
+						weight: 4
+					},
+					{
+						id: 'role-market',
+						label: 'Rollenmarkt',
+						description: 'Betrieb muss Zielrollen plausibel beschäftigen.',
+						weight: 5
+					}
+				]
+			}),
+			lead()
+		);
+
+		expect(prompt).toContain('id: nearby-fit');
+		expect(prompt).toContain('gewicht: 4');
+		expect(prompt).toContain('Kurze und realistische Anfahrt bevorzugen.');
+		expect(LEAD_SYSTEM).toContain('Use the full 0-5 scale');
+		expect(LEAD_SYSTEM).toContain('0 = no explicit evidence of fit, or explicit mismatch');
+		expect(LEAD_SYSTEM).toContain('5 = excellent fit');
+	});
+});
+
+describe('listing ranking prompt', () => {
+	it('includes criteria ids, weights, descriptions, and the full 0-5 scale', () => {
+		const prompt = buildListingRankingPrompt(
+			settings({
+				listingRankingCriteria: [
+					{
+						id: 'language-fit',
+						label: 'Sprache',
+						description: 'Deutschpflicht gegen Profil abgleichen.',
+						weight: 3
+					},
+					{
+						id: 'role-fit',
+						label: 'Rolle',
+						description: 'Zielrolle und Aufgaben müssen direkt passen.',
+						weight: 5
+					}
+				]
+			}),
+			{
+				id: 1,
+				source: 'test',
+				externalId: 'job-1',
+				url: 'https://example.test/job',
+				title: 'Büroassistenz',
+				company: 'Test GmbH',
+				location: 'Graz',
+				description: 'Deutsch B1, Office',
+				salary: null,
+				postedAt: null,
+				discoveryKeyword: 'Office',
+				discoveryCity: 'Graz',
+				status: 'active',
+				firstSeenAt: new Date(0),
+				lastSeenRunId: null,
+				contentHash: null,
+				rankScore: null,
+				rankVerdict: null,
+				rankReason: null,
+				rankedAt: null,
+				rankContentHash: null,
+				rankContextHash: null,
+				starred: false
+			}
+		);
+
+		expect(prompt).toContain('id: language-fit');
+		expect(prompt).toContain('gewicht: 3');
+		expect(prompt).toContain('Deutschpflicht gegen Profil abgleichen.');
+		expect(LISTING_SYSTEM).toContain('Use the full 0-5 scale');
+		expect(LISTING_SYSTEM).toContain('0 = no explicit evidence of fit, or explicit mismatch');
+		expect(LISTING_SYSTEM).toContain('5 = excellent fit');
 	});
 });

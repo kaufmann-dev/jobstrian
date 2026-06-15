@@ -5,6 +5,7 @@ vi.mock('$lib/server/geo/geoapify', () => ({ geoSuggestions }));
 
 import { toSettingsDbPatch, verifyTypedHomeLocation } from '$lib/server/settings-patch';
 import type { Settings } from '$lib/server/db/schema';
+import { DEFAULT_LISTING_RANKING_CRITERIA } from '$lib/ranking-criteria';
 
 const current = {
 	enabledSources: ['ams'],
@@ -61,6 +62,14 @@ describe('settings patch persistence', () => {
 
 	it('does not overwrite unrelated fields', () => {
 		expect(toSettingsDbPatch({ patch: { fullName: 'Ada' } }, current)).toEqual({ fullName: 'Ada' });
+	});
+
+	it('validates and stores ranking criteria patches', () => {
+		expect(
+			toSettingsDbPatch({
+				patch: { listingRankingCriteria: DEFAULT_LISTING_RANKING_CRITERIA }
+			})
+		).toEqual({ listingRankingCriteria: DEFAULT_LISTING_RANKING_CRITERIA });
 	});
 
 	it('promotes exact typed address text to a verified provider location', async () => {

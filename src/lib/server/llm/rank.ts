@@ -2,8 +2,14 @@ import type { Settings, Listing, Lead } from '../db/schema';
 import { chatJson, type LlmConfig } from './client';
 import type { LlmLimiter } from './limiter';
 import { osmBusinessTagLabel } from '$lib/search-config';
+import {
+	parseCriterionScores,
+	weightedRankingScore,
+	type RankingCriteria,
+	type RankingCriterionScore
+} from '$lib/ranking-criteria';
 
-export const RANK_PROMPT_VERSION = 'rank-v3-split-listing-lead';
+export const RANK_PROMPT_VERSION = 'rank-v4-weighted-criteria';
 
 export interface RankResult {
 	score: number; // 0-100
@@ -51,44 +57,55 @@ export function profileBlock(s: Settings): string {
 					(item) =>
 						`- ${[item.name, item.issuer, item.date].filter(Boolean).join(' | ')}${item.description ? `: ${item.description}` : ''}`
 				)
-				.join('\n')}`,
-		s.rankingNotes && `Zusätzliche Gewichtung: ${s.rankingNotes}`
+				.join('\n')}`
 	].filter(Boolean);
 	return parts.join('\n');
 }
 
-const LISTING_SYSTEM = `Du bist ein Recruiting-Assistent. Bewerte, wie gut eine konkrete, ausgeschriebene Stelle zum Profil des Bewerbers passt.
-Gleiche die ANFORDERUNGEN der Stelle gegen das Profil ab und gewichte vor allem:
-- Sprachniveau: Verlangt die Stelle ein höheres Deutschniveau als der Bewerber hat (z.B. Stelle "Deutsch C1/fließend", Bewerber A2), senke den Score deutlich und nenne es. Andere Sprachen als Plus werten.
-- Erfahrung: Vergleiche geforderte Berufsjahre mit der vorhandenen Erfahrung. Weniger Erfahrung als gefordert => niedriger.
-- Ausbildung/Status: Studium/Schulabschluss und Verfügbarkeit berücksichtigen.
-- Kenntnisse und detaillierter Verlauf: Relevante Skills, konkrete Berufsstationen, Ausbildung und Zertifikate gegen die Anforderungen abgleichen.
-- Rolle & Ort: Passt die Stelle zu den konfigurierten Stellen-Keywords, zur Entfernung und zum Profil?
+const SCORE_SCALE = `Use the full 0-5 scale, but do not force harshness or generosity.
+A score of 0 means: there is no explicit evidence of fit for this criterion, or there is an explicit mismatch. Do not assign 0 just to be strict.
+0 = no explicit evidence of fit, or explicit mismatch
+1 = very weak fit; only vague or indirect evidence
+2 = partial fit; some relevant evidence but important gaps
+3 = plausible fit; enough evidence to consider it
+4 = strong fit; most important requirements are clearly matched
+5 = excellent fit; direct match on nearly all important requirements`;
+
+export const LISTING_SYSTEM = `Du bist ein Recruiting-Assistent. Bewerte, wie gut eine konkrete, ausgeschriebene Stelle zum Profil des Bewerbers passt.
+Gleiche die ANFORDERUNGEN der Stelle gegen das Profil und die konfigurierten Kriterien ab.
 Wenn die Stellenbeschreibung keine Anforderung nennt, nimm an, dass sie erfüllbar ist (nicht bestrafen).
+${SCORE_SCALE}
 Antworte ausschließlich als JSON-Objekt:
-{"score": <0-100>, "verdict": "strong"|"maybe"|"weak", "reason": "<kurze deutsche Begründung, max 2 Sätze, nenne den ausschlaggebenden Faktor>"}
-score 70-100 => "strong", 40-69 => "maybe", 0-39 => "weak".`;
+{"criteria":[{"criterionId":"<id aus den Kriterien>","score":<0-5>,"reason":"<kurze deutsche Begründung>"}]}
+Gib jedes konfigurierte Kriterium genau einmal zurück. Gib keinen finalen Score, kein verdict und keine Gesamtbegründung zurück.`;
 
-const LEAD_SYSTEM = `Du bist ein Recruiting-Assistent. Bewerte, wie sinnvoll und erfolgversprechend eine Initiativbewerbung (unaufgeforderte Bewerbung) des Bewerbers bei diesem Betrieb ist.
-WICHTIG: Es gibt KEINE ausgeschriebene Stelle und KEINE konkreten Anforderungen. Bewerte NICHT gegen Stellenanforderungen und erfinde keine. Beurteile stattdessen, ob der Betrieb grundsätzlich zum Bewerber passt. Gewichte:
-- Branchen-/Rollen-Fit (wichtigster Faktor): Beschäftigt ein Betrieb dieser Art (Kategorie / OSM-Kategorien) plausibel jemanden mit dem Profil und den gesuchten Stellen-Keywords des Bewerbers? Wenn die Branche gar nicht zur gesuchten Rolle passt, niedriger Score.
-- Entfernung: Kürzere Anfahrt ist besser.
-- Profil-Passung: Passen Kenntnisse, Erfahrung und Ausbildung des Bewerbers grundsätzlich in diesen Betrieb?
+export const LEAD_SYSTEM = `Du bist ein Recruiting-Assistent. Bewerte, wie sinnvoll und erfolgversprechend eine Initiativbewerbung (unaufgeforderte Bewerbung) des Bewerbers bei diesem Betrieb ist.
+WICHTIG: Es gibt KEINE ausgeschriebene Stelle und KEINE konkreten Anforderungen. Bewerte NICHT gegen Stellenanforderungen und erfinde keine.
 Sprachniveau und Berufsjahre NICHT als harte Anforderung bestrafen — es gibt keine Ausschreibung, gegen die man durchfallen könnte; nutze sie nur als grobe Plausibilität.
+${SCORE_SCALE}
 Antworte ausschließlich als JSON-Objekt:
-{"score": <0-100>, "verdict": "strong"|"maybe"|"weak", "reason": "<kurze deutsche Begründung, max 2 Sätze, nenne den ausschlaggebenden Faktor>"}
-score 70-100 => "strong", 40-69 => "maybe", 0-39 => "weak".`;
+{"criteria":[{"criterionId":"<id aus den Kriterien>","score":<0-5>,"reason":"<kurze deutsche Begründung>"}]}
+Gib jedes konfigurierte Kriterium genau einmal zurück. Gib keinen finalen Score, kein verdict und keine Gesamtbegründung zurück.`;
 
-function clampResult(raw: Partial<RankResult>): RankResult {
-	let score = Math.round(Number(raw.score));
-	if (!Number.isFinite(score)) score = 0;
-	score = Math.max(0, Math.min(100, score));
-	const verdict: RankResult['verdict'] = score >= 70 ? 'strong' : score >= 40 ? 'maybe' : 'weak';
-	return { score, verdict, reason: (raw.reason ?? '').toString().slice(0, 500) };
+function criteriaBlock(criteria: RankingCriteria): string {
+	return criteria
+		.map(
+			(criterion) =>
+				`- id: ${criterion.id}\n  label: ${criterion.label}\n  gewicht: ${criterion.weight}\n  beschreibung: ${criterion.description || 'Keine Zusatzbeschreibung'}`
+		)
+		.join('\n');
+}
+
+function rankedResult(raw: unknown, criteria: RankingCriteria): RankResult {
+	const scores = parseCriterionScores(raw, criteria);
+	return weightedRankingScore(criteria, scores);
 }
 
 export function buildListingRankingPrompt(settings: Settings, listing: Listing): string {
-	return `BEWERBER:\n${profileBlock(settings)}\n\nSTELLE:
+	return `BEWERBER:\n${profileBlock(settings)}\n\nKRITERIEN FUER STELLEN:
+${criteriaBlock(settings.listingRankingCriteria)}
+
+STELLE:
 Titel: ${listing.title}
 Unternehmen: ${listing.company ?? 'unbekannt'}
 Ort: ${listing.location ?? 'unbekannt'}
@@ -105,7 +122,10 @@ export function buildLeadRankingPrompt(settings: Settings, lead: Lead): string {
 	const matchedTags = lead.matchedOsmTags.length
 		? lead.matchedOsmTags.map((tag) => tag.label).join(', ')
 		: 'keine gespeicherten OSM-Kategorien';
-	return `BEWERBER:\n${profileBlock(settings)}\n\nBETRIEB (potenzielle Initiativbewerbung):
+	return `BEWERBER:\n${profileBlock(settings)}\n\nKRITERIEN FUER BETRIEBE:
+${criteriaBlock(settings.leadRankingCriteria)}
+
+BETRIEB (potenzielle Initiativbewerbung):
 Name: ${lead.name}
 Art: ${lead.category ?? 'Betrieb'}
 Passende OSM-Kategorien: ${matchedTags}
@@ -123,7 +143,7 @@ export async function rankListing(
 	signal?: AbortSignal
 ): Promise<RankResult> {
 	const user = buildListingRankingPrompt(settings, listing);
-	const raw = await chatJson<Partial<RankResult>>(
+	const raw = await chatJson<{ criteria: RankingCriterionScore[] }>(
 		cfg,
 		[
 			{ role: 'system', content: LISTING_SYSTEM },
@@ -131,7 +151,7 @@ export async function rankListing(
 		],
 		{ limiter, signal }
 	);
-	return clampResult(raw);
+	return rankedResult(raw, settings.listingRankingCriteria);
 }
 
 export async function rankLead(
@@ -142,7 +162,7 @@ export async function rankLead(
 	signal?: AbortSignal
 ): Promise<RankResult> {
 	const user = buildLeadRankingPrompt(settings, lead);
-	const raw = await chatJson<Partial<RankResult>>(
+	const raw = await chatJson<{ criteria: RankingCriterionScore[] }>(
 		cfg,
 		[
 			{ role: 'system', content: LEAD_SYSTEM },
@@ -150,5 +170,5 @@ export async function rankLead(
 		],
 		{ limiter, signal }
 	);
-	return clampResult(raw);
+	return rankedResult(raw, settings.leadRankingCriteria);
 }

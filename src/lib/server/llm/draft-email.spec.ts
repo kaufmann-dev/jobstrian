@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import type { Lead, Settings } from '../db/schema';
+import {
+	DEFAULT_LEAD_RANKING_CRITERIA,
+	DEFAULT_LISTING_RANKING_CRITERIA
+} from '$lib/ranking-criteria';
 import { buildColdEmailPrompt } from './draft-email';
 
 function settings(patch: Partial<Settings> = {}): Settings {
@@ -18,7 +22,8 @@ function settings(patch: Partial<Settings> = {}): Settings {
 		experienceYears: 2,
 		educationStatus: '',
 		availability: '',
-		rankingNotes: '',
+		listingRankingCriteria: DEFAULT_LISTING_RANKING_CRITERIA,
+		leadRankingCriteria: DEFAULT_LEAD_RANKING_CRITERIA,
 		homeAddress: 'Hauptplatz 1, 8010 Graz, Österreich',
 		homeLocationProvider: 'geoapify',
 		homeLocationId: 'place',
