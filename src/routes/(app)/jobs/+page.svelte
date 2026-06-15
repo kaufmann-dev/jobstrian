@@ -7,7 +7,6 @@
 	import { Button } from '$lib/components/ui/button/index.js';
 	import { Checkbox } from '$lib/components/ui/checkbox/index.js';
 	import * as Select from '$lib/components/ui/select/index.js';
-	import { Label } from '$lib/components/ui/label/index.js';
 	import ServerDataTable from '$lib/components/server-data-table.svelte';
 	import { ServerListController } from '$lib/components/server-list-controller.svelte.js';
 	import { renderSnippet } from '$lib/components/ui/data-table/render-helpers.js';
@@ -221,8 +220,7 @@
 	</div>
 
 	{#snippet filters()}
-		<div class="min-w-0 space-y-1">
-			<Label for="src">Portal</Label>
+		<div class="min-w-0">
 			<Select.Root
 				type="single"
 				value={sourceFilter}
@@ -233,7 +231,7 @@
 					selected = null;
 				}}
 			>
-				<Select.Trigger id="src" class="w-full lg:w-36"
+				<Select.Trigger aria-label="Portal" class="min-h-10 w-full lg:min-h-0 lg:w-36"
 					>{sourceFilter === 'all' ? 'Alle Portale' : SOURCE_LABELS[sourceFilter]}</Select.Trigger
 				>
 				<Select.Content>
@@ -244,8 +242,7 @@
 				</Select.Content>
 			</Select.Root>
 		</div>
-		<div class="min-w-0 space-y-1">
-			<Label for="vd">Bewertung</Label>
+		<div class="min-w-0">
 			<Select.Root
 				type="single"
 				value={verdictFilter}
@@ -256,13 +253,13 @@
 					selected = null;
 				}}
 			>
-				<Select.Trigger id="vd" class="w-full lg:w-32">
-					{{ all: 'Alle', strong: 'Passt gut', maybe: 'Vielleicht', weak: 'Schwach' }[
+				<Select.Trigger aria-label="Bewertung" class="min-h-10 w-full lg:min-h-0 lg:w-32">
+					{{ all: 'Alle Bewertungen', strong: 'Passt gut', maybe: 'Vielleicht', weak: 'Schwach' }[
 						verdictFilter
 					]}
 				</Select.Trigger>
 				<Select.Content>
-					<Select.Item value="all">Alle</Select.Item>
+					<Select.Item value="all">Alle Bewertungen</Select.Item>
 					<Select.Item value="strong">Passt gut</Select.Item>
 					<Select.Item value="maybe">Vielleicht</Select.Item>
 					<Select.Item value="weak">Schwach</Select.Item>
