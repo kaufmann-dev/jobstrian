@@ -207,7 +207,7 @@
 			<Accordion.Trigger
 				class="items-center gap-4 hover:no-underline [&>span:first-child]:min-w-0 [&>span:first-child]:flex-1"
 			>
-				<span class="truncate">Bewertungskriterien für Stellen</span>
+				<span class="truncate">Kriterien für Stellen</span>
 				<span
 					class="w-8 shrink-0 text-center text-xs font-normal text-muted-foreground tabular-nums"
 				>
@@ -224,7 +224,7 @@
 			<Accordion.Trigger
 				class="items-center gap-4 hover:no-underline [&>span:first-child]:min-w-0 [&>span:first-child]:flex-1"
 			>
-				<span class="truncate">Bewertungskriterien für Betriebe</span>
+				<span class="truncate">Kriterien für Betriebe</span>
 				<span
 					class="w-8 shrink-0 text-center text-xs font-normal text-muted-foreground tabular-nums"
 				>

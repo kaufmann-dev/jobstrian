@@ -231,7 +231,7 @@
 					selected = null;
 				}}
 			>
-				<Select.Trigger aria-label="Portal" class="min-h-10 w-full lg:min-h-0 lg:w-36"
+				<Select.Trigger aria-label="Portal" class="min-h-10 w-full lg:min-h-0 lg:w-fit"
 					>{sourceFilter === 'all' ? 'Alle Portale' : SOURCE_LABELS[sourceFilter]}</Select.Trigger
 				>
 				<Select.Content>
@@ -253,7 +253,7 @@
 					selected = null;
 				}}
 			>
-				<Select.Trigger aria-label="Bewertung" class="min-h-10 w-full lg:min-h-0 lg:w-32">
+				<Select.Trigger aria-label="Bewertung" class="min-h-10 w-full lg:min-h-0 lg:w-fit">
 					{{ all: 'Alle Bewertungen', strong: 'Passt gut', maybe: 'Vielleicht', weak: 'Schwach' }[
 						verdictFilter
 					]}

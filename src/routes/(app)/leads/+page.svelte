@@ -579,12 +579,12 @@
 								<Download class="size-4" /> Lebenslauf herunterladen
 							</a>
 						{/if}
-						<div class="flex gap-2">
-							<Button class="flex-1" onclick={() => copy(selected!.draftBody ?? '', 'Nachricht')}>
+						<div class="flex flex-col gap-2">
+							<Button class="w-full" onclick={() => copy(selected!.draftBody ?? '', 'Nachricht')}>
 								<Copy class="size-4" /> Text kopieren
 							</Button>
 							{#if selected.email}
-								<Button class="flex-1" variant="outline" href={mailtoHref(selected)}>
+								<Button class="w-full" variant="outline" href={mailtoHref(selected)}>
 									<Mail class="size-4" /> In E-Mail öffnen
 								</Button>
 							{/if}
