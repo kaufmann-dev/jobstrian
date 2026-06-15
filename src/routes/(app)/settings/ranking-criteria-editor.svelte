@@ -11,6 +11,7 @@
 	import { Textarea } from '$lib/components/ui/textarea/index.js';
 	import Plus from '@lucide/svelte/icons/plus';
 	import Trash2 from '@lucide/svelte/icons/trash-2';
+	import { untrack } from 'svelte';
 
 	type CriteriaConfig = {
 		listingRankingCriteria: RankingCriteria;
@@ -34,6 +35,32 @@
 	const allFields: Field[] = ['listingRankingCriteria', 'leadRankingCriteria'];
 	const visibleFields = $derived(fields ?? allFields);
 	const selectable = $derived(Boolean(fields));
+
+	// Stable per-row keys, independent of the editable `id`. Keying the `{#each}`
+	// on `criterion.id` destroyed and recreated the row on every keystroke in the
+	// ID field, which dropped input focus.
+	let keyCounter = 0;
+	const makeKey = () => `row-${keyCounter++}`;
+	let rowKeys = $state<Record<Field, string[]>>({
+		listingRankingCriteria: criteria.listingRankingCriteria.map(makeKey),
+		leadRankingCriteria: criteria.leadRankingCriteria.map(makeKey)
+	});
+
+	// Keep keys aligned when `criteria` is replaced from outside (e.g. applying an
+	// AI preview); local add/remove keep their own keys in sync directly.
+	$effect(() => {
+		for (const field of allFields) {
+			const need = criteria[field].length;
+			untrack(() => {
+				const have = rowKeys[field];
+				if (have.length === need) return;
+				rowKeys[field] =
+					need > have.length
+						? [...have, ...Array.from({ length: need - have.length }, makeKey)]
+						: have.slice(0, need);
+			});
+		}
+	});
 
 	function visible(field: Field): boolean {
 		return visibleFields.includes(field);
@@ -72,6 +99,7 @@
 			...criteria[field],
 			{ id: nextId(field), label: '', description: '', weight: 3 }
 		]);
+		rowKeys[field] = [...rowKeys[field], makeKey()];
 	}
 
 	function removeCriterion(field: Field, index: number) {
@@ -79,6 +107,7 @@
 			field,
 			criteria[field].filter((_item, itemIndex) => itemIndex !== index)
 		);
+		rowKeys[field] = rowKeys[field].filter((_key, keyIndex) => keyIndex !== index);
 	}
 </script>
 
@@ -109,18 +138,19 @@
 		</div>
 
 		<div class="space-y-3">
-			{#each criteria[field] as criterion, index (criterion.id)}
+			{#each criteria[field] as criterion, index (rowKeys[field][index])}
+				{@const rowKey = rowKeys[field][index]}
 				<div class="rounded-lg border p-3">
 					<div class="grid gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)_5rem_auto]">
 						<div class="space-y-1">
 							<label
 								class="text-xs font-medium text-muted-foreground"
-								for={`${field}-${criterion.id}-id`}
+								for={`${field}-${rowKey}-id`}
 							>
 								ID
 							</label>
 							<Input
-								id={`${field}-${criterion.id}-id`}
+								id={`${field}-${rowKey}-id`}
 								value={criterion.id}
 								maxlength={80}
 								oninput={(event) => setCriterion(field, index, { id: event.currentTarget.value })}
@@ -129,12 +159,12 @@
 						<div class="space-y-1">
 							<label
 								class="text-xs font-medium text-muted-foreground"
-								for={`${field}-${criterion.id}-label`}
+								for={`${field}-${rowKey}-label`}
 							>
 								Label
 							</label>
 							<Input
-								id={`${field}-${criterion.id}-label`}
+								id={`${field}-${rowKey}-label`}
 								value={criterion.label}
 								maxlength={80}
 								oninput={(event) =>
@@ -144,12 +174,12 @@
 						<div class="space-y-1">
 							<label
 								class="text-xs font-medium text-muted-foreground"
-								for={`${field}-${criterion.id}-weight`}
+								for={`${field}-${rowKey}-weight`}
 							>
 								Gewicht
 							</label>
 							<Input
-								id={`${field}-${criterion.id}-weight`}
+								id={`${field}-${rowKey}-weight`}
 								type="number"
 								min="1"
 								max="5"
@@ -178,12 +208,12 @@
 					<div class="mt-3 space-y-1">
 						<label
 							class="text-xs font-medium text-muted-foreground"
-							for={`${field}-${criterion.id}-description`}
+							for={`${field}-${rowKey}-description`}
 						>
 							Beschreibung
 						</label>
 						<Textarea
-							id={`${field}-${criterion.id}-description`}
+							id={`${field}-${rowKey}-description`}
 							value={criterion.description}
 							rows={2}
 							maxlength={500}
