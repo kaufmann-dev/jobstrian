@@ -231,7 +231,7 @@
 					selected = null;
 				}}
 			>
-				<Select.Trigger aria-label="Portal" class="min-h-10 w-full lg:min-h-0 lg:w-fit"
+				<Select.Trigger aria-label="Portal" class="min-h-10 w-full lg:min-h-8 lg:w-fit"
 					>{sourceFilter === 'all' ? 'Alle Portale' : SOURCE_LABELS[sourceFilter]}</Select.Trigger
 				>
 				<Select.Content>
@@ -253,7 +253,7 @@
 					selected = null;
 				}}
 			>
-				<Select.Trigger aria-label="Bewertung" class="min-h-10 w-full lg:min-h-0 lg:w-fit">
+				<Select.Trigger aria-label="Bewertung" class="min-h-10 w-full lg:min-h-8 lg:w-fit">
 					{{ all: 'Alle Bewertungen', strong: 'Passt gut', maybe: 'Vielleicht', weak: 'Schwach' }[
 						verdictFilter
 					]}
@@ -267,7 +267,7 @@
 			</Select.Root>
 		</div>
 		<label
-			class="flex min-h-10 items-center gap-2 rounded-2xl bg-input/35 px-3 text-sm lg:min-h-0 lg:bg-transparent lg:px-0 lg:pb-1"
+			class="flex min-h-10 items-center gap-2 rounded-2xl bg-input/35 px-3 text-sm lg:min-h-8"
 		>
 			<Checkbox
 				checked={showClosed}

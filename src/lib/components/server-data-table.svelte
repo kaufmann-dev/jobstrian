@@ -111,7 +111,7 @@
 			<Button
 				variant="ghost"
 				size="sm"
-				class="h-10 justify-center bg-input/35 lg:h-7 lg:bg-transparent"
+				class="h-10 justify-center bg-input/35 lg:h-8"
 				onclick={resetAll}
 			>
 				<RotateCcw class="size-4" />

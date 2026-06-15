@@ -355,7 +355,7 @@
 
 	{#snippet filters()}
 		<label
-			class="flex min-h-10 items-center gap-2 rounded-2xl bg-input/35 px-3 text-sm lg:min-h-0 lg:bg-transparent lg:px-0"
+			class="flex min-h-10 items-center gap-2 rounded-2xl bg-input/35 px-3 text-sm lg:min-h-8"
 		>
 			<Checkbox
 				checked={onlyWithEmail}
@@ -368,7 +368,7 @@
 			Nur mit E-Mail
 		</label>
 		<label
-			class="flex min-h-10 items-center gap-2 rounded-2xl bg-input/35 px-3 text-sm lg:min-h-0 lg:bg-transparent lg:px-0"
+			class="flex min-h-10 items-center gap-2 rounded-2xl bg-input/35 px-3 text-sm lg:min-h-8"
 		>
 			<Checkbox
 				checked={onlyOpen}
@@ -381,7 +381,7 @@
 			Nur ohne Ausschreibung
 		</label>
 		<label
-			class="flex min-h-10 items-center gap-2 rounded-2xl bg-input/35 px-3 text-sm lg:min-h-0 lg:bg-transparent lg:px-0"
+			class="flex min-h-10 items-center gap-2 rounded-2xl bg-input/35 px-3 text-sm lg:min-h-8"
 		>
 			<Checkbox
 				checked={hideIgnored}
