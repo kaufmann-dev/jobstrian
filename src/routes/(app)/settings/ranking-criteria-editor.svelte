@@ -4,6 +4,7 @@
 		type RankingCriteria,
 		type RankingCriterion
 	} from '$lib/ranking-criteria';
+	import * as Accordion from '$lib/components/ui/accordion/index.js';
 	import { Button } from '$lib/components/ui/button/index.js';
 	import { Checkbox } from '$lib/components/ui/checkbox/index.js';
 	import { Input } from '$lib/components/ui/input/index.js';
@@ -81,23 +82,19 @@
 	}
 </script>
 
-{#snippet heading(field: Field, label: string)}
-	<div class="flex items-center gap-2">
-		{#if selectable}
-			<Checkbox
-				checked={selected.includes(field)}
-				onCheckedChange={(checked) => selection(field, checked === true)}
-				aria-label={`${label} übernehmen`}
-			/>
-		{/if}
-		<h3 class="text-sm font-medium">{label}</h3>
-	</div>
-{/snippet}
-
 {#snippet editor(field: Field, label: string)}
 	<section class="space-y-3">
 		<div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-			{@render heading(field, label)}
+			{#if selectable}
+				<label class="flex items-center gap-2 text-sm font-medium">
+					<Checkbox
+						checked={selected.includes(field)}
+						onCheckedChange={(checked) => selection(field, checked === true)}
+						aria-label={`${label} übernehmen`}
+					/>
+					Übernehmen
+				</label>
+			{/if}
 			<Button
 				type="button"
 				variant="outline"
@@ -204,11 +201,39 @@
 	</section>
 {/snippet}
 
-<div class="space-y-6">
+<Accordion.Root type="multiple">
 	{#if visible('listingRankingCriteria')}
-		{@render editor('listingRankingCriteria', 'Bewertungskriterien für Stellen')}
+		<Accordion.Item value="listing-ranking-criteria" class="data-open:bg-transparent">
+			<Accordion.Trigger
+				class="items-center gap-4 hover:no-underline [&>span:first-child]:min-w-0 [&>span:first-child]:flex-1"
+			>
+				<span class="truncate">Bewertungskriterien für Stellen</span>
+				<span
+					class="w-8 shrink-0 text-center text-xs font-normal text-muted-foreground tabular-nums"
+				>
+					{criteria.listingRankingCriteria.length}
+				</span>
+			</Accordion.Trigger>
+			<Accordion.Content>
+				{@render editor('listingRankingCriteria', 'Bewertungskriterien für Stellen')}
+			</Accordion.Content>
+		</Accordion.Item>
 	{/if}
 	{#if visible('leadRankingCriteria')}
-		{@render editor('leadRankingCriteria', 'Bewertungskriterien für Betriebe')}
+		<Accordion.Item value="lead-ranking-criteria" class="data-open:bg-transparent">
+			<Accordion.Trigger
+				class="items-center gap-4 hover:no-underline [&>span:first-child]:min-w-0 [&>span:first-child]:flex-1"
+			>
+				<span class="truncate">Bewertungskriterien für Betriebe</span>
+				<span
+					class="w-8 shrink-0 text-center text-xs font-normal text-muted-foreground tabular-nums"
+				>
+					{criteria.leadRankingCriteria.length}
+				</span>
+			</Accordion.Trigger>
+			<Accordion.Content>
+				{@render editor('leadRankingCriteria', 'Bewertungskriterien für Betriebe')}
+			</Accordion.Content>
+		</Accordion.Item>
 	{/if}
-</div>
+</Accordion.Root>
