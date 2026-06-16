@@ -27,8 +27,11 @@ import { rankListing, rankLead } from '../llm/rank';
 import { draftColdEmail } from '../llm/draft-email';
 import { mapLimit } from '../util/concurrency';
 import { closeBrowser } from './browser';
-import { getEnabledAdapters, BROWSER_ADAPTERS } from './registry';
+import { ADAPTERS, getEnabledAdapters, BROWSER_ADAPTERS } from './registry';
 import type { ProfileQuery, RawListing } from './types';
+
+/** Bounded concurrency for polite per-listing detail-page fetches. */
+const DETAIL_FETCH_CONCURRENCY = 5;
 
 const PROGRESS_FLUSH_INTERVAL_MS = 1000;
 
@@ -61,6 +64,7 @@ function createProgress(headline = 'Aktualisierung startet'): RunProgress {
 			setup: emptyPhase(),
 			scrape: emptyPhase(),
 			reconcile: emptyPhase(),
+			enrich: emptyPhase(),
 			leads: emptyPhase(),
 			'rank-listings': emptyPhase(),
 			'rank-leads': emptyPhase(),
@@ -392,6 +396,8 @@ export async function runRefresh(
 		});
 		await writer.flush(true);
 
+		await enrichDescriptions(writer, signal);
+
 		writer.phase(
 			'leads',
 			{ state: 'running', current: 0, total: 1, detail: 'Betriebe in der Nähe werden gesucht' },
@@ -508,6 +514,83 @@ export async function runRefresh(
 			.where(eq(scrapeRun.id, runId));
 	} finally {
 		if (usesBrowser) await closeBrowser();
+	}
+}
+
+/**
+ * Fetch full job-ad bodies for active listings that still lack a description,
+ * via each source's `fetchDescription`. Fills `description` and recomputes the
+ * content hash so the rank-listings phase re-evaluates the listing with real
+ * requirement text. Sources without a detail fetcher (e.g. AMS, which carries
+ * the body in its search response) are skipped. Each detail page is fetched at
+ * most once across runs because already-filled descriptions are not re-selected.
+ */
+async function enrichDescriptions(writer: ProgressWriter, signal: AbortSignal): Promise<void> {
+	const rows = await db
+		.select()
+		.from(listing)
+		.where(and(eq(listing.status, 'active'), isNull(listing.description)));
+	const work = rows.filter((row) => typeof ADAPTERS[row.source]?.fetchDescription === 'function');
+	const skipped = rows.length - work.length;
+	let completed = 0;
+	let failed = 0;
+
+	writer.phase(
+		'enrich',
+		{
+			state: work.length > 0 ? 'running' : 'skipped',
+			current: 0,
+			total: work.length,
+			detail: `Beschreibungen geladen: 0 / ${work.length}`,
+			skipped,
+			failed
+		},
+		'Stellenbeschreibungen werden geladen'
+	);
+	await writer.flush(true);
+
+	await mapLimit(
+		work,
+		DETAIL_FETCH_CONCURRENCY,
+		async (row) => {
+			throwIfAborted(signal);
+			try {
+				const description = await ADAPTERS[row.source]!.fetchDescription!(row.url, signal);
+				if (description) {
+					await db
+						.update(listing)
+						.set({ description, contentHash: listingContentHash({ ...row, description }) })
+						.where(eq(listing.id, row.id));
+					completed++;
+				}
+			} catch (err) {
+				if (isAbortLike(err)) throw err;
+				failed++;
+				console.error(`[runner] enrich listing ${row.id} failed:`, err);
+			} finally {
+				writer.phase('enrich', {
+					current: completed + failed,
+					total: work.length,
+					detail: `Beschreibungen geladen: ${completed} / ${work.length}, fehlgeschlagen: ${failed}`,
+					skipped,
+					failed
+				});
+				await writer.flush();
+			}
+		},
+		signal
+	);
+
+	if (work.length > 0) {
+		writer.phase('enrich', {
+			state: failed > 0 ? 'warning' : 'done',
+			current: work.length,
+			total: work.length,
+			detail: `Beschreibungen geladen: ${completed} / ${work.length}, fehlgeschlagen: ${failed}`,
+			skipped,
+			failed
+		});
+		await writer.flush(true);
 	}
 }
 

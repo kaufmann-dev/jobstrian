@@ -11,20 +11,20 @@ const fetchTextMock = vi.mocked(fetchText);
 const resultHtml = `
 	<ul>
 		<li>
-			<h2><a href="/job/27309889?source=search">Service- &amp; Buffet Mitarbeiter/in</a></h2>
+			<a class="inline text-start" href="/job/27309889?source=search">Service- &amp; Buffet Mitarbeiter/in</a>
 			<a data-cy="companyName" href="/c/gigerl">GIGERL – DER STADTHEURIGE</a>
 			<a href="/Wien-Jobs">Wien</a>
 		</li>
 		<li>
-			<h2><a href="/job/27309889">Duplicate result</a></h2>
+			<a class="inline text-start" href="/job/27309889">Duplicate result</a>
 		</li>
 		<li>
-			<h2><a href="/job/28974126">Bar Assistant / Barback</a></h2>
+			<a class="inline text-start" href="/job/28974126">Bar Assistant / Barback</a>
 			<a data-cy="companyName" href="/c/topgolf">Topgolf Wien</a>
 			<a href="/Brunn-am-Gebirge-Jobs">Brunn am Gebirge</a>
 		</li>
-		<li><h2><a href="/job/invalid id">Malformed ID</a></h2></li>
-		<li><h2><a href="/job/123"></a></h2></li>
+		<li><a class="inline text-start" href="/job/invalid id">Malformed ID</a></li>
+		<li><a class="inline text-start" href="/job/123"></a></li>
 	</ul>
 `;
 
@@ -42,7 +42,7 @@ describe('hokify scraper', () => {
 		});
 
 		expect(fetchTextMock).toHaveBeenCalledWith(
-			'https://hokify.at/jobs/m/service-hilfskraft/wien',
+			'https://hokify.at/jobs?branch=service-hilfskraft&city=wien',
 			expect.objectContaining({
 				timeoutMs: 20_000,
 				headers: { 'accept-language': 'de-AT,de;q=0.9' }
@@ -86,7 +86,7 @@ describe('hokify scraper', () => {
 
 		expect(fetchTextMock).toHaveBeenCalledTimes(4);
 		expect(fetchTextMock).toHaveBeenCalledWith(
-			'https://hokify.at/jobs/m/barista/graz',
+			'https://hokify.at/jobs?branch=barista&city=graz',
 			expect.any(Object)
 		);
 	});
@@ -103,5 +103,25 @@ describe('hokify scraper', () => {
 		expect(listings).toHaveLength(1);
 		// ...but the failed second fetch marks the run incomplete.
 		expect(complete).toBe(false);
+	});
+
+	it('extracts the detail-page description from the microdata container', async () => {
+		fetchTextMock.mockResolvedValue(
+			`<main><div itemprop="description"><h2>Aufgaben</h2><p>Sehr gute Deutschkenntnisse&nbsp;(B2) erforderlich.</p></div></main>`
+		);
+
+		const description = await hokify.fetchDescription!('https://hokify.at/job/27309889');
+
+		expect(fetchTextMock).toHaveBeenCalledWith(
+			'https://hokify.at/job/27309889',
+			expect.objectContaining({ headers: { 'accept-language': 'de-AT,de;q=0.9' } })
+		);
+		expect(description).toBe('Aufgaben Sehr gute Deutschkenntnisse (B2) erforderlich.');
+	});
+
+	it('returns null when the detail page has no description container', async () => {
+		fetchTextMock.mockResolvedValue('<main><p>kein Beschreibungstext</p></main>');
+
+		expect(await hokify.fetchDescription!('https://hokify.at/job/123')).toBeNull();
 	});
 });

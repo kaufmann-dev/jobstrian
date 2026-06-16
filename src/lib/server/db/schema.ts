@@ -305,6 +305,7 @@ export type RunPhaseId =
 	| 'setup'
 	| 'scrape'
 	| 'reconcile'
+	| 'enrich'
 	| 'leads'
 	| 'rank-listings'
 	| 'rank-leads'

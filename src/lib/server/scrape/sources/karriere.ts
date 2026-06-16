@@ -1,7 +1,25 @@
 import * as cheerio from 'cheerio';
 import { fetchText } from '../../util/http';
+import { htmlToText } from '../../util/html';
 import type { ProfileQuery, RawListing, ScrapeResult, SourceAdapter } from '../types';
 import { matchLocation } from './location';
+
+/** Find a JobPosting object inside a JSON-LD value (object, array, or @graph). */
+function findJobPosting(node: unknown): { description?: string } | null {
+	if (Array.isArray(node)) {
+		for (const item of node) {
+			const found = findJobPosting(item);
+			if (found) return found;
+		}
+		return null;
+	}
+	if (node && typeof node === 'object') {
+		const obj = node as Record<string, unknown>;
+		if (obj['@type'] === 'JobPosting') return obj as { description?: string };
+		if (Array.isArray(obj['@graph'])) return findJobPosting(obj['@graph']);
+	}
+	return null;
+}
 
 interface ParsedItem {
 	externalId: string;
@@ -54,6 +72,25 @@ function parse(html: string): ParsedItem[] {
 export const karriere: SourceAdapter = {
 	id: 'karriere',
 	label: 'karriere.at',
+	async fetchDescription(url: string, signal?: AbortSignal): Promise<string | null> {
+		const html = await fetchText(url, {
+			timeoutMs: 20_000,
+			headers: { 'accept-language': 'de-AT,de;q=0.9' },
+			signal
+		});
+		const $ = cheerio.load(html);
+		for (const el of $('script[type="application/ld+json"]').toArray()) {
+			let parsed: unknown;
+			try {
+				parsed = JSON.parse($(el).text());
+			} catch {
+				continue;
+			}
+			const posting = findJobPosting(parsed);
+			if (posting?.description) return htmlToText(posting.description);
+		}
+		return null;
+	},
 	async search(profile: ProfileQuery, signal?: AbortSignal): Promise<ScrapeResult> {
 		const byId = new Map<string, RawListing>();
 		let complete = true;

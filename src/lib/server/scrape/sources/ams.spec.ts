@@ -30,6 +30,7 @@ describe('AMS scraper', () => {
 									id: 1,
 									uuid: 'a5ba55e4-d305-39fa-9651-7636becc406d',
 									title: 'Office Assistenz',
+									summary: '<p>Sehr gute Deutschkenntnisse erforderlich.</p>',
 									company: {
 										name: 'Graz GmbH',
 										address: { town: 'Graz', federalState: 'Steiermark' }
@@ -60,6 +61,7 @@ describe('AMS scraper', () => {
 			'https://jobs.ams.at/public/emps/jobs/a5ba55e4-d305-39fa-9651-7636becc406d'
 		);
 		expect(listings[0]?.location).toBe('Graz, Steiermark');
+		expect(listings[0]?.description).toBe('Sehr gute Deutschkenntnisse erforderlich.');
 		expect(listings[0]).toMatchObject({ discoveryKeyword: 'Office', discoveryCity: 'Graz' });
 	});
 });

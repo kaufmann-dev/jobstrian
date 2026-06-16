@@ -41,4 +41,29 @@ describe('karriere scraper', () => {
 			discoveryCity: 'Graz'
 		});
 	});
+
+	it('extracts the detail description from JSON-LD JobPosting', async () => {
+		fetchTextMock.mockResolvedValue(`
+			<script type="application/ld+json">${JSON.stringify({
+				'@graph': [
+					{ '@type': 'WebPage', name: 'irrelevant' },
+					{ '@type': 'JobPosting', description: '<p>Aufgaben</p><ul><li>Deutsch B2</li></ul>' }
+				]
+			})}</script>
+		`);
+
+		const description = await karriere.fetchDescription!('https://www.karriere.at/jobs/123456');
+
+		expect(fetchTextMock).toHaveBeenCalledWith(
+			'https://www.karriere.at/jobs/123456',
+			expect.objectContaining({ headers: { 'accept-language': 'de-AT,de;q=0.9' } })
+		);
+		expect(description).toBe('Aufgaben Deutsch B2');
+	});
+
+	it('returns null when no JSON-LD JobPosting is present', async () => {
+		fetchTextMock.mockResolvedValue('<script type="application/ld+json">{"@type":"WebPage"}</script>');
+
+		expect(await karriere.fetchDescription!('https://www.karriere.at/jobs/1')).toBeNull();
+	});
 });

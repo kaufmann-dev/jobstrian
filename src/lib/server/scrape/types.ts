@@ -37,4 +37,11 @@ export interface SourceAdapter {
 	 * Re-throw only on abort.
 	 */
 	search(profile: ProfileQuery, signal?: AbortSignal): Promise<ScrapeResult>;
+	/**
+	 * Fetch the full job-ad body text for a single listing's detail page.
+	 * Returns normalized plain text, or null when no description is available.
+	 * Only implemented by sources whose search results lack the body; omit it
+	 * when the description already comes from `search` (e.g. AMS).
+	 */
+	fetchDescription?(url: string, signal?: AbortSignal): Promise<string | null>;
 }

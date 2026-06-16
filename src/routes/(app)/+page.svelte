@@ -96,6 +96,7 @@
 		setup: 'Vorbereitung',
 		scrape: 'Quellen',
 		reconcile: 'Abgleich',
+		enrich: 'Beschreibungen',
 		leads: 'Betriebe',
 		'rank-listings': 'Stellenbewertung',
 		'rank-leads': 'Betriebsbewertung',
@@ -118,6 +119,7 @@
 				},
 				scrape: { state: 'pending', current: 0, total: 0, detail: '', skipped: 0, failed: 0 },
 				reconcile: { state: 'pending', current: 0, total: 0, detail: '', skipped: 0, failed: 0 },
+				enrich: { state: 'pending', current: 0, total: 0, detail: '', skipped: 0, failed: 0 },
 				leads: { state: 'pending', current: 0, total: 0, detail: '', skipped: 0, failed: 0 },
 				'rank-listings': {
 					state: 'pending',

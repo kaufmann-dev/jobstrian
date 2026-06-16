@@ -1,5 +1,6 @@
 import { withPage } from '../browser';
 import type { ProfileQuery, RawListing, ScrapeResult, SourceAdapter } from '../types';
+import { htmlToText } from '../../util/html';
 import { normalizeLocation } from './location';
 
 /**
@@ -21,6 +22,7 @@ interface AmsResult {
 	uuid?: string;
 	title?: string;
 	lastUpdatedAt?: string;
+	summary?: string;
 	company?: { name?: string; address?: AmsAddress };
 }
 
@@ -57,6 +59,7 @@ function toListing(r: AmsResult, cities: readonly string[], keyword: string): Ra
 		title: r.title,
 		company: r.company?.name,
 		location: location || undefined,
+		description: r.summary ? htmlToText(r.summary) : undefined,
 		postedAt: r.lastUpdatedAt ? new Date(r.lastUpdatedAt) : undefined,
 		discoveryKeyword: keyword,
 		discoveryCity

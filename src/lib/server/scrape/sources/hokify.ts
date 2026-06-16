@@ -1,5 +1,6 @@
 import * as cheerio from 'cheerio';
 import { fetchText } from '../../util/http';
+import { htmlToText } from '../../util/html';
 import type { ProfileQuery, RawListing, ScrapeResult, SourceAdapter } from '../types';
 import { matchLocation } from './location';
 
@@ -28,7 +29,7 @@ function parse(html: string): ParsedItem[] {
 
 	$('li').each((_, element) => {
 		const card = $(element);
-		const link = card.find('h2 a[href^="/job/"]').first();
+		const link = card.find('a[href^="/job/"]').first();
 		const href = link.attr('href')?.split('?')[0];
 		const idMatch = href?.match(/^\/job\/([A-Za-z0-9_-]+)$/);
 		const title = link.text().trim();
@@ -51,6 +52,16 @@ function parse(html: string): ParsedItem[] {
 export const hokify: SourceAdapter = {
 	id: 'hokify',
 	label: 'hokify',
+	async fetchDescription(url: string, signal?: AbortSignal): Promise<string | null> {
+		const html = await fetchText(url, {
+			timeoutMs: 20_000,
+			headers: { 'accept-language': 'de-AT,de;q=0.9' },
+			signal
+		});
+		const $ = cheerio.load(html);
+		const inner = $('[itemprop="description"]').first().html();
+		return inner ? htmlToText(inner) : null;
+	},
 	async search(profile: ProfileQuery, signal?: AbortSignal): Promise<ScrapeResult> {
 		const byId = new Map<string, RawListing>();
 		let complete = true;
@@ -60,7 +71,7 @@ export const hokify: SourceAdapter = {
 			for (const keyword of profile.keywords) {
 				if (signal?.aborted) throw signal.reason;
 				try {
-					const url = `https://hokify.at/jobs/m/${slug(keyword)}/${location}`;
+					const url = `https://hokify.at/jobs?branch=${slug(keyword)}&city=${location}`;
 					const html = await fetchText(url, {
 						timeoutMs: 20_000,
 						headers: { 'accept-language': 'de-AT,de;q=0.9' },

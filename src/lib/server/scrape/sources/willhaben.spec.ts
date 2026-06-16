@@ -65,4 +65,41 @@ describe('willhaben scraper', () => {
 		expect(complete).toBe(false);
 		expect(listings).toEqual([]);
 	});
+
+	it('maps the list-level description when present (sponsored top job)', async () => {
+		fetchTextMock.mockResolvedValue(
+			page([
+				{
+					id: 1,
+					title: 'Verkauf',
+					slugTitle: 'verkauf',
+					company: { title: 'Shop Graz' },
+					jobLocations: [{ name: 'Graz' }],
+					description: 'Ihr Profil\n* Gute  Deutschkenntnisse'
+				}
+			])
+		);
+
+		const { listings } = await willhaben.search({ keywords: ['Verkauf'], locations: ['Graz'] });
+
+		expect(listings[0]?.description).toBe('Ihr Profil * Gute Deutschkenntnisse');
+	});
+
+	it('fetches the detail-page description from __NEXT_DATA__', async () => {
+		fetchTextMock.mockResolvedValue(
+			`<script id="__NEXT_DATA__" type="application/json">${JSON.stringify({
+				props: {
+					pageProps: {
+						jobAdvertDetailsRoot: { data: { description: '<p>Aufgaben</p><p>Deutsch B2</p>' } }
+					}
+				}
+			})}</script>`
+		);
+
+		const description = await willhaben.fetchDescription!(
+			'https://www.willhaben.at/jobs/job/verkauf/1'
+		);
+
+		expect(description).toBe('Aufgaben Deutsch B2');
+	});
 });

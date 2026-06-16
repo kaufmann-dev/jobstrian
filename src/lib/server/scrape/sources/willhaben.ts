@@ -1,4 +1,5 @@
 import { fetchText } from '../../util/http';
+import { htmlToText } from '../../util/html';
 import type { ProfileQuery, RawListing, ScrapeResult, SourceAdapter } from '../types';
 import { matchLocation } from './location';
 
@@ -11,19 +12,26 @@ interface WhEntry {
 	salary?: string;
 	salaryTimeFrame?: string;
 	creationDate?: string;
+	description?: string;
 	isExpired?: boolean;
 }
 
-function parseNextData(html: string): WhEntry[] {
+function extractNextData(html: string): unknown {
 	const m = html.match(/<script id="__NEXT_DATA__" type="application\/json">([\s\S]*?)<\/script>/);
-	if (!m) return [];
+	if (!m) return null;
 	try {
-		const json = JSON.parse(m[1]);
-		const entries = json?.props?.pageProps?.jobsSearchResultRoot?.data?.entries;
-		return Array.isArray(entries) ? entries : [];
+		return JSON.parse(m[1]);
 	} catch {
-		return [];
+		return null;
 	}
+}
+
+function parseNextData(html: string): WhEntry[] {
+	const json = extractNextData(html) as
+		| { props?: { pageProps?: { jobsSearchResultRoot?: { data?: { entries?: WhEntry[] } } } } }
+		| null;
+	const entries = json?.props?.pageProps?.jobsSearchResultRoot?.data?.entries;
+	return Array.isArray(entries) ? entries : [];
 }
 
 function toListing(e: WhEntry, keyword: string, cities: readonly string[]): RawListing | null {
@@ -38,6 +46,7 @@ function toListing(e: WhEntry, keyword: string, cities: readonly string[]): RawL
 		title: e.title,
 		company: e.company?.title,
 		location: match.location,
+		description: e.description ? htmlToText(e.description) : undefined,
 		salary: e.salary ? `${e.salary}${e.salaryTimeFrame ? ' ' + e.salaryTimeFrame : ''}` : undefined,
 		postedAt: e.creationDate ? new Date(e.creationDate) : undefined,
 		discoveryKeyword: keyword,
@@ -48,6 +57,14 @@ function toListing(e: WhEntry, keyword: string, cities: readonly string[]): RawL
 export const willhaben: SourceAdapter = {
 	id: 'willhaben',
 	label: 'willhaben Jobs',
+	async fetchDescription(url: string, signal?: AbortSignal): Promise<string | null> {
+		const html = await fetchText(url, { timeoutMs: 20_000, signal });
+		const json = extractNextData(html) as
+			| { props?: { pageProps?: { jobAdvertDetailsRoot?: { data?: { description?: string } } } } }
+			| null;
+		const description = json?.props?.pageProps?.jobAdvertDetailsRoot?.data?.description;
+		return description ? htmlToText(description) : null;
+	},
 	async search(profile: ProfileQuery, signal?: AbortSignal): Promise<ScrapeResult> {
 		const byId = new Map<string, RawListing>();
 		let complete = true;
