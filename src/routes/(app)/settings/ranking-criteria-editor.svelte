@@ -140,7 +140,7 @@
 		<div class="space-y-3">
 			{#each criteria[field] as criterion, index (rowKeys[field][index])}
 				{@const rowKey = rowKeys[field][index]}
-				<div class="rounded-lg border p-3">
+				<div class="rounded-2xl border p-3">
 					<div class="grid gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)_5rem_auto]">
 						<div class="space-y-1">
 							<label
