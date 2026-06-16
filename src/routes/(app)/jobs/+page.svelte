@@ -8,6 +8,7 @@
 	import { Checkbox } from '$lib/components/ui/checkbox/index.js';
 	import * as Select from '$lib/components/ui/select/index.js';
 	import ServerDataTable from '$lib/components/server-data-table.svelte';
+	import RankFactors from '$lib/components/rank-factors.svelte';
 	import { ServerListController } from '$lib/components/server-list-controller.svelte.js';
 	import { renderSnippet } from '$lib/components/ui/data-table/render-helpers.js';
 	import ExternalLink from '@lucide/svelte/icons/external-link';
@@ -323,7 +324,9 @@
 					{#if selected.salary}<Badge variant="outline">{selected.salary}</Badge>{/if}
 					{#if selected.status === 'closed'}<Badge variant="destructive">geschlossen</Badge>{/if}
 				</div>
-				{#if selected.rankReason}
+				{#if selected.rankFactors?.length}
+					<RankFactors factors={selected.rankFactors} />
+				{:else if selected.rankReason}
 					<div>
 						<h3 class="mb-1 text-sm font-medium">Bewertung</h3>
 						<p class="text-sm text-muted-foreground">{selected.rankReason}</p>

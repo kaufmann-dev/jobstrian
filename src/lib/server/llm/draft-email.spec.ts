@@ -69,6 +69,7 @@ function lead(patch: Partial<Lead> = {}): Lead {
 		hasActivePosting: false,
 		rankScore: null,
 		rankReason: null,
+		rankFactors: null,
 		draftSubject: null,
 		draftBody: null,
 		status: 'new',

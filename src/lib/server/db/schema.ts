@@ -17,6 +17,7 @@ import type { OsmBusinessTag, OsmBusinessTagSuggestion } from '$lib/search-confi
 import {
 	DEFAULT_LEAD_RANKING_CRITERIA,
 	DEFAULT_LISTING_RANKING_CRITERIA,
+	type RankFactor,
 	type RankingCriteria
 } from '$lib/ranking-criteria';
 
@@ -224,6 +225,7 @@ export const listing = pgTable(
 		rankScore: integer('rank_score'),
 		rankVerdict: text('rank_verdict', { enum: ['strong', 'maybe', 'weak'] }),
 		rankReason: text('rank_reason'),
+		rankFactors: jsonb('rank_factors').$type<RankFactor[]>(),
 		rankedAt: timestamp('ranked_at'),
 		rankContentHash: text('rank_content_hash'),
 		rankContextHash: text('rank_context_hash'),
@@ -268,6 +270,7 @@ export const lead = pgTable(
 		hasActivePosting: boolean('has_active_posting').notNull().default(false),
 		rankScore: integer('rank_score'),
 		rankReason: text('rank_reason'),
+		rankFactors: jsonb('rank_factors').$type<RankFactor[]>(),
 		draftSubject: text('draft_subject'),
 		draftBody: text('draft_body'),
 		status: text('status', { enum: ['new', 'contacted', 'ignored'] })

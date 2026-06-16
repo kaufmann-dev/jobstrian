@@ -129,7 +129,11 @@ describe('weightedRankingScore', () => {
 		).toEqual({
 			score: 83,
 			verdict: 'strong',
-			reason: 'Stärkster Faktor: Wichtig (5/5). Größter Abzug: Nebensache (0/5).'
+			reason: 'Stärkster Faktor: Wichtig (5/5). Größter Abzug: Nebensache (0/5).',
+			factors: [
+				{ id: 'important', label: 'Wichtig', score: 5 },
+				{ id: 'minor', label: 'Nebensache', score: 0 }
+			]
 		});
 	});
 });

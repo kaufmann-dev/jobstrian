@@ -17,6 +17,13 @@ export type RankingCriterionScore = {
 
 export type RankingVerdict = 'strong' | 'maybe' | 'weak';
 
+/** Per-criterion score snapshot persisted for the detail-page breakdown. */
+export type RankFactor = {
+	id: string;
+	label: string;
+	score: number; // 0-5
+};
+
 export const DEFAULT_LISTING_RANKING_CRITERIA: RankingCriteria = [
 	{
 		id: 'role-fit',
@@ -240,6 +247,7 @@ export function weightedRankingScore(
 	score: number;
 	verdict: RankingVerdict;
 	reason: string;
+	factors: RankFactor[];
 } {
 	const byId = new Map(scores.map((item) => [item.criterionId, item]));
 	const weighted = criteria.map((criterion) => {
@@ -274,6 +282,11 @@ export function weightedRankingScore(
 	return {
 		score,
 		verdict: verdictFromScore(score),
-		reason: `Stärkster Faktor: ${strongest.criterion.label} (${strongest.score}/5). ${deductionText}`
+		reason: `Stärkster Faktor: ${strongest.criterion.label} (${strongest.score}/5). ${deductionText}`,
+		factors: weighted.map(({ criterion, score }) => ({
+			id: criterion.id,
+			label: criterion.label,
+			score
+		}))
 	};
 }

@@ -15,6 +15,7 @@
 	import { Input } from '$lib/components/ui/input/index.js';
 	import { Spinner } from '$lib/components/ui/spinner/index.js';
 	import ServerDataTable from '$lib/components/server-data-table.svelte';
+	import RankFactors from '$lib/components/rank-factors.svelte';
 	import { ServerListController } from '$lib/components/server-list-controller.svelte.js';
 	import { renderSnippet } from '$lib/components/ui/data-table/render-helpers.js';
 	import Mail from '@lucide/svelte/icons/mail';
@@ -433,9 +434,13 @@
 					{#if selected.hasActivePosting}<Badge variant="secondary">hat Ausschreibung</Badge>{/if}
 					<Badge variant="outline">{STATUS_LABELS[selected.status] ?? selected.status}</Badge>
 				</div>
-				{#if selected.rankReason}<p class="text-sm text-muted-foreground">
+				{#if selected.rankFactors?.length}
+					<RankFactors factors={selected.rankFactors} />
+				{:else if selected.rankReason}
+					<p class="text-sm text-muted-foreground">
 						{selected.rankReason}
-					</p>{/if}
+					</p>
+				{/if}
 				<div class="space-y-3 text-sm">
 					{#if selected.address}<p>{selected.address}</p>{/if}
 					<div class="flex items-center justify-between gap-3">

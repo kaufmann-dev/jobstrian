@@ -5,6 +5,7 @@ import { osmBusinessTagLabel } from '$lib/search-config';
 import {
 	parseCriterionScores,
 	weightedRankingScore,
+	type RankFactor,
 	type RankingCriteria,
 	type RankingCriterionScore
 } from '$lib/ranking-criteria';
@@ -15,6 +16,7 @@ export interface RankResult {
 	score: number; // 0-100
 	verdict: 'strong' | 'maybe' | 'weak';
 	reason: string;
+	factors: RankFactor[];
 }
 
 export function profileBlock(s: Settings): string {

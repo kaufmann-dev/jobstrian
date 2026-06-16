@@ -680,6 +680,7 @@ async function rankListings(
 						rankScore: result.score,
 						rankVerdict: result.verdict,
 						rankReason: result.reason,
+						rankFactors: result.factors,
 						rankedAt: new Date(),
 						contentHash,
 						rankContentHash: contentHash,
@@ -761,6 +762,7 @@ async function rankLeads(
 					const result = await rankLead(cfg, settings, row, limiter, signal);
 					update.rankScore = result.score;
 					update.rankReason = result.reason;
+					update.rankFactors = result.factors;
 					update.rankContentHash = contentHash;
 					update.rankContextHash = rankContext;
 				}
