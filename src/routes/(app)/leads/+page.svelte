@@ -16,6 +16,7 @@
 	import { Spinner } from '$lib/components/ui/spinner/index.js';
 	import ServerDataTable from '$lib/components/server-data-table.svelte';
 	import RankFactors from '$lib/components/rank-factors.svelte';
+	import { rankScoreClass } from '$lib/rank-color';
 	import { ServerListController } from '$lib/components/server-list-controller.svelte.js';
 	import { renderSnippet } from '$lib/components/ui/data-table/render-helpers.js';
 	import Mail from '@lucide/svelte/icons/mail';
@@ -234,14 +235,6 @@
 		return CATEGORY_LABELS[category] ?? category.replaceAll('_', ' ');
 	}
 
-	function scoreClass(score: number): string {
-		if (score >= 80)
-			return 'border-transparent bg-emerald-600/15 text-emerald-700 dark:bg-emerald-400/15 dark:text-emerald-300';
-		if (score >= 60)
-			return 'border-transparent bg-amber-500/15 text-amber-700 dark:bg-amber-400/15 dark:text-amber-300';
-		return 'border-transparent bg-muted text-muted-foreground';
-	}
-
 	const columns: ColumnDef<Lead>[] = [
 		{
 			id: 'star',
@@ -304,7 +297,7 @@
 
 {#snippet scoreCell({ item }: { item: Lead })}
 	{#if item.rankScore != null}
-		<Badge class={['tabular-nums', scoreClass(item.rankScore)]}>{item.rankScore}</Badge>
+		<Badge class={['tabular-nums', rankScoreClass(item.rankScore)]}>{item.rankScore}</Badge>
 	{:else}
 		<span class="text-muted-foreground">—</span>
 	{/if}
@@ -430,16 +423,19 @@
 			</Sheet.Header>
 			<div class="space-y-5 px-4 pb-4">
 				<div class="flex flex-wrap gap-2">
-					{#if selected.rankScore != null}<Badge>Score {selected.rankScore}</Badge>{/if}
+					{#if selected.rankScore != null}<Badge class={rankScoreClass(selected.rankScore)}
+							>Score {selected.rankScore}</Badge
+						>{/if}
 					{#if selected.hasActivePosting}<Badge variant="secondary">hat Ausschreibung</Badge>{/if}
 					<Badge variant="outline">{STATUS_LABELS[selected.status] ?? selected.status}</Badge>
 				</div>
 				{#if selected.rankFactors?.length}
 					<RankFactors factors={selected.rankFactors} />
 				{:else if selected.rankReason}
-					<p class="text-sm text-muted-foreground">
-						{selected.rankReason}
-					</p>
+					<div>
+						<h3 class="mb-1 text-sm font-medium">Bewertung</h3>
+						<p class="text-sm text-muted-foreground">{selected.rankReason}</p>
+					</div>
 				{/if}
 				<div class="space-y-3 text-sm">
 					{#if selected.address}<p>{selected.address}</p>{/if}

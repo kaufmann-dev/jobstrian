@@ -9,6 +9,7 @@
 	import * as Select from '$lib/components/ui/select/index.js';
 	import ServerDataTable from '$lib/components/server-data-table.svelte';
 	import RankFactors from '$lib/components/rank-factors.svelte';
+	import { rankScoreClass } from '$lib/rank-color';
 	import { ServerListController } from '$lib/components/server-list-controller.svelte.js';
 	import { renderSnippet } from '$lib/components/ui/data-table/render-helpers.js';
 	import ExternalLink from '@lucide/svelte/icons/external-link';
@@ -75,14 +76,6 @@
 			if (controller.sort === 'recommended') controller.reorder(recommendedCompare);
 			toast.error('Markierung konnte nicht gespeichert werden.');
 		}
-	}
-
-	function verdictClass(v: string | null): string {
-		if (v === 'strong')
-			return 'border-transparent bg-emerald-600/15 text-emerald-700 dark:bg-emerald-400/15 dark:text-emerald-300';
-		if (v === 'maybe')
-			return 'border-transparent bg-amber-500/15 text-amber-700 dark:bg-amber-400/15 dark:text-amber-300';
-		return 'border-transparent bg-muted text-muted-foreground';
 	}
 
 	function fmtDate(d: Date | string | null): string {
@@ -191,7 +184,7 @@
 
 {#snippet scoreCell({ job }: { job: Listing })}
 	{#if job.rankScore != null}
-		<Badge class={['tabular-nums', verdictClass(job.rankVerdict)]}>{job.rankScore}</Badge>
+		<Badge class={['tabular-nums', rankScoreClass(job.rankScore)]}>{job.rankScore}</Badge>
 	{:else}
 		<span class="text-muted-foreground">—</span>
 	{/if}
@@ -317,7 +310,7 @@
 			<div class="space-y-4 px-4 pb-4">
 				<div class="flex flex-wrap items-center gap-2">
 					{#if selected.rankScore != null}
-						<Badge class={verdictClass(selected.rankVerdict)}>Score {selected.rankScore}</Badge>
+						<Badge class={rankScoreClass(selected.rankScore)}>Score {selected.rankScore}</Badge>
 					{/if}
 					<Badge variant="outline">{SOURCE_LABELS[selected.source] ?? selected.source}</Badge>
 					{#if selected.postedAt}<Badge variant="outline">{fmtDate(selected.postedAt)}</Badge>{/if}
@@ -330,12 +323,6 @@
 					<div>
 						<h3 class="mb-1 text-sm font-medium">Bewertung</h3>
 						<p class="text-sm text-muted-foreground">{selected.rankReason}</p>
-					</div>
-				{/if}
-				{#if selected.description}
-					<div>
-						<h3 class="mb-1 text-sm font-medium">Beschreibung</h3>
-						<p class="text-sm whitespace-pre-line text-muted-foreground">{selected.description}</p>
 					</div>
 				{/if}
 				<Button href={selected.url} target="_blank" class="w-full">
