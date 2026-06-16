@@ -48,6 +48,7 @@ describe('hokify scraper', () => {
 				headers: { 'accept-language': 'de-AT,de;q=0.9' }
 			})
 		);
+		// "Brunn am Gebirge" is dropped: it does not match the configured city.
 		expect(listings).toEqual([
 			{
 				externalId: '27309889',
@@ -55,15 +56,6 @@ describe('hokify scraper', () => {
 				title: 'Service- & Buffet Mitarbeiter/in',
 				company: 'GIGERL – DER STADTHEURIGE',
 				location: 'Wien',
-				discoveryKeyword: 'Service Hilfskraft',
-				discoveryCity: 'Wien'
-			},
-			{
-				externalId: '28974126',
-				url: 'https://hokify.at/job/28974126',
-				title: 'Bar Assistant / Barback',
-				company: 'Topgolf Wien',
-				location: 'Brunn am Gebirge',
 				discoveryKeyword: 'Service Hilfskraft',
 				discoveryCity: 'Wien'
 			}
@@ -79,7 +71,8 @@ describe('hokify scraper', () => {
 		});
 
 		expect(fetchTextMock).toHaveBeenCalledTimes(2);
-		expect(listings).toHaveLength(2);
+		// Only the Wien result survives the city filter.
+		expect(listings).toHaveLength(1);
 	});
 
 	it('searches every configured city for every keyword', async () => {

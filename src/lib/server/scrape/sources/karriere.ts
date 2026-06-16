@@ -1,6 +1,15 @@
 import * as cheerio from 'cheerio';
 import { fetchText } from '../../util/http';
 import type { ProfileQuery, RawListing, SourceAdapter } from '../types';
+import { matchLocation } from './location';
+
+interface ParsedItem {
+	externalId: string;
+	url: string;
+	title: string;
+	company?: string;
+	locationParts: string[];
+}
 
 function slugify(keyword: string): string {
 	return keyword
@@ -13,9 +22,9 @@ function slugify(keyword: string): string {
 		.replace(/^-+|-+$/g, '');
 }
 
-function parse(html: string): RawListing[] {
+function parse(html: string): ParsedItem[] {
 	const $ = cheerio.load(html);
-	const out: RawListing[] = [];
+	const out: ParsedItem[] = [];
 	$('.m-jobsListItem').each((_, el) => {
 		const item = $(el);
 		const link = item.find('a.m-jobsListItem__titleLink').first();
@@ -26,18 +35,17 @@ function parse(html: string): RawListing[] {
 		const title = link.text().trim();
 		if (!title) return;
 		const company = item.find('.m-jobsListItem__companyName').first().text().trim();
-		const location = item
+		const locationParts = item
 			.find('.m-jobsListItem__location')
 			.map((_, l) => $(l).text().trim())
 			.get()
-			.filter(Boolean)
-			.join(', ');
+			.filter(Boolean);
 		out.push({
 			externalId: idMatch[1],
 			url: href.startsWith('http') ? href : `https://www.karriere.at${href}`,
 			title,
 			company: company || undefined,
-			location: location || undefined
+			locationParts
 		});
 	});
 	return out;
@@ -60,11 +68,14 @@ export const karriere: SourceAdapter = {
 						headers: { 'accept-language': 'de-AT,de;q=0.9' },
 						signal
 					});
-					for (const listing of parse(html)) {
-						byId.set(listing.externalId, {
-							...listing,
+					for (const { locationParts, ...item } of parse(html)) {
+						const match = matchLocation(locationParts, profile.locations, ', ');
+						if (!match) continue;
+						byId.set(item.externalId, {
+							...item,
+							location: match.location,
 							discoveryKeyword: keyword,
-							discoveryCity: locationName
+							discoveryCity: match.city
 						});
 					}
 				} catch (err) {

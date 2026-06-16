@@ -1,5 +1,6 @@
 import { withPage } from '../browser';
 import type { ProfileQuery, RawListing, SourceAdapter } from '../types';
+import { normalizeLocation } from './location';
 
 /**
  * AMS eJob-Room (jobs.ams.at) is an Angular SPA whose `/api/search` endpoint
@@ -21,15 +22,6 @@ interface AmsResult {
 	title?: string;
 	lastUpdatedAt?: string;
 	company?: { name?: string; address?: AmsAddress };
-}
-
-function normalizeLocation(value: string): string {
-	return value
-		.normalize('NFKD')
-		.replace(/\p{Diacritic}/gu, '')
-		.toLowerCase()
-		.replace(/[^a-z0-9]+/g, ' ')
-		.trim();
 }
 
 function matchingAddressCity(

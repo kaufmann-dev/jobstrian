@@ -1,5 +1,6 @@
 import { fetchText } from '../../util/http';
 import type { ProfileQuery, RawListing, SourceAdapter } from '../types';
+import { matchLocation } from './location';
 
 interface WhEntry {
 	id: number;
@@ -25,54 +26,23 @@ function parseNextData(html: string): WhEntry[] {
 	}
 }
 
-function toListing(e: WhEntry): RawListing | null {
+function toListing(e: WhEntry, keyword: string, cities: readonly string[]): RawListing | null {
 	if (!e.id || !e.title || e.isExpired) return null;
+	const parts = (e.jobLocations ?? []).map((l) => l.name).filter(Boolean) as string[];
+	const match = matchLocation(parts, cities);
+	if (!match) return null;
 	const slug = e.slugTitle ?? 'job';
 	return {
 		externalId: String(e.id),
 		url: `https://www.willhaben.at/jobs/job/${slug}/${e.id}`,
 		title: e.title,
 		company: e.company?.title,
-		location: (e.jobLocations ?? [])
-			.map((l) => l.name)
-			.filter(Boolean)
-			.join(' · '),
+		location: match.location,
 		salary: e.salary ? `${e.salary}${e.salaryTimeFrame ? ' ' + e.salaryTimeFrame : ''}` : undefined,
-		postedAt: e.creationDate ? new Date(e.creationDate) : undefined
+		postedAt: e.creationDate ? new Date(e.creationDate) : undefined,
+		discoveryKeyword: keyword,
+		discoveryCity: match.city
 	};
-}
-
-function normalizeLocation(value: string): string {
-	return value
-		.normalize('NFKD')
-		.replace(/\p{Diacritic}/gu, '')
-		.toLowerCase()
-		.replace(/[^a-z0-9]+/g, ' ')
-		.trim();
-}
-
-function matchingConfiguredCity(
-	location: string | undefined,
-	cities: readonly string[]
-): string | null {
-	if (!location) return null;
-	const normalized = normalizeLocation(location);
-	return (
-		cities.find((city) => {
-			const normalizedCity = normalizeLocation(city);
-			return normalizedCity.length > 0 && normalized.includes(normalizedCity);
-		}) ?? null
-	);
-}
-
-function listingWithDiscovery(
-	listing: RawListing,
-	keyword: string,
-	cities: readonly string[]
-): RawListing | null {
-	const city = matchingConfiguredCity(listing.location, cities);
-	if (!city) return null;
-	return { ...listing, discoveryKeyword: keyword, discoveryCity: city };
 }
 
 export const willhaben: SourceAdapter = {
@@ -86,11 +56,8 @@ export const willhaben: SourceAdapter = {
 				const url = 'https://www.willhaben.at/jobs/suche?keyword=' + encodeURIComponent(keyword);
 				const html = await fetchText(url, { timeoutMs: 20_000, signal });
 				for (const entry of parseNextData(html)) {
-					const listing = toListing(entry);
-					const discovered = listing
-						? listingWithDiscovery(listing, keyword, profile.locations)
-						: null;
-					if (discovered) byId.set(discovered.externalId, discovered);
+					const listing = toListing(entry, keyword, profile.locations);
+					if (listing) byId.set(listing.externalId, listing);
 				}
 			} catch (err) {
 				console.error(`[willhaben] "${keyword}" failed:`, err);

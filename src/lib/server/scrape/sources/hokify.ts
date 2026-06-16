@@ -1,6 +1,15 @@
 import * as cheerio from 'cheerio';
 import { fetchText } from '../../util/http';
 import type { ProfileQuery, RawListing, SourceAdapter } from '../types';
+import { matchLocation } from './location';
+
+interface ParsedItem {
+	externalId: string;
+	url: string;
+	title: string;
+	company?: string;
+	locationParts: string[];
+}
 
 function slug(value: string): string {
 	return value
@@ -13,9 +22,9 @@ function slug(value: string): string {
 		.replace(/^-+|-+$/g, '');
 }
 
-function parse(html: string): RawListing[] {
+function parse(html: string): ParsedItem[] {
 	const $ = cheerio.load(html);
-	const byId = new Map<string, RawListing>();
+	const byId = new Map<string, ParsedItem>();
 
 	$('li').each((_, element) => {
 		const card = $(element);
@@ -32,7 +41,7 @@ function parse(html: string): RawListing[] {
 			url: `https://hokify.at${href}`,
 			title,
 			company: company || undefined,
-			location: location || undefined
+			locationParts: location ? [location] : []
 		});
 	});
 
@@ -56,11 +65,14 @@ export const hokify: SourceAdapter = {
 						headers: { 'accept-language': 'de-AT,de;q=0.9' },
 						signal
 					});
-					for (const listing of parse(html)) {
-						byId.set(listing.externalId, {
-							...listing,
+					for (const { locationParts, ...item } of parse(html)) {
+						const match = matchLocation(locationParts, profile.locations);
+						if (!match) continue;
+						byId.set(item.externalId, {
+							...item,
+							location: match.location,
 							discoveryKeyword: keyword,
-							discoveryCity: locationName
+							discoveryCity: match.city
 						});
 					}
 				} catch (err) {
