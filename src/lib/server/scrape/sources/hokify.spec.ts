@@ -36,7 +36,7 @@ describe('hokify scraper', () => {
 	it('uses the current search route and parses server-rendered job cards', async () => {
 		fetchTextMock.mockResolvedValue(resultHtml);
 
-		const listings = await hokify.search({
+		const { listings, complete } = await hokify.search({
 			keywords: ['Service Hilfskraft'],
 			locations: ['Wien']
 		});
@@ -48,6 +48,7 @@ describe('hokify scraper', () => {
 				headers: { 'accept-language': 'de-AT,de;q=0.9' }
 			})
 		);
+		expect(complete).toBe(true);
 		// "Brunn am Gebirge" is dropped: it does not match the configured city.
 		expect(listings).toEqual([
 			{
@@ -65,7 +66,7 @@ describe('hokify scraper', () => {
 	it('deduplicates results across keywords', async () => {
 		fetchTextMock.mockResolvedValue(resultHtml);
 
-		const listings = await hokify.search({
+		const { listings } = await hokify.search({
 			keywords: ['Barista', 'Kellner'],
 			locations: ['Wien']
 		});
@@ -88,5 +89,19 @@ describe('hokify scraper', () => {
 			'https://hokify.at/jobs/m/barista/graz',
 			expect.any(Object)
 		);
+	});
+
+	it('reports complete: false when any city/keyword fetch fails', async () => {
+		fetchTextMock.mockResolvedValueOnce(resultHtml).mockRejectedValueOnce(new Error('timeout'));
+
+		const { listings, complete } = await hokify.search({
+			keywords: ['Barista', 'Kellner'],
+			locations: ['Wien']
+		});
+
+		// The successful first fetch still yields its Wien listing...
+		expect(listings).toHaveLength(1);
+		// ...but the failed second fetch marks the run incomplete.
+		expect(complete).toBe(false);
 	});
 });

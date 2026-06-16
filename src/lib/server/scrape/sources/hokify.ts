@@ -1,6 +1,6 @@
 import * as cheerio from 'cheerio';
 import { fetchText } from '../../util/http';
-import type { ProfileQuery, RawListing, SourceAdapter } from '../types';
+import type { ProfileQuery, RawListing, ScrapeResult, SourceAdapter } from '../types';
 import { matchLocation } from './location';
 
 interface ParsedItem {
@@ -51,8 +51,9 @@ function parse(html: string): ParsedItem[] {
 export const hokify: SourceAdapter = {
 	id: 'hokify',
 	label: 'hokify',
-	async search(profile: ProfileQuery, signal?: AbortSignal): Promise<RawListing[]> {
+	async search(profile: ProfileQuery, signal?: AbortSignal): Promise<ScrapeResult> {
 		const byId = new Map<string, RawListing>();
+		let complete = true;
 		for (const locationName of profile.locations) {
 			const location = slug(locationName);
 			if (!location) continue;
@@ -76,10 +77,11 @@ export const hokify: SourceAdapter = {
 						});
 					}
 				} catch (err) {
+					complete = false;
 					console.error(`[hokify] "${keyword}" in "${locationName}" failed:`, err);
 				}
 			}
 		}
-		return [...byId.values()];
+		return { listings: [...byId.values()], complete };
 	}
 };

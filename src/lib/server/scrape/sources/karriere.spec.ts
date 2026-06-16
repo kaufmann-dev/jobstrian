@@ -24,7 +24,7 @@ describe('karriere scraper', () => {
 	it('searches every configured city for every keyword', async () => {
 		fetchTextMock.mockResolvedValue(resultHtml);
 
-		const listings = await karriere.search({
+		const { listings, complete } = await karriere.search({
 			keywords: ['Office Assistenz', 'Verkauf'],
 			locations: ['Wien', 'Graz']
 		});
@@ -34,6 +34,7 @@ describe('karriere scraper', () => {
 			'https://www.karriere.at/jobs/office-assistenz/graz',
 			expect.any(Object)
 		);
+		expect(complete).toBe(true);
 		expect(listings).toHaveLength(1);
 		expect(listings[0]).toMatchObject({
 			discoveryKeyword: 'Verkauf',

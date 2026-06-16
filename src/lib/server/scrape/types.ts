@@ -18,12 +18,23 @@ export interface RawListing {
 	discoveryCity?: string;
 }
 
+export interface ScrapeResult {
+	listings: RawListing[];
+	/**
+	 * false when any fetch was caught/swallowed this run, so the results may be
+	 * incomplete. The runner only reconciles (closes vanished listings for) a
+	 * source that reported `complete: true`.
+	 */
+	complete: boolean;
+}
+
 export interface SourceAdapter {
 	id: string;
 	label: string;
 	/**
 	 * Search the portal for matching listings. Must never throw — catch
-	 * internally, log, and return whatever was gathered.
+	 * internally, log, set `complete = false`, and return whatever was gathered.
+	 * Re-throw only on abort.
 	 */
-	search(profile: ProfileQuery, signal?: AbortSignal): Promise<RawListing[]>;
+	search(profile: ProfileQuery, signal?: AbortSignal): Promise<ScrapeResult>;
 }

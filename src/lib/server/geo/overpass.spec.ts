@@ -165,6 +165,33 @@ describe('findNearbyBusinesses', () => {
 		expect(fetchMock).toHaveBeenCalledTimes(3);
 	});
 
+	it('treats an HTTP 200 with an error remark as a retryable failure', async () => {
+		expect.assertions(2);
+		// Overpass signals an over-budget query with a 200 + remark and no elements.
+		const fetchMock = vi
+			.fn()
+			.mockResolvedValue(jsonResponse({ elements: [], remark: 'runtime error: Query timed out' }));
+		vi.stubGlobal('fetch', fetchMock);
+
+		await expect(findNearbyBusinesses(48.2082, 16.3738, 500, testTags)).rejects.toMatchObject({
+			name: 'OverpassUnavailableError',
+			attempts: 3
+		});
+		expect(fetchMock).toHaveBeenCalledTimes(3);
+	});
+
+	it('returns an empty result for a genuinely empty 200 response', async () => {
+		expect.assertions(2);
+		// Empty elements with no error remark means "no businesses nearby" — valid.
+		const fetchMock = vi.fn().mockResolvedValue(jsonResponse({ elements: [] }));
+		vi.stubGlobal('fetch', fetchMock);
+
+		const places = await findNearbyBusinesses(48.2082, 16.3738, 500, testTags);
+
+		expect(places).toEqual([]);
+		expect(fetchMock).toHaveBeenCalledOnce();
+	});
+
 	it('throws non-retryable HTTP errors immediately', async () => {
 		expect.assertions(4);
 		const fetchMock = vi.fn().mockResolvedValue(new Response('', { status: 400 }));

@@ -1,5 +1,5 @@
 import { fetchText } from '../../util/http';
-import type { ProfileQuery, RawListing, SourceAdapter } from '../types';
+import type { ProfileQuery, RawListing, ScrapeResult, SourceAdapter } from '../types';
 import { matchLocation } from './location';
 
 interface WhEntry {
@@ -48,8 +48,9 @@ function toListing(e: WhEntry, keyword: string, cities: readonly string[]): RawL
 export const willhaben: SourceAdapter = {
 	id: 'willhaben',
 	label: 'willhaben Jobs',
-	async search(profile: ProfileQuery, signal?: AbortSignal): Promise<RawListing[]> {
+	async search(profile: ProfileQuery, signal?: AbortSignal): Promise<ScrapeResult> {
 		const byId = new Map<string, RawListing>();
+		let complete = true;
 		for (const keyword of profile.keywords) {
 			if (signal?.aborted) throw signal.reason;
 			try {
@@ -60,9 +61,10 @@ export const willhaben: SourceAdapter = {
 					if (listing) byId.set(listing.externalId, listing);
 				}
 			} catch (err) {
+				complete = false;
 				console.error(`[willhaben] "${keyword}" failed:`, err);
 			}
 		}
-		return [...byId.values()];
+		return { listings: [...byId.values()], complete };
 	}
 };

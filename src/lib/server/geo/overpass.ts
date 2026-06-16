@@ -118,7 +118,28 @@ function overpassFetchFailureMessage(err: unknown): string {
 	return 'Overpass request failed';
 }
 
-async function postOverpass(query: string, signal?: AbortSignal): Promise<Response> {
+interface OverpassResponse {
+	elements?: OverpassElement[];
+	remark?: string;
+}
+
+/**
+ * Overpass answers HTTP 200 even when a query exceeds its time/memory budget,
+ * signalling the failure only through a `remark` (and empty/partial `elements`).
+ * Accepting such a body as success would let an incomplete result reach lead
+ * reconciliation, which then deletes still-valid leads — so it is retried.
+ */
+const OVERPASS_ERROR_REMARK = /(runtime error|timed out|out of memory|please be fair)/i;
+
+function isCompleteOverpassBody(data: OverpassResponse): data is { elements: OverpassElement[] } {
+	if (!Array.isArray(data.elements)) return false;
+	return !(data.remark != null && OVERPASS_ERROR_REMARK.test(data.remark));
+}
+
+async function fetchOverpass(
+	query: string,
+	signal?: AbortSignal
+): Promise<{ elements: OverpassElement[] }> {
 	let lastRetryable: { message: string; cause?: unknown } | undefined;
 
 	for (let attempt = 1; attempt <= OVERPASS_ATTEMPTS; attempt++) {
@@ -135,12 +156,15 @@ async function postOverpass(query: string, signal?: AbortSignal): Promise<Respon
 				signal: attemptSignal.signal
 			});
 
-			if (response.ok) return response;
-			if (!RETRYABLE_STATUSES.has(response.status)) {
+			if (response.ok) {
+				const data = (await response.json()) as OverpassResponse;
+				if (isCompleteOverpassBody(data)) return data;
+				lastRetryable = { message: `Overpass remark: ${data.remark ?? 'missing elements'}` };
+			} else if (!RETRYABLE_STATUSES.has(response.status)) {
 				throw new Error(`Overpass -> ${response.status}`);
+			} else {
+				lastRetryable = { message: `Overpass -> ${response.status}` };
 			}
-
-			lastRetryable = { message: `Overpass -> ${response.status}` };
 		} catch (err) {
 			if (signal?.aborted) throw abortReason(signal);
 			if (err instanceof Error && err.message.startsWith('Overpass -> ')) throw err;
@@ -244,9 +268,8 @@ export async function findNearbyBusinesses(
 	const byOsmId = new Map<string, OverpassPlace>();
 
 	for (const query of queries) {
-		const response = await postOverpass(query, signal);
-		const data = (await response.json()) as { elements: OverpassElement[] };
-		for (const el of data.elements) {
+		const { elements } = await fetchOverpass(query, signal);
+		for (const el of elements) {
 			const elementTags = el.tags ?? {};
 			const name = elementTags.name;
 			if (!name) continue;

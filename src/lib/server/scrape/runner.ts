@@ -36,6 +36,9 @@ type Counts = { added: number; closed: number; ranked: number; leads: number };
 type ActiveRun = { runId: number; controller: AbortController; startedAt: Date };
 
 let activeRun: ActiveRun | null = null;
+// Claimed synchronously by startRefresh before its first await so two concurrent
+// start requests cannot both pass the "already running" check and launch two runs.
+let starting = false;
 
 export function isRunning(): boolean {
 	return activeRun !== null;
@@ -295,6 +298,9 @@ export async function runRefresh(
 	const writer = new ProgressWriter(runId, counts, progress);
 	let usesBrowser = false;
 	let finalDetail = '';
+	// Only sources that finished without any swallowed fetch failure are eligible
+	// for reconciliation; a partially-failed source must not close its listings.
+	const completeSources = new Set<string>();
 
 	try {
 		const settings = await getSettings();
@@ -336,7 +342,8 @@ export async function runRefresh(
 				});
 				await writer.flush(true);
 
-				const listings = await adapter.search(profile, signal);
+				const { listings, complete } = await adapter.search(profile, signal);
+				if (complete) completeSources.add(adapter.id);
 				for (const raw of listings) {
 					throwIfAborted(signal);
 					if (await upsertListing(adapter.id, raw, runId)) counts.added++;
@@ -360,11 +367,8 @@ export async function runRefresh(
 			'Stellen werden abgeglichen'
 		);
 		await writer.flush(true);
-		if (profile && adapters.length > 0) {
-			const scopes = listingSearchScopes(
-				adapters.map((a) => a.id),
-				profile.locations
-			);
+		if (profile && completeSources.size > 0) {
+			const scopes = listingSearchScopes([...completeSources], profile.locations);
 			const where = listingReconcileWhere(runId, scopes);
 			if (where) {
 				const closed = await db
@@ -375,11 +379,16 @@ export async function runRefresh(
 				counts.closed = closed.length;
 			}
 		}
+		const incompleteSources = profile ? adapters.length - completeSources.size : 0;
 		writer.phase('reconcile', {
 			state: 'done',
 			current: 1,
 			total: 1,
-			detail: `${counts.closed} nicht mehr verfügbare Stellen erkannt`
+			detail:
+				`${counts.closed} nicht mehr verfügbare Stellen erkannt` +
+				(incompleteSources > 0
+					? ` (${incompleteSources} unvollständige Quelle${incompleteSources === 1 ? '' : 'n'} übersprungen)`
+					: '')
 		});
 		await writer.flush(true);
 
@@ -713,15 +722,16 @@ async function rankLeads(
 
 /** Start a refresh in the background. Returns the run id, or null if one is active. */
 export async function startRefresh(): Promise<number | null> {
-	if (activeRun) return null;
+	if (activeRun || starting) return null;
+	starting = true;
 	const progress = createProgress();
+	const controller = new AbortController();
 	try {
 		const [run] = await db
 			.insert(scrapeRun)
 			.values({ status: 'running', phase: 'starting', progress })
 			.returning({ id: scrapeRun.id });
 
-		const controller = new AbortController();
 		activeRun = { runId: run.id, controller, startedAt: new Date() };
 		runRefresh(run.id, controller.signal, progress).finally(() => {
 			if (activeRun?.runId === run.id) activeRun = null;
@@ -730,6 +740,8 @@ export async function startRefresh(): Promise<number | null> {
 	} catch (err) {
 		activeRun = null;
 		throw err;
+	} finally {
+		starting = false;
 	}
 }
 

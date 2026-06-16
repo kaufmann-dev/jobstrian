@@ -50,8 +50,9 @@ describe('AMS scraper', () => {
 			return callback(page);
 		});
 
-		const listings = await ams.search({ keywords: ['Office'], locations: ['Graz'] });
+		const { listings, complete } = await ams.search({ keywords: ['Office'], locations: ['Graz'] });
 
+		expect(complete).toBe(true);
 		expect(listings.map((listing) => listing.externalId)).toEqual([
 			'a5ba55e4-d305-39fa-9651-7636becc406d'
 		]);

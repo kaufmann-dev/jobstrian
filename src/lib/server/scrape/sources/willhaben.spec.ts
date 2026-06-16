@@ -39,14 +39,30 @@ describe('willhaben scraper', () => {
 			])
 		);
 
-		const listings = await willhaben.search({ keywords: ['Verkauf'], locations: ['Graz'] });
+		const { listings, complete } = await willhaben.search({
+			keywords: ['Verkauf'],
+			locations: ['Graz']
+		});
 
 		expect(fetchTextMock).toHaveBeenCalledWith(
 			'https://www.willhaben.at/jobs/suche?keyword=Verkauf',
 			expect.any(Object)
 		);
 		expect(fetchTextMock.mock.calls[0]?.[0]).not.toContain('areaId=900');
+		expect(complete).toBe(true);
 		expect(listings.map((listing) => listing.externalId)).toEqual(['1']);
 		expect(listings[0]).toMatchObject({ discoveryKeyword: 'Verkauf', discoveryCity: 'Graz' });
+	});
+
+	it('reports complete: false when a keyword fetch fails', async () => {
+		fetchTextMock.mockRejectedValue(new Error('network down'));
+
+		const { listings, complete } = await willhaben.search({
+			keywords: ['Verkauf'],
+			locations: ['Graz']
+		});
+
+		expect(complete).toBe(false);
+		expect(listings).toEqual([]);
 	});
 });

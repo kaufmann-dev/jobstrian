@@ -1,10 +1,19 @@
 import { PgDialect } from 'drizzle-orm/pg-core';
-import { describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+const { returningMock } = vi.hoisted(() => ({ returningMock: vi.fn() }));
+vi.mock('../db', () => ({
+	db: {
+		insert: () => ({ values: () => ({ returning: returningMock }) })
+	}
+}));
+
 import {
 	buildProfileQuery,
 	jobSearchLocations,
 	listingReconcileWhere,
-	listingSearchScopes
+	listingSearchScopes,
+	startRefresh
 } from './runner';
 
 const dialect = new PgDialect();
@@ -63,5 +72,41 @@ describe('listing reconciliation scope', () => {
 		expect(query.params).toContain('willhaben');
 		expect(query.params).toContain('Graz');
 		expect(query.params).not.toContain('Linz');
+	});
+
+	it('excludes sources that did not complete from the reconcile scope', () => {
+		// The runner builds scopes only from sources that finished without a
+		// swallowed failure; here only willhaben completed, so ams listings must
+		// not be closed.
+		const scopes = listingSearchScopes(['willhaben'], ['Graz']);
+		const query = dialect.sqlToQuery(listingReconcileWhere(7, scopes)!);
+
+		expect(query.params).toContain('willhaben');
+		expect(query.params).not.toContain('ams');
+	});
+
+	it('closes nothing when no source completed', () => {
+		const scopes = listingSearchScopes([], ['Graz']);
+		expect(listingReconcileWhere(7, scopes)).toBeUndefined();
+	});
+});
+
+describe('startRefresh concurrency guard', () => {
+	beforeEach(() => {
+		returningMock.mockReset();
+	});
+
+	it('does not start a second run while one is still starting', async () => {
+		// Hold the first run's insert pending so it is mid-start (slot claimed,
+		// activeRun not yet assigned) when the second request arrives.
+		returningMock.mockReturnValue(new Promise<never>(() => {}));
+
+		const first = startRefresh();
+		const second = await startRefresh();
+
+		expect(second).toBeNull();
+		expect(returningMock).toHaveBeenCalledTimes(1);
+
+		void first; // intentionally floating: this run never completes in the unit test
 	});
 });
