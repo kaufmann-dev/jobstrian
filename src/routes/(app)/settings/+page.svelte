@@ -20,10 +20,12 @@
 	import * as Form from '$lib/components/ui/form/index.js';
 	import * as Card from '$lib/components/ui/card/index.js';
 	import * as Dialog from '$lib/components/ui/dialog/index.js';
+	import * as Table from '$lib/components/ui/table/index.js';
 	import { Input } from '$lib/components/ui/input/index.js';
 	import { Textarea } from '$lib/components/ui/textarea/index.js';
 	import { Switch } from '$lib/components/ui/switch/index.js';
 	import { Button } from '$lib/components/ui/button/index.js';
+	import { Badge } from '$lib/components/ui/badge/index.js';
 	import { Spinner } from '$lib/components/ui/spinner/index.js';
 	import Save from '@lucide/svelte/icons/save';
 	import FileText from '@lucide/svelte/icons/file-text';
@@ -31,6 +33,9 @@
 	import Trash2 from '@lucide/svelte/icons/trash-2';
 	import Upload from '@lucide/svelte/icons/upload';
 	import Sparkles from '@lucide/svelte/icons/sparkles';
+	import Copy from '@lucide/svelte/icons/copy';
+	import Check from '@lucide/svelte/icons/check';
+	import RefreshCw from '@lucide/svelte/icons/refresh-cw';
 	import type {
 		GeneratedSearchConfigField,
 		SearchConfig,
@@ -46,9 +51,12 @@
 
 	let { data } = $props();
 	let hasApiKey = $state(untrack(() => data.hasApiKey));
+	let emailDomain = $state.raw(untrack(() => data.applicationEmailDomain));
 	let saveStatus = $state<SaveStatus>('idle');
 	let autosaveDirty = $state(false);
 	let homeLocationVerified = $state(untrack(() => data.homeLocationVerified));
+	let emailDomainBusy = $state(false);
+	let emailVerifyBusy = $state(false);
 
 	const autosave = new SettingsAutosaveQueue(
 		async (patch) => {
@@ -79,13 +87,20 @@
 			onChange: ({ paths }) => {
 				const fields = new Set(paths.map((path) => path.split(/[.[\]]/, 1)[0]));
 				for (const field of fields) {
-					if (!field || field === 'llmApiKey' || field === 'homeAddress') continue;
+					if (
+						!field ||
+						field === 'llmApiKey' ||
+						field === 'homeAddress' ||
+						field.startsWith('resend')
+					)
+						continue;
 					autosaveDirty = true;
 					autosave.enqueueField(field, $formData[field as keyof typeof $formData]);
 				}
 			},
 			onSubmit: ({ submitter, validators }) => {
-				if (submitter?.getAttribute('formaction') === '?/saveApiKey') {
+				const action = submitter?.getAttribute('formaction');
+				if (action === '?/saveApiKey' || action === '?/saveResendSettings') {
 					validators(false);
 				}
 			},
@@ -97,6 +112,21 @@
 					hasApiKey = Boolean(resultData && 'hasApiKey' in resultData && resultData.hasApiKey);
 					const input = formElement.elements.namedItem('llmApiKey');
 					if (input instanceof HTMLInputElement) input.value = '';
+				} else if (saved === 'resendSettings') {
+					toast.success('E-Mail-Einstellungen gespeichert');
+					if (
+						resultData &&
+						'applicationEmailDomain' in resultData &&
+						resultData.applicationEmailDomain
+					) {
+						emailDomain = resultData.applicationEmailDomain;
+					}
+					const apiKey = formElement.elements.namedItem('resendApiKey');
+					if (apiKey instanceof HTMLInputElement) apiKey.value = '';
+					const secret = formElement.elements.namedItem('resendWebhookSecret');
+					if (secret instanceof HTMLInputElement) secret.value = '';
+					$formData.resendApiKey = '';
+					$formData.resendWebhookSecret = '';
 				}
 			}
 		}
@@ -209,6 +239,54 @@
 	async function responseMessage(response: Response, fallback: string): Promise<string> {
 		const body = (await response.json().catch(() => ({}))) as { message?: string };
 		return body.message ?? fallback;
+	}
+
+	async function copy(text: string, what: string): Promise<void> {
+		await navigator.clipboard.writeText(text);
+		toast.success(`${what} kopiert`);
+	}
+
+	async function syncEmailDomain() {
+		emailDomainBusy = true;
+		try {
+			const response = await fetch('/api/application-emails/domain', { method: 'POST' });
+			const body = (await response.json().catch(() => ({}))) as {
+				config?: typeof emailDomain;
+				message?: string;
+			};
+			if (!response.ok) throw new Error(body.message ?? 'DNS-Einträge konnten nicht geladen werden');
+			if (body.config) emailDomain = body.config;
+			toast.success('DNS-Einträge geladen');
+		} catch (error) {
+			toast.error(error instanceof Error ? error.message : 'DNS-Einträge konnten nicht geladen werden');
+		} finally {
+			emailDomainBusy = false;
+		}
+	}
+
+	async function verifyEmailDomain() {
+		emailVerifyBusy = true;
+		try {
+			const response = await fetch('/api/application-emails/domain/verify', { method: 'POST' });
+			const body = (await response.json().catch(() => ({}))) as {
+				config?: typeof emailDomain;
+				message?: string;
+			};
+			if (body.config) emailDomain = body.config;
+			if (!response.ok) throw new Error(body.message ?? 'DNS wurde noch nicht bestätigt');
+			toast.success('DNS verifiziert. Automatischer Versand ist aktiviert.');
+		} catch (error) {
+			toast.error(error instanceof Error ? error.message : 'DNS wurde noch nicht bestätigt');
+		} finally {
+			emailVerifyBusy = false;
+		}
+	}
+
+	function dnsStatusLabel(status: string): string {
+		if (status === 'verified') return 'verifiziert';
+		if (status === 'pending') return 'wartet';
+		if (status === 'temporary_failure') return 'temporärer Fehler';
+		return status || 'offen';
 	}
 
 	function fieldErrors(value: unknown): string[] {
@@ -732,6 +810,194 @@
 			>
 				{#if $submitting}<Spinner />{:else}<Save />{/if}
 				API-Key speichern
+			</Button>
+		</Card.Footer>
+	</Card.Root>
+
+	<Card.Root>
+		<Card.Header>
+			<div class="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+				<div>
+					<Card.Title>E-Mail-Versand</Card.Title>
+					<Card.Description>
+						Resend-Domain und DNS-Prüfung für automatische Initiativbewerbungen.
+					</Card.Description>
+				</div>
+				<Badge variant={emailDomain.enabled ? 'default' : 'secondary'} class="w-fit">
+					{#if emailDomain.enabled}<Check class="size-3" /> aktiviert{:else}nicht aktiviert{/if}
+				</Badge>
+			</div>
+		</Card.Header>
+		<Card.Content class="space-y-5">
+			<div class="grid gap-4 sm:grid-cols-2">
+				<Form.Field {form} name="resendDomain">
+					<Form.Control>
+						{#snippet children({ props })}
+							<Form.Label>Versanddomain</Form.Label>
+							<Input {...props} bind:value={$formData.resendDomain} placeholder="example.com" />
+						{/snippet}
+					</Form.Control>
+					<Form.FieldErrors />
+				</Form.Field>
+				<Form.Field {form} name="resendFromLocalPart">
+					<Form.Control>
+						{#snippet children({ props })}
+							<Form.Label>Absender</Form.Label>
+							<div class="flex items-center gap-2">
+								<Input
+									{...props}
+									bind:value={$formData.resendFromLocalPart}
+									placeholder="bewerbung"
+								/>
+								<span class="text-sm text-muted-foreground">@{$formData.resendDomain || 'domain'}</span>
+							</div>
+						{/snippet}
+					</Form.Control>
+					<Form.FieldErrors />
+				</Form.Field>
+			</div>
+			<div class="grid gap-4 sm:grid-cols-2">
+				<Form.Field {form} name="resendFromName">
+					<Form.Control>
+						{#snippet children({ props })}
+							<Form.Label>Absendername</Form.Label>
+							<Input {...props} bind:value={$formData.resendFromName} placeholder={$formData.fullName} />
+						{/snippet}
+					</Form.Control>
+					<Form.FieldErrors />
+				</Form.Field>
+				<Form.Field {form} name="resendReplyTo">
+					<Form.Control>
+						{#snippet children({ props })}
+							<Form.Label>Antwortadresse</Form.Label>
+							<Input
+								{...props}
+								type="email"
+								bind:value={$formData.resendReplyTo}
+								placeholder={$formData.email}
+							/>
+						{/snippet}
+					</Form.Control>
+					<Form.FieldErrors />
+				</Form.Field>
+			</div>
+			<div class="grid gap-4 sm:grid-cols-2">
+				<Form.Field {form} name="resendApiKey">
+					<Form.Control>
+						{#snippet children({ props })}
+							<Form.Label>Resend API-Key</Form.Label>
+							<Input
+								{...props}
+								type="password"
+								bind:value={$formData.resendApiKey}
+								placeholder={emailDomain.hasResendApiKey
+									? '•••••••• (gespeichert, leer lassen zum Behalten)'
+									: 're_…'}
+							/>
+						{/snippet}
+					</Form.Control>
+					<Form.FieldErrors />
+				</Form.Field>
+				<Form.Field {form} name="resendWebhookSecret">
+					<Form.Control>
+						{#snippet children({ props })}
+							<Form.Label>Webhook Secret</Form.Label>
+							<Input
+								{...props}
+								type="password"
+								bind:value={$formData.resendWebhookSecret}
+								placeholder={emailDomain.webhookConfigured
+									? '•••••••• (gespeichert, leer lassen zum Behalten)'
+									: 'whsec_…'}
+							/>
+						{/snippet}
+					</Form.Control>
+					<Form.FieldErrors />
+				</Form.Field>
+			</div>
+			<div class="rounded-lg border">
+				<Table.Root>
+					<Table.Header>
+						<Table.Row>
+							<Table.Head>Typ</Table.Head>
+							<Table.Head>Name</Table.Head>
+							<Table.Head>Wert</Table.Head>
+							<Table.Head>Status</Table.Head>
+							<Table.Head class="w-10"></Table.Head>
+						</Table.Row>
+					</Table.Header>
+					<Table.Body>
+						{#if emailDomain.records.length}
+							{#each emailDomain.records as record (`${record.type}-${record.name}-${record.value}`)}
+								<Table.Row>
+									<Table.Cell class="font-medium">{record.type}</Table.Cell>
+									<Table.Cell class="max-w-36 truncate" title={record.name}>{record.name}</Table.Cell>
+									<Table.Cell class="max-w-64 truncate font-mono text-xs" title={record.value}>
+										{record.value}
+									</Table.Cell>
+									<Table.Cell>
+										<Badge variant={record.status === 'verified' ? 'default' : 'secondary'}>
+											{dnsStatusLabel(record.status)}
+										</Badge>
+									</Table.Cell>
+									<Table.Cell>
+										<Button
+											type="button"
+											variant="ghost"
+											size="icon-sm"
+											aria-label="DNS-Wert kopieren"
+											onclick={() => copy(record.value, 'DNS-Wert')}
+										>
+											<Copy class="size-4" />
+										</Button>
+									</Table.Cell>
+								</Table.Row>
+							{/each}
+						{:else}
+							<Table.Row>
+								<Table.Cell colspan={5} class="text-sm text-muted-foreground">
+									Speichere die E-Mail-Einstellungen und lade danach die DNS-Einträge.
+								</Table.Cell>
+							</Table.Row>
+						{/if}
+					</Table.Body>
+				</Table.Root>
+			</div>
+			<p class="text-sm text-muted-foreground">
+				Aktueller Status: {dnsStatusLabel(emailDomain.status)}{emailDomain.verifiedAt
+					? ` · geprüft am ${new Date(emailDomain.verifiedAt).toLocaleString('de-AT')}`
+					: ''}
+			</p>
+		</Card.Content>
+		<Card.Footer class="flex flex-col gap-2 border-t sm:flex-row">
+			<Button
+				type="submit"
+				formaction="?/saveResendSettings"
+				class="w-full sm:w-auto"
+				disabled={$submitting}
+			>
+				{#if $submitting}<Spinner />{:else}<Save />{/if}
+				Einstellungen speichern
+			</Button>
+			<Button
+				type="button"
+				variant="outline"
+				class="w-full sm:w-auto"
+				disabled={emailDomainBusy || !emailDomain.hasResendApiKey}
+				onclick={syncEmailDomain}
+			>
+				{#if emailDomainBusy}<Spinner />{:else}<RefreshCw />{/if}
+				DNS-Einträge laden
+			</Button>
+			<Button
+				type="button"
+				variant="outline"
+				class="w-full sm:w-auto"
+				disabled={emailVerifyBusy || !emailDomain.hasResendApiKey || !emailDomain.domain}
+				onclick={verifyEmailDomain}
+			>
+				{#if emailVerifyBusy}<Spinner />{:else}<Check />{/if}
+				DNS prüfen und aktivieren
 			</Button>
 		</Card.Footer>
 	</Card.Root>

@@ -48,7 +48,6 @@
 
 <script lang="ts">
 	import { resolve } from '$app/paths';
-	import type { Pathname } from '$app/types';
 
 	let {
 		class: className,
@@ -68,6 +67,8 @@
 			if (ref === node) ref = null;
 		};
 	}
+
+	const resolvePath = resolve as unknown as (path: string) => string;
 </script>
 
 {#if href}
@@ -88,7 +89,7 @@
 			{@attach attachRef}
 			data-slot="button"
 			class={cn(buttonVariants({ variant, size }), className)}
-			href={resolve(href as Pathname)}
+			href={resolvePath(href)}
 			{...restProps}
 		>
 			{@render children?.()}

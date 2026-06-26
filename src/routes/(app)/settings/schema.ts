@@ -42,9 +42,29 @@ export const settingsSchema = z.object({
 	llmRequestsPerMinute: z.number().int().min(1).max(10000).default(300),
 	llmMaxConcurrent: z.number().int().min(1).max(200).default(50),
 	// Left blank on load; only overwrites the stored key when non-empty.
-	llmApiKey: z.string().max(500).default('')
+	llmApiKey: z.string().max(500).default(''),
+	resendApiKey: z.string().max(500).default(''),
+	resendDomain: z.string().trim().max(255).default(''),
+	resendFromLocalPart: z
+		.string()
+		.trim()
+		.min(1)
+		.max(100)
+		.regex(/^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+$/, 'Ungültiger lokaler E-Mail-Teil')
+		.default('bewerbung'),
+	resendFromName: z.string().trim().max(200).default(''),
+	resendReplyTo: z.union([z.email(), z.literal('')]).default(''),
+	resendWebhookSecret: z.string().trim().max(500).default('')
 });
 
 export const apiKeySchema = settingsSchema.pick({ llmApiKey: true });
+export const resendSettingsSchema = settingsSchema.pick({
+	resendApiKey: true,
+	resendDomain: true,
+	resendFromLocalPart: true,
+	resendFromName: true,
+	resendReplyTo: true,
+	resendWebhookSecret: true
+});
 
 export type SettingsSchema = typeof settingsSchema;

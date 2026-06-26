@@ -33,6 +33,10 @@ OpenAI-compatible LLM.
 - **Structured CV profile**: maintain skills, employment, education and
   certifications manually, or upload a PDF and selectively apply an editable
   AI-extracted preview.
+- **Automatic application e-mails**: after Resend DNS verification in
+  **Settings**, the Betriebe page can queue one CV-backed application e-mail per
+  eligible business. Sending is paced on weekdays between 09:00 and 18:00 with
+  short randomized gaps and longer pauses after every 20 e-mails.
 - **Update button**: one run scrapes, deduplicates, closes vanished listings,
   synchronizes businesses and rates new or changed entries. Structured progress
   is shown live with per-phase counts, LLM queue metrics and cancellation.
@@ -94,8 +98,10 @@ pnpm dev
 Open `http://localhost:5173` and create the first user on the setup screen.
 The setup screen disables itself permanently once that single user exists.
 Afterwards log in at `/login`, enter your address, role keywords, business
-categories and the OpenAI-compatible LLM (base URL including `/v1`, model, API key) in **Settings**,
-Upload an optional PDF CV and trigger the AI profile import manually in
+categories and the OpenAI-compatible LLM (base URL including `/v1`, model, API key) in **Settings**.
+For automatic applications, also configure Resend in **Settings**, load the DNS
+records, add them at your domain provider, and click **DNS prüfen und
+aktivieren**. Upload a PDF CV and trigger the AI profile import manually in
 **Settings**. Then click **Update** on the dashboard.
 
 ## Development
@@ -137,16 +143,10 @@ post-deployment migration command is needed.
 | `BODY_SIZE_LIMIT`    | Request body limit for CV uploads. Use `10M` or higher.                |
 | `GEOAPIFY_API_KEY`   | Server-side Geoapify Autocomplete API key for Austrian suggestions.    |
 
-#### Optional
-
-| Variable         | Default | Purpose                                    |
-| ---------------- | ------- | ------------------------------------------ |
-| `RESEND_API_KEY` | —       | Only needed if sending e-mails via Resend. |
-
 ## Notes
 
 - Portal scrapers are inherently fragile: adapters prefer internal JSON
   endpoints, are isolated from each other (a broken adapter does not stop the
   run) and occasionally need maintenance when markup changes.
-- LLM configuration and your profile live in the database (`settings` table) and
-  are maintained inside the app – not in `.env`.
+- LLM, Resend and profile configuration live in the database (`settings` table)
+  and are maintained inside the app – not in `.env`.

@@ -2,17 +2,21 @@
 	import type { ColumnDef } from '@tanstack/table-core';
 	import { superForm } from 'sveltekit-superforms';
 	import { zod4Client } from 'sveltekit-superforms/adapters';
-	import { untrack } from 'svelte';
+	import { onMount, untrack } from 'svelte';
+	import { invalidateAll } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import { toast } from 'svelte-sonner';
 	import { leadContactFormSchema } from '$lib/lead-contact';
 	import * as Sheet from '$lib/components/ui/sheet/index.js';
+	import * as Dialog from '$lib/components/ui/dialog/index.js';
+	import * as Alert from '$lib/components/ui/alert/index.js';
 	import { Badge } from '$lib/components/ui/badge/index.js';
 	import { Button } from '$lib/components/ui/button/index.js';
 	import { Checkbox } from '$lib/components/ui/checkbox/index.js';
 	import { Label } from '$lib/components/ui/label/index.js';
 	import { Textarea } from '$lib/components/ui/textarea/index.js';
 	import { Input } from '$lib/components/ui/input/index.js';
+	import { Progress } from '$lib/components/ui/progress/index.js';
 	import { Spinner } from '$lib/components/ui/spinner/index.js';
 	import ServerDataTable from '$lib/components/server-data-table.svelte';
 	import RankFactors from '$lib/components/rank-factors.svelte';
@@ -29,7 +33,12 @@
 	import Pencil from '@lucide/svelte/icons/pencil';
 	import Save from '@lucide/svelte/icons/save';
 	import X from '@lucide/svelte/icons/x';
+	import Send from '@lucide/svelte/icons/send';
+	import Clock from '@lucide/svelte/icons/clock';
+	import CircleX from '@lucide/svelte/icons/circle-x';
+	import TriangleAlert from '@lucide/svelte/icons/triangle-alert';
 	import type { Lead } from '$lib/server/db/schema';
+	import type { ApplicationEmailProgress, ApplicationEmailRun } from '$lib/server/db/schema';
 
 	let { data } = $props();
 
@@ -44,6 +53,27 @@
 	let selected = $state<Lead | null>(null);
 	let editingContact = $state(false);
 	let contactSaving = $state(false);
+	let polledEmailRun = $state.raw<ApplicationEmailRun | null>(
+		untrack(() => data.applicationEmail.latestRun)
+	);
+	let emailConfirmOpen = $state(false);
+	let emailStarting = $state(false);
+	let emailCanceling = $state(false);
+	let emailPolling = false;
+	let stopped = false;
+
+	const emailRun = $derived(polledEmailRun ?? data.applicationEmail.latestRun);
+	const emailRunActive = $derived(
+		emailRun?.status === 'running' || emailRun?.status === 'canceling' || emailStarting
+	);
+	const emailProgress = $derived(normalizeEmailProgress(emailRun));
+	const emailPercent = $derived(emailProgressPercent(emailProgress));
+	const canStartEmailRun = $derived(
+		data.applicationEmail.ready &&
+			data.applicationEmail.eligibleCount > 0 &&
+			!emailRunActive &&
+			!emailStarting
+	);
 
 	const contactForm = superForm(
 		{ phone: '', email: '', website: '' },
@@ -123,7 +153,7 @@
 					await responseMessage(response, 'Kontaktdaten konnten nicht gespeichert werden.')
 				);
 			}
-			const updated = (await response.json()) as Lead;
+			const updated = (await response.json()) as Lead & { draftWarning?: string | null };
 			selected = updated;
 			controller.patch(
 				(item) => item.id === updated.id,
@@ -132,6 +162,7 @@
 			editingContact = false;
 			await controller.reset();
 			toast.success('Kontaktdaten gespeichert');
+			if (updated.draftWarning) toast.warning(updated.draftWarning);
 		} catch (error) {
 			toast.error(
 				error instanceof Error ? error.message : 'Kontaktdaten konnten nicht gespeichert werden.'
@@ -194,6 +225,126 @@
 		}
 		await controller.reset();
 		selected = null;
+	}
+
+	function fallbackEmailProgress(currentRun: ApplicationEmailRun | null): ApplicationEmailProgress {
+		return {
+			version: 1,
+			headline: currentRun?.phase ?? 'Kein Bewerbungsversand',
+			detail: currentRun?.error ?? '',
+			nextSendAt: null,
+			phases: {
+				setup: { state: currentRun ? 'done' : 'pending', current: currentRun ? 1 : 0, total: 1, detail: '', skipped: 0, failed: 0 },
+				queue: { state: 'pending', current: 0, total: 0, detail: '', skipped: 0, failed: 0 },
+				send: { state: 'pending', current: 0, total: 0, detail: '', skipped: 0, failed: 0 },
+				finalize: { state: 'pending', current: 0, total: 0, detail: '', skipped: 0, failed: 0 }
+			}
+		};
+	}
+
+	function normalizeEmailProgress(currentRun: ApplicationEmailRun | null): ApplicationEmailProgress {
+		const fallback = fallbackEmailProgress(currentRun);
+		const stored = currentRun?.progress as Partial<ApplicationEmailProgress> | null | undefined;
+		if (stored?.version !== 1) return fallback;
+		return {
+			...fallback,
+			...stored,
+			headline: stored.headline ?? fallback.headline,
+			detail: stored.detail ?? fallback.detail,
+			nextSendAt: stored.nextSendAt ?? null,
+			phases: {
+				setup: { ...fallback.phases.setup, ...stored.phases?.setup },
+				queue: { ...fallback.phases.queue, ...stored.phases?.queue },
+				send: { ...fallback.phases.send, ...stored.phases?.send },
+				finalize: { ...fallback.phases.finalize, ...stored.phases?.finalize }
+			}
+		};
+	}
+
+	function emailProgressPercent(progress: ApplicationEmailProgress): number {
+		const phase = progress.phases.send;
+		if (phase.total <= 0) return emailRun?.status === 'done' ? 100 : 0;
+		return Math.round((Math.min(phase.current, phase.total) / phase.total) * 100);
+	}
+
+	function emailStatusLabel(status: ApplicationEmailRun['status'] | undefined): string {
+		if (status === 'running') return 'läuft';
+		if (status === 'canceling') return 'bricht ab';
+		if (status === 'canceled') return 'abgebrochen';
+		if (status === 'done') return 'fertig';
+		if (status === 'error') return 'Fehler';
+		return 'bereit';
+	}
+
+	function emailStatusVariant(
+		status: ApplicationEmailRun['status'] | undefined
+	): 'default' | 'secondary' | 'destructive' | 'outline' {
+		if (status === 'error') return 'destructive';
+		if (status === 'canceled') return 'outline';
+		return 'secondary';
+	}
+
+	async function startApplicationEmailRun(): Promise<void> {
+		if (!canStartEmailRun) return;
+		emailStarting = true;
+		try {
+			const response = await fetch('/api/application-emails/start', { method: 'POST' });
+			const body = (await response.json().catch(() => ({}))) as {
+				started?: boolean;
+				message?: string;
+			};
+			if (!response.ok || !body.started) {
+				throw new Error(body.message ?? 'Bewerbungsversand konnte nicht gestartet werden.');
+			}
+			emailConfirmOpen = false;
+			toast.success('Bewerbungsversand gestartet');
+			void pollApplicationEmailRun();
+		} catch (error) {
+			toast.error(
+				error instanceof Error ? error.message : 'Bewerbungsversand konnte nicht gestartet werden.'
+			);
+		} finally {
+			emailStarting = false;
+		}
+	}
+
+	async function pollApplicationEmailRun(): Promise<void> {
+		if (emailPolling) return;
+		emailPolling = true;
+		let finalRun: ApplicationEmailRun | null = null;
+		try {
+			while (!stopped) {
+				const response = await fetch('/api/application-emails/status');
+				const body = (await response.json()) as { run: ApplicationEmailRun | null };
+				polledEmailRun = body.run;
+				finalRun = polledEmailRun;
+				if (!polledEmailRun || (polledEmailRun.status !== 'running' && polledEmailRun.status !== 'canceling')) {
+					break;
+				}
+				await new Promise((resolve) => setTimeout(resolve, 1000));
+			}
+		} finally {
+			emailPolling = false;
+			await invalidateAll();
+			if (finalRun?.status === 'done') toast.success('Bewerbungsversand abgeschlossen');
+			if (finalRun?.status === 'canceled') toast.info('Bewerbungsversand abgebrochen');
+			if (finalRun?.status === 'error') toast.error(finalRun.error ?? 'Bewerbungsversand fehlgeschlagen');
+		}
+	}
+
+	async function cancelApplicationEmailRun(): Promise<void> {
+		if (!emailRun) return;
+		emailCanceling = true;
+		try {
+			await fetch('/api/application-emails/cancel', {
+				method: 'POST',
+				headers: { 'content-type': 'application/json' },
+				body: JSON.stringify({ runId: emailRun.id })
+			});
+			void pollApplicationEmailRun();
+		} finally {
+			emailCanceling = false;
+		}
 	}
 
 	function mailtoHref(item: Lead): string {
@@ -285,6 +436,15 @@
 			}
 		}
 	];
+
+	onMount(() => {
+		if (emailRun?.status === 'running' || emailRun?.status === 'canceling') {
+			void pollApplicationEmailRun();
+		}
+		return () => {
+			stopped = true;
+		};
+	});
 </script>
 
 <svelte:head>
@@ -348,12 +508,84 @@
 {/snippet}
 
 <div class="space-y-5">
-	<div>
-		<h1 class="text-2xl font-semibold tracking-tight">Betriebe in der Nähe</h1>
-		<p class="text-sm text-muted-foreground">
-			Konfigurierte Betriebe im Umkreis deines Wohnorts · ideal für Initiativbewerbungen.
-		</p>
+	<div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+		<div>
+			<h1 class="text-2xl font-semibold tracking-tight">Betriebe in der Nähe</h1>
+			<p class="text-sm text-muted-foreground">
+				Konfigurierte Betriebe im Umkreis deines Wohnorts · ideal für Initiativbewerbungen.
+			</p>
+		</div>
+		<Button
+			class="w-full sm:w-auto"
+			disabled={!canStartEmailRun}
+			onclick={() => (emailConfirmOpen = true)}
+			title={!data.applicationEmail.ready
+				? data.applicationEmail.reasons.join(' ')
+				: data.applicationEmail.eligibleCount === 0
+					? 'Keine neuen Betriebe mit E-Mail und Entwurf offen.'
+					: undefined}
+		>
+			{#if emailStarting}<Spinner />{:else}<Send />{/if}
+			Bewerbungen senden
+		</Button>
 	</div>
+
+	{#if !data.applicationEmail.ready}
+		<Alert.Root>
+			<TriangleAlert class="size-4" />
+			<Alert.Title>Automatischer E-Mail-Versand ist nicht bereit</Alert.Title>
+			<Alert.Description>{data.applicationEmail.reasons.join(' ')}</Alert.Description>
+		</Alert.Root>
+	{:else}
+		<div class="rounded-lg border p-4">
+			<div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+				<div class="space-y-1">
+					<div class="flex flex-wrap items-center gap-2">
+						<p class="font-medium">Automatischer Bewerbungsversand</p>
+						<Badge variant={emailStatusVariant(emailRun?.status)}>
+							{emailStatusLabel(emailRun?.status)}
+						</Badge>
+					</div>
+					<p class="text-sm text-muted-foreground">
+						{data.applicationEmail.eligibleCount} neue Betriebe mit E-Mail und Entwurf sind offen.
+					</p>
+				</div>
+				{#if emailRunActive && emailRun}
+					<Button
+						variant="outline"
+						class="w-full sm:w-auto"
+						disabled={emailCanceling || emailRun.status === 'canceling'}
+						onclick={cancelApplicationEmailRun}
+					>
+						{#if emailCanceling}<Spinner />{:else}<CircleX />{/if}
+						Abbrechen
+					</Button>
+				{/if}
+			</div>
+			{#if emailRun}
+				<div class="mt-4 space-y-2">
+					<div class="flex items-center justify-between gap-4 text-sm">
+						<span>{emailProgress.headline}</span>
+						<span class="tabular-nums text-muted-foreground">{emailPercent}%</span>
+					</div>
+					<Progress value={emailPercent} />
+					<div class="flex flex-col gap-1 text-sm text-muted-foreground sm:flex-row sm:justify-between">
+						<span>{emailProgress.detail}</span>
+						{#if emailProgress.nextSendAt}
+							<span class="flex items-center gap-1">
+								<Clock class="size-4" />
+								Nächste E-Mail: {new Date(emailProgress.nextSendAt).toLocaleString('de-AT')}
+							</span>
+						{/if}
+					</div>
+					<p class="text-xs text-muted-foreground">
+						{emailRun.counts.sent} gesendet · {emailRun.counts.failed} fehlgeschlagen ·
+						{emailRun.counts.queued} offen
+					</p>
+				</div>
+			{/if}
+		</div>
+	{/if}
 
 	{#snippet filters()}
 		<label
@@ -409,6 +641,30 @@
 		emptyText="Noch keine Betriebe. Trage Adresse und Betriebskategorien in den Einstellungen ein und aktualisiere."
 	/>
 </div>
+
+<Dialog.Root bind:open={emailConfirmOpen}>
+	<Dialog.Content class="sm:max-w-lg">
+		<Dialog.Header>
+			<Dialog.Title>Bewerbungen automatisch senden?</Dialog.Title>
+			<Dialog.Description>
+				{data.applicationEmail.eligibleCount} neue Betriebe werden eingeplant. Der Versand läuft nur
+				Montag bis Freitag von 09:00 bis 18:00 Uhr, mit 2 bis 4 Minuten Abstand und Pausen nach 20
+				E-Mails.
+			</Dialog.Description>
+		</Dialog.Header>
+		<div class="rounded-lg border p-3 text-sm text-muted-foreground">
+			Jeder Betrieb wird höchstens einmal angeschrieben. Wiederholtes Drücken startet keine zweite
+			E-Mail für denselben Betrieb.
+		</div>
+		<Dialog.Footer>
+			<Button variant="outline" onclick={() => (emailConfirmOpen = false)}>Abbrechen</Button>
+			<Button disabled={emailStarting} onclick={startApplicationEmailRun}>
+				{#if emailStarting}<Spinner />{:else}<Send />{/if}
+				Starten
+			</Button>
+		</Dialog.Footer>
+	</Dialog.Content>
+</Dialog.Root>
 
 <Sheet.Root open={selected !== null} onOpenChange={(open) => !open && closeDetails()}>
 	<Sheet.Content class="w-full overflow-y-auto sm:max-w-xl">

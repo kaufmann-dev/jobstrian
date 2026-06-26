@@ -39,8 +39,9 @@ const handleAuth: Handle = async ({ event, resolve }) => {
 	const { pathname } = event.url;
 	const hasUser = await hasAnyUser();
 	const isAuthApi = pathname.startsWith('/api/auth');
-	const isPublic = pathname === '/login' || pathname === '/setup' || isAuthApi;
-	if (!hasUser && pathname !== '/setup' && !isAuthApi) {
+	const isWebhook = pathname === '/api/webhooks/resend';
+	const isPublic = pathname === '/login' || pathname === '/setup' || isAuthApi || isWebhook;
+	if (!hasUser && pathname !== '/setup' && !isAuthApi && !isWebhook) {
 		redirect(302, '/setup');
 	}
 	if (hasUser && pathname === '/setup') {

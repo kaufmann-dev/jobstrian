@@ -62,6 +62,17 @@ function settings(patch: Partial<Settings> = {}): Settings {
 		llmModel: 'test-model',
 		llmRequestsPerMinute: 300,
 		llmMaxConcurrent: 50,
+		resendApiKey: '',
+		resendDomain: '',
+		resendDomainId: null,
+		resendDomainStatus: 'not_started',
+		resendDnsRecords: [],
+		resendDnsVerifiedAt: null,
+		resendFromLocalPart: 'bewerbung',
+		resendFromName: '',
+		resendReplyTo: '',
+		resendWebhookSecret: '',
+		applicationEmailEnabled: false,
 		updatedAt: new Date(),
 		...patch
 	};

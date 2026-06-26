@@ -1,14 +1,18 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { update, set, where, returning } = vi.hoisted(() => ({
+const { update, set, where, returning, ensureLeadDraft } = vi.hoisted(() => ({
 	update: vi.fn(),
 	set: vi.fn(),
 	where: vi.fn(),
-	returning: vi.fn()
+	returning: vi.fn(),
+	ensureLeadDraft: vi.fn()
 }));
 
 vi.mock('$lib/server/db', () => ({
 	db: { update }
+}));
+vi.mock('$lib/server/application-email/drafts', () => ({
+	ensureLeadDraft
 }));
 
 import { PATCH } from './+server';
@@ -19,6 +23,10 @@ describe('PATCH /api/leads/[id]/contact', () => {
 		update.mockReturnValue({ set });
 		set.mockReturnValue({ where });
 		where.mockReturnValue({ returning });
+		ensureLeadDraft.mockImplementation(async (id: number) => ({
+			lead: { id, email: 'jobs@example.com' },
+			warning: null
+		}));
 	});
 
 	it('stores normalized manual contact values', async () => {
@@ -55,6 +63,7 @@ describe('PATCH /api/leads/[id]/contact', () => {
 			websiteManual: true,
 			contentHash: null
 		});
+		expect(ensureLeadDraft).toHaveBeenCalledWith(7);
 	});
 
 	it('persists manual contact deletions', async () => {

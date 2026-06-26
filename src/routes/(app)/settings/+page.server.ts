@@ -3,7 +3,11 @@ import { zod4 } from 'sveltekit-superforms/adapters';
 import { fail } from '@sveltejs/kit';
 import { getSettings, updateSettings } from '$lib/server/settings';
 import { getCvMeta } from '$lib/server/cv';
-import { apiKeySchema, settingsSchema } from './schema';
+import {
+	applicationEmailDomainConfig,
+	saveApplicationEmailSettings
+} from '$lib/server/application-email/config';
+import { apiKeySchema, resendSettingsSchema, settingsSchema } from './schema';
 import type { Settings } from '$lib/server/db/schema';
 import type { Actions, PageServerLoad } from './$types';
 
@@ -39,7 +43,13 @@ function settingsFormData(s: Settings) {
 		llmModel: s.llmModel,
 		llmRequestsPerMinute: s.llmRequestsPerMinute,
 		llmMaxConcurrent: s.llmMaxConcurrent,
-		llmApiKey: ''
+		llmApiKey: '',
+		resendApiKey: '',
+		resendDomain: s.resendDomain,
+		resendFromLocalPart: s.resendFromLocalPart,
+		resendFromName: s.resendFromName || s.fullName,
+		resendReplyTo: s.resendReplyTo || s.email,
+		resendWebhookSecret: ''
 	};
 }
 
@@ -61,6 +71,7 @@ export const load: PageServerLoad = async () => {
 			s.homeLat != null &&
 			s.homeLon != null
 		),
+		applicationEmailDomain: applicationEmailDomainConfig(s),
 		cv: await getCvMeta()
 	};
 };
@@ -84,6 +95,23 @@ export const actions: Actions = {
 			form: await settingsForm(updated),
 			hasApiKey: Boolean(updated.llmApiKey),
 			saved: 'apiKey' as const
+		};
+	},
+	saveResendSettings: async ({ request }) => {
+		const resendForm = await superValidate(request, zod4(resendSettingsSchema));
+		if (!resendForm.valid) {
+			const form = await settingsForm(await getSettings());
+			form.valid = false;
+			Object.assign(form.errors, resendForm.errors);
+			Object.assign(form.data, resendForm.data);
+			return fail(400, { form });
+		}
+
+		const updated = await saveApplicationEmailSettings(resendForm.data);
+		return {
+			form: await settingsForm(updated),
+			applicationEmailDomain: applicationEmailDomainConfig(updated),
+			saved: 'resendSettings' as const
 		};
 	}
 };

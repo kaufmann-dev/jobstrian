@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { leadContactSchema } from '$lib/lead-contact';
 import { db } from '$lib/server/db';
 import { lead } from '$lib/server/db/schema';
+import { ensureLeadDraft } from '$lib/server/application-email/drafts';
 import type { RequestHandler } from './$types';
 
 export const PATCH: RequestHandler = async ({ params, request }) => {
@@ -30,5 +31,9 @@ export const PATCH: RequestHandler = async ({ params, request }) => {
 
 	const [updated] = await db.update(lead).set(update).where(eq(lead.id, id.data)).returning();
 	if (!updated) return json({ message: 'Betrieb nicht gefunden' }, { status: 404 });
+	if (body.data.email !== undefined && updated.email) {
+		const result = await ensureLeadDraft(updated.id);
+		return json({ ...result.lead, draftWarning: result.warning });
+	}
 	return json(updated);
 };

@@ -162,6 +162,21 @@ export const settings = pgTable('settings', {
 	llmModel: text('llm_model').notNull().default(''),
 	llmRequestsPerMinute: integer('llm_requests_per_minute').notNull().default(300),
 	llmMaxConcurrent: integer('llm_max_concurrent').notNull().default(50),
+	// Resend-backed automatic application emails.
+	resendApiKey: text('resend_api_key').notNull().default(''),
+	resendDomain: text('resend_domain').notNull().default(''),
+	resendDomainId: text('resend_domain_id'),
+	resendDomainStatus: text('resend_domain_status').notNull().default('not_started'),
+	resendDnsRecords: jsonb('resend_dns_records')
+		.$type<ApplicationEmailDnsRecord[]>()
+		.notNull()
+		.default([]),
+	resendDnsVerifiedAt: timestamp('resend_dns_verified_at'),
+	resendFromLocalPart: text('resend_from_local_part').notNull().default('bewerbung'),
+	resendFromName: text('resend_from_name').notNull().default(''),
+	resendReplyTo: text('resend_reply_to').notNull().default(''),
+	resendWebhookSecret: text('resend_webhook_secret').notNull().default(''),
+	applicationEmailEnabled: boolean('application_email_enabled').notNull().default(false),
 	updatedAt: timestamp('updated_at')
 		.defaultNow()
 		.$onUpdate(() => new Date())
@@ -297,11 +312,87 @@ export const lead = pgTable(
 	]
 );
 
+export const applicationEmailRun = pgTable('application_email_run', {
+	id: serial('id').primaryKey(),
+	startedAt: timestamp('started_at').defaultNow().notNull(),
+	finishedAt: timestamp('finished_at'),
+	status: text('status', { enum: ['running', 'canceling', 'canceled', 'done', 'error'] })
+		.notNull()
+		.default('running'),
+	cancelRequestedAt: timestamp('cancel_requested_at'),
+	phase: text('phase').notNull().default('starting'),
+	counts: jsonb('counts')
+		.$type<{ queued: number; sent: number; failed: number; skipped: number }>()
+		.notNull()
+		.default({ queued: 0, sent: 0, failed: 0, skipped: 0 }),
+	progress: jsonb('progress')
+		.$type<ApplicationEmailProgress>()
+		.notNull()
+		.default(sql`'{}'::jsonb`),
+	error: text('error')
+});
+
+export const applicationEmail = pgTable(
+	'application_email',
+	{
+		id: serial('id').primaryKey(),
+		runId: integer('run_id').references(() => applicationEmailRun.id, { onDelete: 'set null' }),
+		leadId: integer('lead_id')
+			.notNull()
+			.references(() => lead.id, { onDelete: 'cascade' }),
+		recipientEmail: text('recipient_email').notNull(),
+		leadName: text('lead_name').notNull(),
+		subject: text('subject').notNull(),
+		body: text('body').notNull(),
+		status: text('status', {
+			enum: ['queued', 'sending', 'sent', 'failed', 'skipped', 'canceled']
+		})
+			.notNull()
+			.default('queued'),
+		scheduledAt: timestamp('scheduled_at').notNull(),
+		sentAt: timestamp('sent_at'),
+		attempts: integer('attempts').notNull().default(0),
+		resendEmailId: text('resend_email_id'),
+		idempotencyKey: text('idempotency_key').notNull(),
+		error: text('error'),
+		createdAt: timestamp('created_at').defaultNow().notNull(),
+		updatedAt: timestamp('updated_at')
+			.defaultNow()
+			.$onUpdate(() => new Date())
+			.notNull()
+	},
+	(table) => [
+		uniqueIndex('application_email_lead_id_idx').on(table.leadId),
+		uniqueIndex('application_email_idempotency_key_idx').on(table.idempotencyKey),
+		index('application_email_status_scheduled_idx').on(table.status, table.scheduledAt),
+		index('application_email_run_id_idx').on(table.runId)
+	]
+);
+
+export const applicationEmailSuppression = pgTable('application_email_suppression', {
+	email: text('email').primaryKey(),
+	reason: text('reason').notNull(),
+	sourceApplicationEmailId: integer('source_application_email_id').references(
+		() => applicationEmail.id,
+		{ onDelete: 'set null' }
+	),
+	createdAt: timestamp('created_at').defaultNow().notNull()
+});
+
+export const resendWebhookEvent = pgTable('resend_webhook_event', {
+	id: text('id').primaryKey(),
+	type: text('type').notNull(),
+	payload: jsonb('payload').$type<Record<string, unknown>>().notNull(),
+	createdAt: timestamp('created_at').defaultNow().notNull()
+});
+
 export type Settings = typeof settings.$inferSelect;
 export type Listing = typeof listing.$inferSelect;
 export type Lead = typeof lead.$inferSelect;
 export type ScrapeRun = typeof scrapeRun.$inferSelect;
 export type Cv = typeof cv.$inferSelect;
+export type ApplicationEmailRun = typeof applicationEmailRun.$inferSelect;
+export type ApplicationEmail = typeof applicationEmail.$inferSelect;
 
 export type RunStatus = 'running' | 'canceling' | 'canceled' | 'done' | 'error';
 export type RunPhaseId =
@@ -345,4 +436,39 @@ export interface RunProgress {
 	detail: string;
 	phases: Record<RunPhaseId, RunPhaseProgress>;
 	llm: RunLlmProgress;
+}
+
+export type ApplicationEmailDnsRecord = {
+	record: string;
+	name: string;
+	type: string;
+	value: string;
+	ttl: string;
+	status: string;
+	priority?: number;
+};
+
+export type ApplicationEmailRunStatus = 'running' | 'canceling' | 'canceled' | 'done' | 'error';
+export type ApplicationEmailStatus =
+	| 'queued'
+	| 'sending'
+	| 'sent'
+	| 'failed'
+	| 'skipped'
+	| 'canceled';
+export type ApplicationEmailPhaseId = 'setup' | 'queue' | 'send' | 'finalize';
+export interface ApplicationEmailPhaseProgress {
+	state: RunPhaseState;
+	current: number;
+	total: number;
+	detail: string;
+	skipped: number;
+	failed: number;
+}
+export interface ApplicationEmailProgress {
+	version: 1;
+	headline: string;
+	detail: string;
+	nextSendAt: string | null;
+	phases: Record<ApplicationEmailPhaseId, ApplicationEmailPhaseProgress>;
 }
