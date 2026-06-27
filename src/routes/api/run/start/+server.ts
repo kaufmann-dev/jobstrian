@@ -3,7 +3,7 @@ import type { RequestHandler } from './$types';
 
 function startFailureMessage(err: unknown): string {
 	const message = err instanceof Error ? err.message : String(err);
-	if (message.includes('DATABASE_URL is not set')) {
+	if (message.includes('DATABASE_URL is not set') || message.includes('DATABASE_URL ist nicht gesetzt')) {
 		return 'Aktualisierung konnte nicht gestartet werden: DATABASE_URL ist nicht gesetzt.';
 	}
 	if (message.includes('ECONNREFUSED')) {
@@ -13,9 +13,9 @@ function startFailureMessage(err: unknown): string {
 		return 'Aktualisierung konnte nicht gestartet werden: Die PostgreSQL-Zugangsdaten wurden abgelehnt.';
 	}
 	if (message.includes('does not exist')) {
-		return `Aktualisierung konnte nicht gestartet werden: ${message}`;
+		return 'Aktualisierung konnte nicht gestartet werden: Eine benötigte Datenbanktabelle fehlt. Bitte Migrationen ausführen.';
 	}
-	return `Aktualisierung konnte nicht gestartet werden: ${message}`;
+	return 'Aktualisierung konnte nicht gestartet werden.';
 }
 
 export const POST: RequestHandler = async () => {
@@ -34,7 +34,7 @@ export const POST: RequestHandler = async () => {
 		}
 		return json({ started: true, runId });
 	} catch (err) {
-		console.error('[api/run/start] failed to start refresh:', err);
+		console.error('[api/run/start] Aktualisierung konnte nicht gestartet werden:', err);
 		return json(
 			{
 				started: false,

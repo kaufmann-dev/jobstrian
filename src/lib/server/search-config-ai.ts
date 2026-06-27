@@ -175,7 +175,7 @@ export async function createSearchConfigPreview(intent: string): Promise<SearchC
 
 	const parsed = searchConfigPreviewSchema.safeParse(normalizeSearchConfigPreview(raw));
 	if (!parsed.success) {
-		console.error('Invalid LLM search config response', parsed.error.issues);
+		console.error('Ungültige LLM-Antwort für Suchkonfiguration', parsed.error.issues);
 		throw new SearchConfigAiError('Die KI-Antwort enthält keine gültige Suchkonfiguration.', 502);
 	}
 	if (Object.keys(parsed.data).length === 0) {

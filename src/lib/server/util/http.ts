@@ -11,11 +11,11 @@ export interface FetchOpts {
 export async function politeFetch(url: string, opts: FetchOpts = {}): Promise<Response> {
 	const ctrl = new AbortController();
 	const timeout = setTimeout(
-		() => ctrl.abort(new DOMException('Fetch timed out.', 'TimeoutError')),
+		() => ctrl.abort(new DOMException('Abruf hat das Zeitlimit überschritten.', 'TimeoutError')),
 		opts.timeoutMs ?? 15_000
 	);
 	const abortFromParent = () => {
-		ctrl.abort(opts.signal?.reason ?? new DOMException('The operation was aborted.', 'AbortError'));
+		ctrl.abort(opts.signal?.reason ?? new DOMException('Der Vorgang wurde abgebrochen.', 'AbortError'));
 	};
 	if (opts.signal) {
 		if (opts.signal.aborted) {
@@ -37,7 +37,7 @@ export async function politeFetch(url: string, opts: FetchOpts = {}): Promise<Re
 
 export async function fetchText(url: string, opts: FetchOpts = {}): Promise<string> {
 	const res = await politeFetch(url, opts);
-	if (!res.ok) throw new Error(`GET ${url} -> ${res.status}`);
+	if (!res.ok) throw new Error(`Abruf fehlgeschlagen: ${url} -> ${res.status}`);
 	return res.text();
 }
 
@@ -46,7 +46,7 @@ export async function fetchJson<T>(url: string, opts: FetchOpts = {}): Promise<T
 		...opts,
 		headers: { accept: 'application/json', ...opts.headers }
 	});
-	if (!res.ok) throw new Error(`GET ${url} -> ${res.status}`);
+	if (!res.ok) throw new Error(`Abruf fehlgeschlagen: ${url} -> ${res.status}`);
 	return res.json() as Promise<T>;
 }
 

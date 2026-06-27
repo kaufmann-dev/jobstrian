@@ -24,7 +24,7 @@ export const POST: RequestHandler = async ({ request }) => {
 		if (isRankingCriteriaAiError(error)) {
 			return json({ message: error.message }, { status: error.status });
 		}
-		console.error('Ranking criteria preview failed', error);
+		console.error('Vorschau der Bewertungskriterien fehlgeschlagen', error);
 		return json(
 			{ message: 'Die Bewertungskriterien konnten nicht erzeugt werden.' },
 			{ status: 500 }

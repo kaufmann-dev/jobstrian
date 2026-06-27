@@ -61,7 +61,7 @@ function buildAddress(tags: Record<string, string>): string | undefined {
 }
 
 function abortReason(signal: AbortSignal): unknown {
-	return signal.reason ?? new DOMException('The operation was aborted.', 'AbortError');
+	return signal.reason ?? new DOMException('Der Vorgang wurde abgebrochen.', 'AbortError');
 }
 
 function throwIfAborted(signal?: AbortSignal): void {
@@ -78,7 +78,7 @@ function combineWithTimeout(
 	const ctrl = new AbortController();
 	let callerAbort: (() => void) | undefined;
 	const timeout = setTimeout(() => {
-		ctrl.abort(new DOMException('Overpass request timed out.', 'TimeoutError'));
+		ctrl.abort(new DOMException('Overpass-Anfrage hat das Zeitlimit überschritten.', 'TimeoutError'));
 	}, timeoutMs);
 
 	if (signal) {
@@ -114,8 +114,8 @@ async function sleepWithAbort(ms: number, signal?: AbortSignal): Promise<void> {
 }
 
 function overpassFetchFailureMessage(err: unknown): string {
-	if (err instanceof Error && err.message) return `Overpass request failed: ${err.message}`;
-	return 'Overpass request failed';
+	if (err instanceof Error && err.message) return `Overpass-Anfrage fehlgeschlagen: ${err.message}`;
+	return 'Overpass-Anfrage fehlgeschlagen';
 }
 
 interface OverpassResponse {
@@ -159,15 +159,15 @@ async function fetchOverpass(
 			if (response.ok) {
 				const data = (await response.json()) as OverpassResponse;
 				if (isCompleteOverpassBody(data)) return data;
-				lastRetryable = { message: `Overpass remark: ${data.remark ?? 'missing elements'}` };
+				lastRetryable = { message: 'Overpass meldet eine unvollständige Antwort.' };
 			} else if (!RETRYABLE_STATUSES.has(response.status)) {
-				throw new Error(`Overpass -> ${response.status}`);
+				throw new Error(`Overpass-Status ${response.status}`);
 			} else {
-				lastRetryable = { message: `Overpass -> ${response.status}` };
+				lastRetryable = { message: `Overpass-Status ${response.status}` };
 			}
 		} catch (err) {
 			if (signal?.aborted) throw abortReason(signal);
-			if (err instanceof Error && err.message.startsWith('Overpass -> ')) throw err;
+			if (err instanceof Error && err.message.startsWith('Overpass-Status ')) throw err;
 			lastRetryable = { message: overpassFetchFailureMessage(err), cause: err };
 		} finally {
 			attemptSignal.cleanup();
@@ -179,7 +179,7 @@ async function fetchOverpass(
 	}
 
 	throw new OverpassUnavailableError(
-		lastRetryable?.message ?? 'Overpass unavailable',
+		lastRetryable?.message ?? 'Overpass ist nicht verfügbar',
 		OVERPASS_ATTEMPTS,
 		{ cause: lastRetryable?.cause }
 	);
@@ -206,7 +206,7 @@ export function compileBusinessOverpassQueries(
 	for (const tag of tags) {
 		const valid = isValidOsmBusinessTag({ key: tag.key, value: tag.value });
 		if (!valid) {
-			throw new Error(`Invalid OSM business tag: ${tag.key}=${tag.value}`);
+			throw new Error(`Ungültige OSM-Betriebskategorie: ${tag.key}=${tag.value}`);
 		}
 	}
 

@@ -35,5 +35,5 @@
 	{...restProps}
 >
 	<ChevronRightIcon />
-	<span class="sr-only">Next slide</span>
+	<span class="sr-only">Nächste Folie</span>
 </Button>

@@ -13,7 +13,7 @@ export async function init() {
 	try {
 		await runMigrations();
 	} catch (error) {
-		console.error('Database migration failed during startup', error);
+		console.error('Datenbankmigration beim Start fehlgeschlagen', error);
 		throw error;
 	}
 }

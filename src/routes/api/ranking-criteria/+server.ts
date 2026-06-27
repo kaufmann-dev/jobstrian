@@ -20,7 +20,7 @@ export const PATCH: RequestHandler = async ({ request }) => {
 		if (isRankingCriteriaAiError(error)) {
 			return json({ message: error.message }, { status: error.status });
 		}
-		console.error('Ranking criteria update failed', error);
+		console.error('Aktualisierung der Bewertungskriterien fehlgeschlagen', error);
 		return json(
 			{ message: 'Die Bewertungskriterien konnten nicht aktualisiert werden.' },
 			{ status: 500 }

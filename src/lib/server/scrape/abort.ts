@@ -1,5 +1,5 @@
 function abortFallback(error: unknown): unknown {
-	return error ?? new DOMException('The operation was aborted.', 'AbortError');
+	return error ?? new DOMException('Der Vorgang wurde abgebrochen.', 'AbortError');
 }
 
 export function isAbortError(error: unknown): boolean {

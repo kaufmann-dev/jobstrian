@@ -19,7 +19,7 @@ export async function closeBrowser(): Promise<void> {
 }
 
 function abortReason(signal: AbortSignal): unknown {
-	return signal.reason ?? new DOMException('The operation was aborted.', 'AbortError');
+	return signal.reason ?? new DOMException('Der Vorgang wurde abgebrochen.', 'AbortError');
 }
 
 /** Run `fn` with a fresh page in an isolated context, always cleaned up. */

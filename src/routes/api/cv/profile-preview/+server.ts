@@ -9,7 +9,7 @@ export const POST: RequestHandler = async () => {
 		if (isCvProfileError(error)) {
 			return json({ message: error.message }, { status: error.status });
 		}
-		console.error('CV profile preview failed', error);
+		console.error('Lebenslauf-Profilvorschau fehlgeschlagen', error);
 		return json({ message: 'Der Lebenslauf konnte nicht ausgewertet werden.' }, { status: 500 });
 	}
 };

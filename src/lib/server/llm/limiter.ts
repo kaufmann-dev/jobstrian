@@ -26,7 +26,7 @@ export interface LlmLimiterOptions {
 }
 
 export function abortError(): DOMException {
-	return new DOMException('The operation was aborted.', 'AbortError');
+	return new DOMException('Der Vorgang wurde abgebrochen.', 'AbortError');
 }
 
 export function isAbortError(err: unknown): boolean {

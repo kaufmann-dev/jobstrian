@@ -16,7 +16,7 @@ export const GET: RequestHandler = async ({ url }) => {
 	try {
 		return json(await getListingPage(filters, cursor));
 	} catch (error) {
-		console.error('Failed to list listings', error);
+		console.error('Stellen konnten nicht aufgelistet werden', error);
 		return json({ message: 'Stellen konnten nicht geladen werden.' }, { status: 500 });
 	}
 };

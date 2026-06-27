@@ -110,7 +110,7 @@ export async function createRankingCriteriaPreview(
 
 	const parsed = rankingCriteriaAiPreviewSchema.safeParse(normalizeRankingCriteriaPreview(raw));
 	if (!parsed.success) {
-		console.error('Invalid LLM ranking criteria response', parsed.error.issues);
+		console.error('Ungültige LLM-Antwort für Bewertungskriterien', parsed.error.issues);
 		throw new RankingCriteriaAiError('Die KI-Antwort enthält keine gültigen Kriterien.', 502);
 	}
 	return parsed.data;

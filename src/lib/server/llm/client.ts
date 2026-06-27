@@ -10,7 +10,7 @@ export interface LlmConfig {
 
 export class LlmNotConfiguredError extends Error {
 	constructor() {
-		super('LLM is not configured (base URL / model missing in settings).');
+		super('LLM ist nicht konfiguriert. Base URL oder Modell fehlen in den Einstellungen.');
 		this.name = 'LlmNotConfiguredError';
 	}
 }
@@ -74,7 +74,7 @@ function attemptSignal(
 } {
 	const timeout = new AbortController();
 	const timer = setTimeout(
-		() => timeout.abort(new DOMException('LLM request timed out.', 'TimeoutError')),
+		() => timeout.abort(new DOMException('LLM-Anfrage hat das Zeitlimit überschritten.', 'TimeoutError')),
 		timeoutMs
 	);
 	return {
@@ -137,10 +137,9 @@ export async function chatJson<T>(
 						signal: request.signal
 					});
 					if (!res.ok) {
-						const body = await res.text().catch(() => '');
 						throw new LlmHttpError(
 							res.status,
-							`LLM request failed (${res.status}): ${body.slice(0, 300)}`,
+							`LLM-Anfrage fehlgeschlagen (${res.status}).`,
 							parseRetryAfter(res.headers.get('retry-after'))
 						);
 					}
@@ -148,7 +147,7 @@ export async function chatJson<T>(
 						choices?: { message?: { content?: string } }[];
 					};
 					const content = data.choices?.[0]?.message?.content;
-					if (!content) throw new SyntaxError('LLM returned no content');
+					if (!content) throw new SyntaxError('LLM hat keinen Inhalt zurückgegeben.');
 					return JSON.parse(unfence(content)) as T;
 				} finally {
 					request.cleanup();

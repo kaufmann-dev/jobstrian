@@ -15,6 +15,10 @@
 	let error = $state('');
 	let loading = $state(false);
 
+	function signInErrorMessage(): string {
+		return 'Anmeldung fehlgeschlagen. Bitte prüfe E-Mail und Passwort.';
+	}
+
 	async function onsubmit(event: SubmitEvent) {
 		event.preventDefault();
 		loading = true;
@@ -22,7 +26,7 @@
 		const { error: err } = await authClient.signIn.email({ email, password });
 		loading = false;
 		if (err) {
-			error = err.message ?? 'Anmeldung fehlgeschlagen';
+			error = signInErrorMessage();
 			return;
 		}
 		await goto(resolve('/'));

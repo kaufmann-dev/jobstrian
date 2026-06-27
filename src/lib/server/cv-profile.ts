@@ -226,7 +226,7 @@ export async function createProfilePreview(): Promise<ProfilePreview> {
 	}
 	const parsed = profilePreviewSchema.safeParse(normalizeProfilePreview(raw));
 	if (!parsed.success) {
-		console.error('Invalid LLM CV profile response', parsed.error.issues);
+		console.error('Ungültige LLM-Antwort für Lebenslaufprofil', parsed.error.issues);
 		throw new CvProfileError('Die KI-Antwort enthält kein gültiges Profil.', 502);
 	}
 	if (Object.keys(parsed.data).length === 0) {
