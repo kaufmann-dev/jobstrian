@@ -1,6 +1,7 @@
 import * as cheerio from 'cheerio';
 import { fetchText } from '../../util/http';
 import { htmlToText } from '../../util/html';
+import { rethrowIfAbort } from '../abort';
 import type { ProfileQuery, RawListing, ScrapeResult, SourceAdapter } from '../types';
 import { matchLocation } from './location';
 
@@ -88,6 +89,7 @@ export const hokify: SourceAdapter = {
 						});
 					}
 				} catch (err) {
+					rethrowIfAbort(err, signal);
 					complete = false;
 					console.error(`[hokify] "${keyword}" in "${locationName}" failed:`, err);
 				}

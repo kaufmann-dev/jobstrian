@@ -105,6 +105,13 @@ describe('hokify scraper', () => {
 		expect(complete).toBe(false);
 	});
 
+	it('rethrows abort errors instead of returning an incomplete result', async () => {
+		const abort = new DOMException('The operation was aborted.', 'AbortError');
+		fetchTextMock.mockRejectedValue(abort);
+
+		await expect(hokify.search({ keywords: ['Barista'], locations: ['Wien'] })).rejects.toBe(abort);
+	});
+
 	it('extracts the detail-page description from the microdata container', async () => {
 		fetchTextMock.mockResolvedValue(
 			`<main><div itemprop="description"><h2>Aufgaben</h2><p>Sehr gute Deutschkenntnisse&nbsp;(B2) erforderlich.</p></div></main>`

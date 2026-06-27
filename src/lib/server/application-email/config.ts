@@ -95,6 +95,7 @@ export async function applicationEmailReadiness(s?: Settings): Promise<Applicati
 	if (!s.applicationEmailEnabled) reasons.push('DNS-Einträge sind noch nicht bestätigt.');
 	if (!applicationEmailFromAddress(s)) reasons.push('Absenderadresse fehlt.');
 	if (!applicationEmailReplyTo(s)) reasons.push('Antwortadresse fehlt.');
+	if (!s.resendWebhookSecret.trim()) reasons.push('Resend Webhook-Secret fehlt.');
 	if (!(await getCvMeta())) reasons.push('Lebenslauf-PDF fehlt.');
 	return { ready: reasons.length === 0, reasons };
 }

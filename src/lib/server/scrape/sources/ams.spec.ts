@@ -64,4 +64,20 @@ describe('AMS scraper', () => {
 		expect(listings[0]?.description).toBe('Sehr gute Deutschkenntnisse erforderlich.');
 		expect(listings[0]).toMatchObject({ discoveryKeyword: 'Office', discoveryCity: 'Graz' });
 	});
+
+	it('reports complete: false when browser search fails', async () => {
+		withPage.mockRejectedValue(new Error('browser failed'));
+
+		const { listings, complete } = await ams.search({ keywords: ['Office'], locations: ['Graz'] });
+
+		expect(listings).toEqual([]);
+		expect(complete).toBe(false);
+	});
+
+	it('rethrows abort errors instead of returning an incomplete result', async () => {
+		const abort = new Error('browser context aborted');
+		withPage.mockRejectedValue(abort);
+
+		await expect(ams.search({ keywords: ['Office'], locations: ['Graz'] })).rejects.toBe(abort);
+	});
 });

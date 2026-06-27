@@ -1,4 +1,5 @@
 import { withPage } from '../browser';
+import { rethrowIfAbort } from '../abort';
 import type { ProfileQuery, RawListing, ScrapeResult, SourceAdapter } from '../types';
 import { htmlToText } from '../../util/html';
 import { normalizeLocation } from './location';
@@ -120,6 +121,7 @@ export const ams: SourceAdapter = {
 					byId.set(listing.externalId, listing);
 				}
 			} catch (err) {
+				rethrowIfAbort(err, signal);
 				complete = false;
 				console.error(`[ams] "${keyword}" failed:`, err);
 			}

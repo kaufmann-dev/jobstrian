@@ -1,5 +1,6 @@
 import { fetchText } from '../../util/http';
 import { htmlToText } from '../../util/html';
+import { rethrowIfAbort } from '../abort';
 import type { ProfileQuery, RawListing, ScrapeResult, SourceAdapter } from '../types';
 import { matchLocation } from './location';
 
@@ -27,9 +28,9 @@ function extractNextData(html: string): unknown {
 }
 
 function parseNextData(html: string): WhEntry[] {
-	const json = extractNextData(html) as
-		| { props?: { pageProps?: { jobsSearchResultRoot?: { data?: { entries?: WhEntry[] } } } } }
-		| null;
+	const json = extractNextData(html) as {
+		props?: { pageProps?: { jobsSearchResultRoot?: { data?: { entries?: WhEntry[] } } } };
+	} | null;
 	const entries = json?.props?.pageProps?.jobsSearchResultRoot?.data?.entries;
 	return Array.isArray(entries) ? entries : [];
 }
@@ -59,9 +60,9 @@ export const willhaben: SourceAdapter = {
 	label: 'willhaben Jobs',
 	async fetchDescription(url: string, signal?: AbortSignal): Promise<string | null> {
 		const html = await fetchText(url, { timeoutMs: 20_000, signal });
-		const json = extractNextData(html) as
-			| { props?: { pageProps?: { jobAdvertDetailsRoot?: { data?: { description?: string } } } } }
-			| null;
+		const json = extractNextData(html) as {
+			props?: { pageProps?: { jobAdvertDetailsRoot?: { data?: { description?: string } } } };
+		} | null;
 		const description = json?.props?.pageProps?.jobAdvertDetailsRoot?.data?.description;
 		return description ? htmlToText(description) : null;
 	},
@@ -78,6 +79,7 @@ export const willhaben: SourceAdapter = {
 					if (listing) byId.set(listing.externalId, listing);
 				}
 			} catch (err) {
+				rethrowIfAbort(err, signal);
 				complete = false;
 				console.error(`[willhaben] "${keyword}" failed:`, err);
 			}

@@ -66,6 +66,16 @@ describe('willhaben scraper', () => {
 		expect(listings).toEqual([]);
 	});
 
+	it('rethrows abort errors instead of returning an incomplete result', async () => {
+		const abort = new Error('request aborted by caller');
+		abort.name = 'AbortError';
+		fetchTextMock.mockRejectedValue(abort);
+
+		await expect(willhaben.search({ keywords: ['Verkauf'], locations: ['Graz'] })).rejects.toBe(
+			abort
+		);
+	});
+
 	it('maps the list-level description when present (sponsored top job)', async () => {
 		fetchTextMock.mockResolvedValue(
 			page([

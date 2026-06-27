@@ -42,6 +42,27 @@ describe('karriere scraper', () => {
 		});
 	});
 
+	it('reports complete: false when any city/keyword fetch fails', async () => {
+		fetchTextMock.mockResolvedValueOnce(resultHtml).mockRejectedValueOnce(new Error('timeout'));
+
+		const { listings, complete } = await karriere.search({
+			keywords: ['Office Assistenz', 'Verkauf'],
+			locations: ['Graz']
+		});
+
+		expect(listings).toHaveLength(1);
+		expect(complete).toBe(false);
+	});
+
+	it('rethrows abort errors instead of returning an incomplete result', async () => {
+		const abort = new DOMException('signal is aborted', 'AbortError');
+		fetchTextMock.mockRejectedValue(abort);
+
+		await expect(
+			karriere.search({ keywords: ['Office Assistenz'], locations: ['Graz'] })
+		).rejects.toBe(abort);
+	});
+
 	it('extracts the detail description from JSON-LD JobPosting', async () => {
 		fetchTextMock.mockResolvedValue(`
 			<script type="application/ld+json">${JSON.stringify({
@@ -62,7 +83,9 @@ describe('karriere scraper', () => {
 	});
 
 	it('returns null when no JSON-LD JobPosting is present', async () => {
-		fetchTextMock.mockResolvedValue('<script type="application/ld+json">{"@type":"WebPage"}</script>');
+		fetchTextMock.mockResolvedValue(
+			'<script type="application/ld+json">{"@type":"WebPage"}</script>'
+		);
 
 		expect(await karriere.fetchDescription!('https://www.karriere.at/jobs/1')).toBeNull();
 	});

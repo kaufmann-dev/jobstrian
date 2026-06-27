@@ -1,6 +1,7 @@
 import * as cheerio from 'cheerio';
 import { fetchText } from '../../util/http';
 import { htmlToText } from '../../util/html';
+import { rethrowIfAbort } from '../abort';
 import type { ProfileQuery, RawListing, ScrapeResult, SourceAdapter } from '../types';
 import { matchLocation } from './location';
 
@@ -117,6 +118,7 @@ export const karriere: SourceAdapter = {
 						});
 					}
 				} catch (err) {
+					rethrowIfAbort(err, signal);
 					complete = false;
 					console.error(`[karriere] "${keyword}" in "${locationName}" failed:`, err);
 				}

@@ -10,9 +10,19 @@ export interface FetchOpts {
 /** fetch with a default timeout and polite User-Agent. */
 export async function politeFetch(url: string, opts: FetchOpts = {}): Promise<Response> {
 	const ctrl = new AbortController();
-	const timeout = setTimeout(() => ctrl.abort(), opts.timeoutMs ?? 15_000);
+	const timeout = setTimeout(
+		() => ctrl.abort(new DOMException('Fetch timed out.', 'TimeoutError')),
+		opts.timeoutMs ?? 15_000
+	);
+	const abortFromParent = () => {
+		ctrl.abort(opts.signal?.reason ?? new DOMException('The operation was aborted.', 'AbortError'));
+	};
 	if (opts.signal) {
-		opts.signal.addEventListener('abort', () => ctrl.abort(), { once: true });
+		if (opts.signal.aborted) {
+			abortFromParent();
+		} else {
+			opts.signal.addEventListener('abort', abortFromParent, { once: true });
+		}
 	}
 	try {
 		return await fetch(url, {
@@ -21,6 +31,7 @@ export async function politeFetch(url: string, opts: FetchOpts = {}): Promise<Re
 		});
 	} finally {
 		clearTimeout(timeout);
+		opts.signal?.removeEventListener('abort', abortFromParent);
 	}
 }
 
