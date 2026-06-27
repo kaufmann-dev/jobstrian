@@ -74,8 +74,10 @@ async function searchKeyword(
 ): Promise<RawListing[]> {
 	return withPage(async (page) => {
 		const captured: AmsResult[] = [];
+		let sawResponse = false;
 		page.on('response', async (res) => {
 			if (!/\/public\/emps\/api\/search/.test(res.url())) return;
+			sawResponse = true;
 			try {
 				const json = (await res.json()) as { results?: AmsResult[] };
 				if (Array.isArray(json.results)) captured.push(...json.results);
@@ -90,14 +92,14 @@ async function searchKeyword(
 		});
 		// The search field is the inner <input> of an <ams-autocomplete> element.
 		const box = await page.$('input[type=text], input[type=search], input:not([type])');
-		if (box) {
-			await box.fill(keyword);
-			await box.press('Enter');
-		}
+		if (!box) throw new Error('AMS search input not found');
+		await box.fill(keyword);
+		await box.press('Enter');
 		await page
 			.waitForResponse((r) => /\/public\/emps\/api\/search/.test(r.url()), { timeout: 15_000 })
 			.catch(() => {});
 		await page.waitForTimeout(1200);
+		if (!sawResponse) throw new Error('AMS /api/search response not observed');
 
 		const byId = new Map<string, RawListing>();
 		for (const result of captured) {

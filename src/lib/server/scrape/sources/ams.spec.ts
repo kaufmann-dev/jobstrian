@@ -74,6 +74,71 @@ describe('AMS scraper', () => {
 		expect(complete).toBe(false);
 	});
 
+	it('reports complete: false when the search input is not found', async () => {
+		withPage.mockImplementation(async (callback) => {
+			const page = {
+				on: vi.fn(),
+				goto: vi.fn(),
+				$: vi.fn().mockResolvedValue(null),
+				waitForResponse: vi.fn().mockResolvedValue(undefined),
+				waitForTimeout: vi.fn()
+			};
+			return callback(page);
+		});
+
+		const { listings, complete } = await ams.search({ keywords: ['Office'], locations: ['Graz'] });
+
+		expect(listings).toEqual([]);
+		expect(complete).toBe(false);
+	});
+
+	it('reports complete: false when no /api/search response is observed', async () => {
+		withPage.mockImplementation(async (callback) => {
+			const page = {
+				on: vi.fn(),
+				goto: vi.fn(),
+				$: vi.fn().mockResolvedValue({ fill: vi.fn(), press: vi.fn() }),
+				// Resolve without ever invoking the response handler (timeout case).
+				waitForResponse: vi.fn().mockResolvedValue(undefined),
+				waitForTimeout: vi.fn()
+			};
+			return callback(page);
+		});
+
+		const { listings, complete } = await ams.search({ keywords: ['Office'], locations: ['Graz'] });
+
+		expect(listings).toEqual([]);
+		expect(complete).toBe(false);
+	});
+
+	it('reports complete: true for a successful search with zero results', async () => {
+		withPage.mockImplementation(async (callback) => {
+			let responseHandler:
+				| ((response: { url(): string; json(): Promise<unknown> }) => void)
+				| undefined;
+			const page = {
+				on: vi.fn((_event: string, handler) => {
+					responseHandler = handler;
+				}),
+				goto: vi.fn(),
+				$: vi.fn().mockResolvedValue({ fill: vi.fn(), press: vi.fn() }),
+				waitForResponse: vi.fn(async () => {
+					await responseHandler?.({
+						url: () => 'https://jobs.ams.at/public/emps/api/search',
+						json: async () => ({ results: [] })
+					});
+				}),
+				waitForTimeout: vi.fn()
+			};
+			return callback(page);
+		});
+
+		const { listings, complete } = await ams.search({ keywords: ['Office'], locations: ['Graz'] });
+
+		expect(listings).toEqual([]);
+		expect(complete).toBe(true);
+	});
+
 	it('rethrows abort errors instead of returning an incomplete result', async () => {
 		const abort = new Error('browser context aborted');
 		withPage.mockRejectedValue(abort);
