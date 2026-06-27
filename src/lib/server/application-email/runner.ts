@@ -43,6 +43,27 @@ export type ApplicationEmailSummary = {
 	running: boolean;
 };
 
+export type TestApplicationEmailResult = {
+	recipient: string;
+	resendEmailId: string | null;
+};
+
+type ApplicationEmailSendInput = {
+	settings: Settings;
+	recipientEmail: string;
+	subject: string;
+	body: string;
+	tags: { name: string; value: string }[];
+	idempotencyKey: string;
+};
+
+const TEST_EMAIL_SUBJECT = 'Jobstrian Test-E-Mail';
+const TEST_EMAIL_BODY = `Hallo,
+
+das ist eine Test-E-Mail aus Jobstrian.
+
+Wenn diese Nachricht gut lesbar ist und der Lebenslauf als PDF angehängt wurde, funktionieren Absender, Antwortadresse, Formatierung und Resend-Versand.`;
+
 function emptyPhase(): ApplicationEmailPhaseProgress {
 	return { state: 'pending', current: 0, total: 0, detail: '', skipped: 0, failed: 0 };
 }
@@ -296,10 +317,7 @@ async function repaceQueuedRows(runId: number): Promise<void> {
 		.orderBy(asc(applicationEmail.scheduledAt), asc(applicationEmail.id));
 	if (!rows.length) return;
 	for (const [id, scheduledAt] of repaceScheduledAt(rows)) {
-		await db
-			.update(applicationEmail)
-			.set({ scheduledAt })
-			.where(eq(applicationEmail.id, id));
+		await db.update(applicationEmail).set({ scheduledAt }).where(eq(applicationEmail.id, id));
 	}
 }
 
@@ -313,28 +331,42 @@ function unwrapSendId(result: unknown): string | null {
 		data?: { id?: string } | null;
 		error?: { message?: string; statusCode?: number } | null;
 	};
-	if (response.error) throw new Error('Resend-Versand fehlgeschlagen.');
+	if (response.error) {
+		throw new Error(
+			response.error.message
+				? `Resend-Versand fehlgeschlagen: ${response.error.message}`
+				: 'Resend-Versand fehlgeschlagen.'
+		);
+	}
 	return response.data?.id ?? null;
 }
 
-async function sendApplicationEmail(
-	row: ApplicationEmail,
-	settings: Settings
+function testEmailReadiness(settings: Settings): string[] {
+	const reasons: string[] = [];
+	if (!settings.resendApiKey) reasons.push('Resend API-Key fehlt.');
+	if (!settings.applicationEmailEnabled) reasons.push('DNS-Einträge sind noch nicht bestätigt.');
+	if (!applicationEmailFromAddress(settings)) reasons.push('Absenderadresse fehlt.');
+	if (!applicationEmailReplyTo(settings)) reasons.push('Antwortadresse fehlt.');
+	return reasons;
+}
+
+async function sendRenderedApplicationEmail(
+	input: ApplicationEmailSendInput
 ): Promise<string | null> {
 	const cv = await getCvData();
 	if (!cv) throw new Error('Lebenslauf-PDF fehlt.');
 	const html = await new Renderer().render(ApplicationEmailTemplate, {
 		props: {
-			body: row.body
+			body: input.body
 		}
 	});
-	const text = toPlainText(html) || row.body;
-	const result = await resendClient(settings).emails.send(
+	const text = toPlainText(html) || input.body;
+	const result = await resendClient(input.settings).emails.send(
 		{
-			from: applicationEmailFromAddress(settings),
-			to: row.recipientEmail,
-			replyTo: applicationEmailReplyTo(settings),
-			subject: row.subject,
+			from: applicationEmailFromAddress(input.settings),
+			to: input.recipientEmail,
+			replyTo: applicationEmailReplyTo(input.settings),
+			subject: input.subject,
 			html,
 			text,
 			attachments: [
@@ -344,14 +376,46 @@ async function sendApplicationEmail(
 					contentType: cv.mimeType
 				}
 			],
-			tags: [
-				{ name: 'kind', value: 'application-email' },
-				{ name: 'lead_id', value: String(row.leadId) }
-			]
+			tags: input.tags
 		},
-		{ idempotencyKey: row.idempotencyKey }
+		{ idempotencyKey: input.idempotencyKey }
 	);
 	return unwrapSendId(result);
+}
+
+async function sendApplicationEmail(
+	row: ApplicationEmail,
+	settings: Settings
+): Promise<string | null> {
+	return sendRenderedApplicationEmail({
+		settings,
+		recipientEmail: row.recipientEmail,
+		subject: row.subject,
+		body: row.body,
+		tags: [
+			{ name: 'kind', value: 'application-email' },
+			{ name: 'lead_id', value: String(row.leadId) }
+		],
+		idempotencyKey: row.idempotencyKey
+	});
+}
+
+export async function sendTestApplicationEmail(): Promise<TestApplicationEmailResult> {
+	const settings = await getSettings();
+	const readiness = testEmailReadiness(settings);
+	const recipient = applicationEmailReplyTo(settings);
+	if (readiness.length) {
+		throw new Error(`Test-E-Mail kann nicht gesendet werden: ${readiness.join(' ')}`);
+	}
+	const resendEmailId = await sendRenderedApplicationEmail({
+		settings,
+		recipientEmail: recipient,
+		subject: TEST_EMAIL_SUBJECT,
+		body: TEST_EMAIL_BODY,
+		tags: [{ name: 'kind', value: 'application-email-test' }],
+		idempotencyKey: `application-email-test-${crypto.randomUUID()}`
+	});
+	return { recipient, resendEmailId };
 }
 
 async function sendQueuedRow(

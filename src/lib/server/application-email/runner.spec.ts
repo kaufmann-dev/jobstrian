@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import type { Settings } from '../db/schema';
 
 type RunRow = {
 	id: number;
@@ -81,7 +82,8 @@ const fake = vi.hoisted(() => {
 		runs: [] as MutableRunRow[],
 		emails: [] as MutableEmailRow[],
 		leads: [] as MutableLeadRow[],
-		sendCalls: [] as Array<{ idempotencyKey: string | undefined }>
+		sendCalls: [] as Array<{ idempotencyKey: string | undefined }>,
+		sendPayloads: [] as unknown[]
 	};
 
 	function tableName(table: unknown): string {
@@ -208,6 +210,7 @@ const fake = vi.hoisted(() => {
 			state.emails = [];
 			state.leads = [];
 			state.sendCalls = [];
+			state.sendPayloads = [];
 		}
 	};
 });
@@ -242,8 +245,9 @@ vi.mock('better-svelte-email/render', () => ({
 vi.mock('resend', () => ({
 	Resend: class Resend {
 		emails = {
-			send: async (_payload: unknown, options?: { idempotencyKey?: string }) => {
+			send: async (payload: unknown, options?: { idempotencyKey?: string }) => {
 				fake.state.sendCalls.push({ idempotencyKey: options?.idempotencyKey });
+				fake.state.sendPayloads.push(payload);
 				return { data: { id: `resend-${fake.state.sendCalls.length}` } };
 			}
 		};
@@ -251,8 +255,42 @@ vi.mock('resend', () => ({
 }));
 vi.mock('./application-email-template.svelte', () => ({ default: {} }));
 
-import { recoverInterruptedApplicationEmailRun, repaceScheduledAt } from './runner';
+import { getCvData } from '../cv';
+import { getSettings } from '../settings';
+import {
+	recoverInterruptedApplicationEmailRun,
+	repaceScheduledAt,
+	sendTestApplicationEmail
+} from './runner';
 import { isApplicationEmailSendWindow } from './schedule';
+
+function defaultSettings(patch: Partial<Settings> = {}): Settings {
+	return {
+		resendApiKey: 'test-key',
+		resendDomain: 'example.com',
+		resendFromLocalPart: 'bewerbung',
+		resendFromName: 'Applicant',
+		resendReplyTo: 'reply@example.com',
+		applicationEmailEnabled: true,
+		fullName: 'Applicant',
+		email: 'reply@example.com',
+		...patch
+	} as Settings;
+}
+
+function defaultCv(): Awaited<ReturnType<typeof getCvData>> {
+	return {
+		filename: 'cv.pdf',
+		mimeType: 'application/pdf',
+		data: Buffer.from('pdf')
+	} as Awaited<ReturnType<typeof getCvData>>;
+}
+
+beforeEach(() => {
+	fake.reset();
+	vi.mocked(getSettings).mockResolvedValue(defaultSettings());
+	vi.mocked(getCvData).mockResolvedValue(defaultCv());
+});
 
 function seedRun(status: RunRow['status']): RunRow {
 	return {
@@ -284,6 +322,45 @@ function seedEmail(status: EmailRow['status'], id = 10): EmailRow {
 		error: null
 	};
 }
+
+describe('test application e-mail', () => {
+	it('sends the rendered template with the CV attachment to the reply-to address', async () => {
+		const result = await sendTestApplicationEmail();
+
+		expect(result).toEqual({ recipient: 'reply@example.com', resendEmailId: 'resend-1' });
+		expect(fake.state.sendCalls[0].idempotencyKey).toMatch(/^application-email-test-/);
+		expect(fake.state.sendPayloads[0]).toMatchObject({
+			from: 'Applicant <bewerbung@example.com>',
+			to: 'reply@example.com',
+			replyTo: 'reply@example.com',
+			subject: 'Jobstrian Test-E-Mail',
+			html: '<p>Application</p>',
+			text: 'Application',
+			attachments: [
+				{
+					filename: 'cv.pdf',
+					content: Buffer.from('pdf'),
+					contentType: 'application/pdf'
+				}
+			],
+			tags: [{ name: 'kind', value: 'application-email-test' }]
+		});
+	});
+
+	it('fails with a clear message when the CV attachment is missing', async () => {
+		vi.mocked(getCvData).mockResolvedValue(null);
+
+		await expect(sendTestApplicationEmail()).rejects.toThrow('Lebenslauf-PDF fehlt.');
+		expect(fake.state.sendCalls).toEqual([]);
+	});
+
+	it('fails before sending when Resend is not configured', async () => {
+		vi.mocked(getSettings).mockResolvedValue(defaultSettings({ resendApiKey: '' }));
+
+		await expect(sendTestApplicationEmail()).rejects.toThrow('Resend API-Key fehlt.');
+		expect(fake.state.sendCalls).toEqual([]);
+	});
+});
 
 describe('interrupted application e-mail recovery', () => {
 	beforeEach(() => {
