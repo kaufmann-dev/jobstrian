@@ -60,8 +60,12 @@ export async function draftColdEmail(
 		],
 		{ temperature: 0.6, limiter, signal }
 	);
+	const body = (raw.body ?? '').toString().trim().slice(0, 4000);
+	if (!body) {
+		throw new Error('LLM lieferte keinen E-Mail-Text für den Entwurf.');
+	}
 	return {
-		subject: (raw.subject ?? 'Initiativbewerbung').toString().slice(0, 200),
-		body: (raw.body ?? '').toString().slice(0, 4000)
+		subject: (raw.subject ?? 'Initiativbewerbung').toString().trim().slice(0, 200) || 'Initiativbewerbung',
+		body
 	};
 }

@@ -158,8 +158,8 @@ function eligibleLeadWhere() {
 	return and(
 		eq(lead.status, 'new'),
 		isNotNull(lead.email),
-		isNotNull(lead.draftSubject),
-		isNotNull(lead.draftBody),
+		sql`length(btrim(${lead.draftSubject})) > 0`,
+		sql`length(btrim(${lead.draftBody})) > 0`,
 		notExists(
 			db
 				.select({ value: sql`1` })

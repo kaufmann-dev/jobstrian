@@ -1,10 +1,14 @@
-import { describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Lead, Settings } from '../db/schema';
 import {
 	DEFAULT_LEAD_RANKING_CRITERIA,
 	DEFAULT_LISTING_RANKING_CRITERIA
 } from '$lib/ranking-criteria';
-import { buildColdEmailPrompt } from './draft-email';
+import type { LlmLimiter } from './limiter';
+import { buildColdEmailPrompt, draftColdEmail } from './draft-email';
+
+const chatJson = vi.hoisted(() => vi.fn());
+vi.mock('./client', () => ({ chatJson }));
 
 function settings(patch: Partial<Settings> = {}): Settings {
 	return {
@@ -104,5 +108,42 @@ describe('cold email prompt', () => {
 		expect(prompt).toContain('Amenity: Doctors');
 		expect(prompt).toContain('Absender (mit diesem Namen unterschreiben): Anna Beispiel');
 		expect(prompt).not.toMatch(/Gastro|Gastronomie|Servicekraft|Barista|Kellner/);
+	});
+});
+
+describe('draftColdEmail', () => {
+	const cfg = { baseUrl: 'http://llm', apiKey: '', model: 'm' };
+	const limiter = {} as LlmLimiter;
+
+	beforeEach(() => {
+		chatJson.mockReset();
+	});
+
+	it('returns the parsed subject and trimmed body', async () => {
+		chatJson.mockResolvedValue({ subject: '  Bewerbung  ', body: '  Guten Tag...  ' });
+
+		const draft = await draftColdEmail(cfg, settings(), lead(), limiter);
+
+		expect(draft).toEqual({ subject: 'Bewerbung', body: 'Guten Tag...' });
+	});
+
+	it('throws instead of manufacturing an empty body when the model omits it', async () => {
+		chatJson.mockResolvedValue({ subject: 'Bewerbung' });
+
+		await expect(draftColdEmail(cfg, settings(), lead(), limiter)).rejects.toThrow(/E-Mail-Text/);
+	});
+
+	it('throws when the model returns a blank body', async () => {
+		chatJson.mockResolvedValue({ subject: 'Bewerbung', body: '   \n  ' });
+
+		await expect(draftColdEmail(cfg, settings(), lead(), limiter)).rejects.toThrow(/E-Mail-Text/);
+	});
+
+	it('falls back to a default subject when the model omits it', async () => {
+		chatJson.mockResolvedValue({ body: 'Guten Tag...' });
+
+		const draft = await draftColdEmail(cfg, settings(), lead(), limiter);
+
+		expect(draft.subject).toBe('Initiativbewerbung');
 	});
 });
