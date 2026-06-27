@@ -99,10 +99,28 @@ Open `http://localhost:5173` and create the first user on the setup screen.
 The setup screen disables itself permanently once that single user exists.
 Afterwards log in at `/login`, enter your address, role keywords, business
 categories and the OpenAI-compatible LLM (base URL including `/v1`, model, API key) in **Settings**.
-For automatic applications, also configure Resend in **Settings**, load the DNS
-records, add them at your domain provider, and click **DNS prüfen und
-aktivieren**. Upload a PDF CV and trigger the AI profile import manually in
-**Settings**. Then click **Update** on the dashboard.
+For automatic applications, also configure Resend in **Settings**:
+
+1. In the Resend dashboard, create an API key under **API Keys** and paste it
+   into **Resend API-Key**. Jobstrian uses this key to create / verify the
+   sending domain and to send application e-mails.
+2. Enter the sending domain, sender local part, sender name and reply-to
+   address in **Settings**.
+3. Click **DNS-Einträge laden**, add the shown DNS records at your domain
+   provider, then click **DNS prüfen und aktivieren**.
+4. In the Resend dashboard, create a webhook endpoint for
+   `https://your-domain.example/api/webhooks/resend`, replacing the host with
+   the deployed Jobstrian URL. Enable at least `email.bounced` and
+   `email.complained`.
+5. Copy the webhook signing secret from Resend (usually `whsec_…`) into
+   **Webhook Secret**. Jobstrian uses it to verify that incoming bounce /
+   complaint events really came from Resend.
+
+For local development, Resend cannot call `localhost` directly; expose the app
+with a tunnel and use that public tunnel URL as the webhook endpoint.
+
+Upload a PDF CV and trigger the AI profile import manually in **Settings**. Then
+click **Update** on the dashboard.
 
 ## Development
 
