@@ -17,6 +17,7 @@
 	import ProfileEditor from './profile-editor.svelte';
 	import RankingCriteriaEditor from './ranking-criteria-editor.svelte';
 	import SearchConfigEditor from './search-config-editor.svelte';
+	import PageHeader from '$lib/components/page-header.svelte';
 	import * as Form from '$lib/components/ui/form/index.js';
 	import * as Card from '$lib/components/ui/card/index.js';
 	import * as Dialog from '$lib/components/ui/dialog/index.js';
@@ -254,11 +255,14 @@
 				config?: typeof emailDomain;
 				message?: string;
 			};
-			if (!response.ok) throw new Error(body.message ?? 'DNS-Einträge konnten nicht geladen werden');
+			if (!response.ok)
+				throw new Error(body.message ?? 'DNS-Einträge konnten nicht geladen werden');
 			if (body.config) emailDomain = body.config;
 			toast.success('DNS-Einträge geladen');
 		} catch (error) {
-			toast.error(error instanceof Error ? error.message : 'DNS-Einträge konnten nicht geladen werden');
+			toast.error(
+				error instanceof Error ? error.message : 'DNS-Einträge konnten nicht geladen werden'
+			);
 		} finally {
 			emailDomainBusy = false;
 		}
@@ -530,23 +534,21 @@
 </svelte:head>
 
 <form method="POST" {@attach enhanceAttachment} class="mx-auto max-w-3xl space-y-6">
-	<div class="flex items-start justify-between gap-4">
-		<div>
-			<h1 class="text-2xl font-semibold tracking-tight">Einstellungen</h1>
-			<p class="text-sm text-muted-foreground">Profil, Portale und KI-Konfiguration.</p>
-		</div>
-		<p class="min-h-5 shrink-0 pt-1 text-right text-xs text-muted-foreground" aria-live="polite">
-			{#if saveStatus === 'saving'}
-				Wird gespeichert …
-			{:else if saveStatus === 'saved'}
-				Gespeichert
-			{:else if saveStatus === 'error'}
-				<button type="button" class="underline" onclick={() => autosave.retry()}>
-					Speichern fehlgeschlagen · erneut versuchen
-				</button>
-			{/if}
-		</p>
-	</div>
+	<PageHeader title="Einstellungen" description="Profil, Portale und KI-Konfiguration.">
+		{#snippet status()}
+			<p class="min-h-5 shrink-0 pt-1 text-right text-xs text-muted-foreground" aria-live="polite">
+				{#if saveStatus === 'saving'}
+					Wird gespeichert …
+				{:else if saveStatus === 'saved'}
+					Gespeichert
+				{:else if saveStatus === 'error'}
+					<button type="button" class="underline" onclick={() => autosave.retry()}>
+						Speichern fehlgeschlagen · erneut versuchen
+					</button>
+				{/if}
+			</p>
+		{/snippet}
+	</PageHeader>
 
 	<Card.Root>
 		<Card.Header>
@@ -849,7 +851,9 @@
 									bind:value={$formData.resendFromLocalPart}
 									placeholder="bewerbung"
 								/>
-								<span class="text-sm text-muted-foreground">@{$formData.resendDomain || 'domain'}</span>
+								<span class="text-sm text-muted-foreground"
+									>@{$formData.resendDomain || 'domain'}</span
+								>
 							</div>
 						{/snippet}
 					</Form.Control>
@@ -861,7 +865,11 @@
 					<Form.Control>
 						{#snippet children({ props })}
 							<Form.Label>Absendername</Form.Label>
-							<Input {...props} bind:value={$formData.resendFromName} placeholder={$formData.fullName} />
+							<Input
+								{...props}
+								bind:value={$formData.resendFromName}
+								placeholder={$formData.fullName}
+							/>
 						{/snippet}
 					</Form.Control>
 					<Form.FieldErrors />
@@ -931,7 +939,9 @@
 							{#each emailDomain.records as record (`${record.type}-${record.name}-${record.value}`)}
 								<Table.Row>
 									<Table.Cell class="font-medium">{record.type}</Table.Cell>
-									<Table.Cell class="max-w-36 truncate" title={record.name}>{record.name}</Table.Cell>
+									<Table.Cell class="max-w-36 truncate" title={record.name}
+										>{record.name}</Table.Cell
+									>
 									<Table.Cell class="max-w-64 truncate font-mono text-xs" title={record.value}>
 										{record.value}
 									</Table.Cell>

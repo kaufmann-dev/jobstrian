@@ -12,13 +12,14 @@
 	import * as Alert from '$lib/components/ui/alert/index.js';
 	import { Badge } from '$lib/components/ui/badge/index.js';
 	import { Button } from '$lib/components/ui/button/index.js';
-	import { Checkbox } from '$lib/components/ui/checkbox/index.js';
 	import { Label } from '$lib/components/ui/label/index.js';
 	import { Textarea } from '$lib/components/ui/textarea/index.js';
 	import { Input } from '$lib/components/ui/input/index.js';
 	import { Progress } from '$lib/components/ui/progress/index.js';
 	import { Spinner } from '$lib/components/ui/spinner/index.js';
+	import PageHeader from '$lib/components/page-header.svelte';
 	import ServerDataTable from '$lib/components/server-data-table.svelte';
+	import TableFilterCheckbox from '$lib/components/table-filter-checkbox.svelte';
 	import RankFactors from '$lib/components/rank-factors.svelte';
 	import { rankScoreClass } from '$lib/rank-color';
 	import { ServerListController } from '$lib/components/server-list-controller.svelte.js';
@@ -234,7 +235,14 @@
 			detail: currentRun?.error ?? '',
 			nextSendAt: null,
 			phases: {
-				setup: { state: currentRun ? 'done' : 'pending', current: currentRun ? 1 : 0, total: 1, detail: '', skipped: 0, failed: 0 },
+				setup: {
+					state: currentRun ? 'done' : 'pending',
+					current: currentRun ? 1 : 0,
+					total: 1,
+					detail: '',
+					skipped: 0,
+					failed: 0
+				},
 				queue: { state: 'pending', current: 0, total: 0, detail: '', skipped: 0, failed: 0 },
 				send: { state: 'pending', current: 0, total: 0, detail: '', skipped: 0, failed: 0 },
 				finalize: { state: 'pending', current: 0, total: 0, detail: '', skipped: 0, failed: 0 }
@@ -242,7 +250,9 @@
 		};
 	}
 
-	function normalizeEmailProgress(currentRun: ApplicationEmailRun | null): ApplicationEmailProgress {
+	function normalizeEmailProgress(
+		currentRun: ApplicationEmailRun | null
+	): ApplicationEmailProgress {
 		const fallback = fallbackEmailProgress(currentRun);
 		const stored = currentRun?.progress as Partial<ApplicationEmailProgress> | null | undefined;
 		if (stored?.version !== 1) return fallback;
@@ -318,7 +328,10 @@
 				const body = (await response.json()) as { run: ApplicationEmailRun | null };
 				polledEmailRun = body.run;
 				finalRun = polledEmailRun;
-				if (!polledEmailRun || (polledEmailRun.status !== 'running' && polledEmailRun.status !== 'canceling')) {
+				if (
+					!polledEmailRun ||
+					(polledEmailRun.status !== 'running' && polledEmailRun.status !== 'canceling')
+				) {
 					break;
 				}
 				await new Promise((resolve) => setTimeout(resolve, 1000));
@@ -328,7 +341,8 @@
 			await invalidateAll();
 			if (finalRun?.status === 'done') toast.success('Bewerbungsversand abgeschlossen');
 			if (finalRun?.status === 'canceled') toast.info('Bewerbungsversand abgebrochen');
-			if (finalRun?.status === 'error') toast.error(finalRun.error ?? 'Bewerbungsversand fehlgeschlagen');
+			if (finalRun?.status === 'error')
+				toast.error(finalRun.error ?? 'Bewerbungsversand fehlgeschlagen');
 		}
 	}
 
@@ -508,27 +522,26 @@
 {/snippet}
 
 <div class="space-y-5">
-	<div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-		<div>
-			<h1 class="text-2xl font-semibold tracking-tight">Betriebe in der Nähe</h1>
-			<p class="text-sm text-muted-foreground">
-				Konfigurierte Betriebe im Umkreis deines Wohnorts · ideal für Initiativbewerbungen.
-			</p>
-		</div>
-		<Button
-			class="w-full sm:w-auto"
-			disabled={!canStartEmailRun}
-			onclick={() => (emailConfirmOpen = true)}
-			title={!data.applicationEmail.ready
-				? data.applicationEmail.reasons.join(' ')
-				: data.applicationEmail.eligibleCount === 0
-					? 'Keine neuen Betriebe mit E-Mail und Entwurf offen.'
-					: undefined}
-		>
-			{#if emailStarting}<Spinner />{:else}<Send />{/if}
-			Bewerbungen senden
-		</Button>
-	</div>
+	<PageHeader
+		title="Betriebe in der Nähe"
+		description="Konfigurierte Betriebe im Umkreis deines Wohnorts · ideal für Initiativbewerbungen."
+	>
+		{#snippet actions()}
+			<Button
+				class="w-full sm:w-auto"
+				disabled={!canStartEmailRun}
+				onclick={() => (emailConfirmOpen = true)}
+				title={!data.applicationEmail.ready
+					? data.applicationEmail.reasons.join(' ')
+					: data.applicationEmail.eligibleCount === 0
+						? 'Keine neuen Betriebe mit E-Mail und Entwurf offen.'
+						: undefined}
+			>
+				{#if emailStarting}<Spinner />{:else}<Send />{/if}
+				Bewerbungen senden
+			</Button>
+		{/snippet}
+	</PageHeader>
 
 	{#if !data.applicationEmail.ready}
 		<Alert.Root>
@@ -566,10 +579,12 @@
 				<div class="mt-4 space-y-2">
 					<div class="flex items-center justify-between gap-4 text-sm">
 						<span>{emailProgress.headline}</span>
-						<span class="tabular-nums text-muted-foreground">{emailPercent}%</span>
+						<span class="text-muted-foreground tabular-nums">{emailPercent}%</span>
 					</div>
 					<Progress value={emailPercent} />
-					<div class="flex flex-col gap-1 text-sm text-muted-foreground sm:flex-row sm:justify-between">
+					<div
+						class="flex flex-col gap-1 text-sm text-muted-foreground sm:flex-row sm:justify-between"
+					>
 						<span>{emailProgress.detail}</span>
 						{#if emailProgress.nextSendAt}
 							<span class="flex items-center gap-1">
@@ -588,45 +603,36 @@
 	{/if}
 
 	{#snippet filters()}
-		<label
-			class="flex min-h-10 items-center gap-2 rounded-2xl bg-input/35 px-3 text-sm lg:min-h-8"
+		<TableFilterCheckbox
+			checked={onlyWithEmail}
+			onCheckedChange={(checked) => {
+				onlyWithEmail = checked;
+				void controller.reset({ onlyWithEmail: checked ? 'true' : null });
+				selected = null;
+			}}
 		>
-			<Checkbox
-				checked={onlyWithEmail}
-				onCheckedChange={(checked) => {
-					onlyWithEmail = checked;
-					void controller.reset({ onlyWithEmail: checked ? 'true' : null });
-					selected = null;
-				}}
-			/>
 			Nur mit E-Mail
-		</label>
-		<label
-			class="flex min-h-10 items-center gap-2 rounded-2xl bg-input/35 px-3 text-sm lg:min-h-8"
+		</TableFilterCheckbox>
+		<TableFilterCheckbox
+			checked={onlyOpen}
+			onCheckedChange={(checked) => {
+				onlyOpen = checked;
+				void controller.reset({ onlyOpen: String(checked) });
+				selected = null;
+			}}
 		>
-			<Checkbox
-				checked={onlyOpen}
-				onCheckedChange={(checked) => {
-					onlyOpen = checked;
-					void controller.reset({ onlyOpen: String(checked) });
-					selected = null;
-				}}
-			/>
 			Nur ohne Ausschreibung
-		</label>
-		<label
-			class="flex min-h-10 items-center gap-2 rounded-2xl bg-input/35 px-3 text-sm lg:min-h-8"
+		</TableFilterCheckbox>
+		<TableFilterCheckbox
+			checked={hideIgnored}
+			onCheckedChange={(checked) => {
+				hideIgnored = checked;
+				void controller.reset({ hideIgnored: String(checked) });
+				selected = null;
+			}}
 		>
-			<Checkbox
-				checked={hideIgnored}
-				onCheckedChange={(checked) => {
-					hideIgnored = checked;
-					void controller.reset({ hideIgnored: String(checked) });
-					selected = null;
-				}}
-			/>
 			Ignorierte ausblenden
-		</label>
+		</TableFilterCheckbox>
 	{/snippet}
 
 	<ServerDataTable
@@ -647,9 +653,8 @@
 		<Dialog.Header>
 			<Dialog.Title>Bewerbungen automatisch senden?</Dialog.Title>
 			<Dialog.Description>
-				{data.applicationEmail.eligibleCount} neue Betriebe werden eingeplant. Der Versand läuft nur
-				Montag bis Freitag von 09:00 bis 18:00 Uhr, mit 2 bis 4 Minuten Abstand und Pausen nach 20
-				E-Mails.
+				{data.applicationEmail.eligibleCount} neue Betriebe werden eingeplant. Der Versand läuft nur Montag
+				bis Freitag von 09:00 bis 18:00 Uhr, mit 2 bis 4 Minuten Abstand und Pausen nach 20 E-Mails.
 			</Dialog.Description>
 		</Dialog.Header>
 		<div class="rounded-lg border p-3 text-sm text-muted-foreground">

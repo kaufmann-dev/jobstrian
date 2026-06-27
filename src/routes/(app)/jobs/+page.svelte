@@ -5,9 +5,10 @@
 	import * as Sheet from '$lib/components/ui/sheet/index.js';
 	import { Badge } from '$lib/components/ui/badge/index.js';
 	import { Button } from '$lib/components/ui/button/index.js';
-	import { Checkbox } from '$lib/components/ui/checkbox/index.js';
 	import * as Select from '$lib/components/ui/select/index.js';
+	import PageHeader from '$lib/components/page-header.svelte';
 	import ServerDataTable from '$lib/components/server-data-table.svelte';
+	import TableFilterCheckbox from '$lib/components/table-filter-checkbox.svelte';
 	import RankFactors from '$lib/components/rank-factors.svelte';
 	import { rankScoreClass } from '$lib/rank-color';
 	import { ServerListController } from '$lib/components/server-list-controller.svelte.js';
@@ -214,12 +215,10 @@
 {/snippet}
 
 <div class="space-y-5">
-	<div>
-		<h1 class="text-2xl font-semibold tracking-tight">Stellen</h1>
-		<p class="text-sm text-muted-foreground">
-			Automatisch gesammelte Inserate, von der KI nach deinem Profil bewertet.
-		</p>
-	</div>
+	<PageHeader
+		title="Stellen"
+		description="Automatisch gesammelte Inserate, von der KI nach deinem Profil bewertet."
+	/>
 
 	{#snippet filters()}
 		<div class="min-w-0">
@@ -268,19 +267,16 @@
 				</Select.Content>
 			</Select.Root>
 		</div>
-		<label
-			class="flex min-h-10 items-center gap-2 rounded-2xl bg-input/35 px-3 text-sm lg:min-h-8"
+		<TableFilterCheckbox
+			checked={showClosed}
+			onCheckedChange={(checked) => {
+				showClosed = checked;
+				void controller.reset({ showClosed: checked ? 'true' : null });
+				selected = null;
+			}}
 		>
-			<Checkbox
-				checked={showClosed}
-				onCheckedChange={(checked) => {
-					showClosed = checked;
-					void controller.reset({ showClosed: checked ? 'true' : null });
-					selected = null;
-				}}
-			/>
 			Geschlossene zeigen
-		</label>
+		</TableFilterCheckbox>
 	{/snippet}
 
 	<ServerDataTable

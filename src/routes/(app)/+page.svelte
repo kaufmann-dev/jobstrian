@@ -10,6 +10,7 @@
 	import { Progress } from '$lib/components/ui/progress/index.js';
 	import { Spinner } from '$lib/components/ui/spinner/index.js';
 	import * as Alert from '$lib/components/ui/alert/index.js';
+	import PageHeader from '$lib/components/page-header.svelte';
 	import RefreshCw from '@lucide/svelte/icons/refresh-cw';
 	import X from '@lucide/svelte/icons/x';
 	import TriangleAlert from '@lucide/svelte/icons/triangle-alert';
@@ -321,22 +322,21 @@
 </svelte:head>
 
 <div class="space-y-6">
-	<div class="flex flex-wrap items-center justify-between gap-4">
-		<div>
-			<h1 class="text-2xl font-semibold tracking-tight">Übersicht</h1>
-			<p class="text-sm text-muted-foreground">
-				Deine automatisierte Jobsuche und Arbeitgeber-Recherche in Österreich.
-			</p>
-		</div>
-		<Button onclick={update} disabled={isRunning} size="lg">
-			{#if isRunning}
-				<Spinner class="size-4" />
-			{:else}
-				<RefreshCw class="size-4" />
-			{/if}
-			Aktualisieren
-		</Button>
-	</div>
+	<PageHeader
+		title="Übersicht"
+		description="Deine automatisierte Jobsuche und Arbeitgeber-Recherche in Österreich."
+	>
+		{#snippet actions()}
+			<Button onclick={update} disabled={isRunning} size="lg">
+				{#if isRunning}
+					<Spinner class="size-4" />
+				{:else}
+					<RefreshCw class="size-4" />
+				{/if}
+				Aktualisieren
+			</Button>
+		{/snippet}
+	</PageHeader>
 
 	{#if !configured}
 		<Alert.Root>
