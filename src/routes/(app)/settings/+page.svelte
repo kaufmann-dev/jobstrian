@@ -57,7 +57,6 @@
 	let autosaveDirty = $state(false);
 	let homeLocationVerified = $state(untrack(() => data.homeLocationVerified));
 	let emailDomainBusy = $state(false);
-	let emailVerifyBusy = $state(false);
 
 	const autosave = new SettingsAutosaveQueue(
 		async (patch) => {
@@ -258,31 +257,13 @@
 			if (!response.ok)
 				throw new Error(body.message ?? 'DNS-Einträge konnten nicht geladen werden');
 			if (body.config) emailDomain = body.config;
-			toast.success('DNS-Einträge geladen');
+			toast.success('Resend-Status aktualisiert');
 		} catch (error) {
 			toast.error(
 				error instanceof Error ? error.message : 'DNS-Einträge konnten nicht geladen werden'
 			);
 		} finally {
 			emailDomainBusy = false;
-		}
-	}
-
-	async function verifyEmailDomain() {
-		emailVerifyBusy = true;
-		try {
-			const response = await fetch('/api/application-emails/domain/verify', { method: 'POST' });
-			const body = (await response.json().catch(() => ({}))) as {
-				config?: typeof emailDomain;
-				message?: string;
-			};
-			if (body.config) emailDomain = body.config;
-			if (!response.ok) throw new Error(body.message ?? 'DNS wurde noch nicht bestätigt');
-			toast.success('DNS verifiziert. Automatischer Versand ist aktiviert.');
-		} catch (error) {
-			toast.error(error instanceof Error ? error.message : 'DNS wurde noch nicht bestätigt');
-		} finally {
-			emailVerifyBusy = false;
 		}
 	}
 
@@ -822,7 +803,7 @@
 				<div>
 					<Card.Title>E-Mail-Versand</Card.Title>
 					<Card.Description>
-						Resend-Domain und DNS-Prüfung für automatische Initiativbewerbungen.
+						Resend-Domain und Statusabgleich für automatische Initiativbewerbungen.
 					</Card.Description>
 				</div>
 				<Badge variant={emailDomain.enabled ? 'default' : 'secondary'} class="w-fit">
@@ -966,7 +947,7 @@
 						{:else}
 							<Table.Row>
 								<Table.Cell colspan={5} class="text-sm text-muted-foreground">
-									Speichere die E-Mail-Einstellungen und lade danach die DNS-Einträge.
+									Speichere die E-Mail-Einstellungen und prüfe danach den Resend-Status.
 								</Table.Cell>
 							</Table.Row>
 						{/if}
@@ -997,17 +978,7 @@
 				onclick={syncEmailDomain}
 			>
 				{#if emailDomainBusy}<Spinner />{:else}<RefreshCw />{/if}
-				DNS-Einträge laden
-			</Button>
-			<Button
-				type="button"
-				variant="outline"
-				class="w-full sm:w-auto"
-				disabled={emailVerifyBusy || !emailDomain.hasResendApiKey || !emailDomain.domain}
-				onclick={verifyEmailDomain}
-			>
-				{#if emailVerifyBusy}<Spinner />{:else}<Check />{/if}
-				DNS prüfen und aktivieren
+				Resend-Status prüfen
 			</Button>
 		</Card.Footer>
 	</Card.Root>

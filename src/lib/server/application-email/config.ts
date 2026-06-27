@@ -123,9 +123,16 @@ function toDnsRecords(records: ResendDomainRecord[] | undefined): ApplicationEma
 	}));
 }
 
+function resendErrorMessage(message: string | undefined): string {
+	if (message?.includes('restricted to only send emails')) {
+		return 'Dieser Resend API-Key darf nur E-Mails senden. Für die Domain-Prüfung benötigst du einen API-Key mit Vollzugriff (Full access).';
+	}
+	return message ?? 'Resend-Anfrage fehlgeschlagen.';
+}
+
 function unwrapResendData<T>(result: unknown): T {
 	const response = result as { data?: T | null; error?: { message?: string } | null };
-	if (response.error) throw new Error(response.error.message ?? 'Resend-Anfrage fehlgeschlagen.');
+	if (response.error) throw new Error(resendErrorMessage(response.error.message));
 	if (!response.data) throw new Error('Resend hat keine Daten zurückgegeben.');
 	return response.data;
 }
@@ -201,32 +208,6 @@ export async function syncResendDomain(): Promise<Settings> {
 		resendDnsVerifiedAt: next.status === 'verified' ? new Date() : null
 	};
 	return updateSettings(patch);
-}
-
-export async function verifyResendDomain(): Promise<Settings> {
-	const current = await getSettings();
-	const client = resendClient(current);
-	const domain = ensureDomain(current);
-	let domainId = current.resendDomainId;
-	if (!domainId) {
-		const existing = await findDomainByName(client, domain);
-		domainId = existing?.id ?? null;
-		if (!domainId) {
-			const created = await createDomain(client, domain);
-			domainId = created.id ?? null;
-		}
-	}
-	if (!domainId) throw new Error('Resend-Domain konnte nicht angelegt werden.');
-	await client.domains.verify(domainId);
-	const next = await readDomain(client, domainId);
-	const verified = next.status === 'verified';
-	return updateSettings({
-		resendDomainId: domainId,
-		resendDomainStatus: next.status ?? 'pending',
-		resendDnsRecords: toDnsRecords(next.records),
-		resendDnsVerifiedAt: verified ? new Date() : null,
-		applicationEmailEnabled: verified
-	});
 }
 
 export async function disableApplicationEmailSending(): Promise<void> {

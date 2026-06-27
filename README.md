@@ -101,13 +101,14 @@ Afterwards log in at `/login`, enter your address, role keywords, business
 categories and the OpenAI-compatible LLM (base URL including `/v1`, model, API key) in **Settings**.
 For automatic applications, also configure Resend in **Settings**:
 
-1. In the Resend dashboard, create an API key under **API Keys** and paste it
-   into **Resend API-Key**. Jobstrian uses this key to create / verify the
-   sending domain and to send application e-mails.
+1. In the Resend dashboard, create a full-access API key under **API Keys** and
+   paste it into **Resend API-Key**. Jobstrian uses this key to create / read
+   the sending domain and to send application e-mails.
 2. Enter the sending domain, sender local part, sender name and reply-to
    address in **Settings**.
-3. Click **DNS-Einträge laden**, add the shown DNS records at your domain
-   provider, then click **DNS prüfen und aktivieren**.
+3. Click **Resend-Status prüfen**, add the shown DNS records at your domain
+   provider, verify the domain in the Resend dashboard, then click
+   **Resend-Status prüfen** again so Jobstrian can sync the verified status.
 4. In the Resend dashboard, create a webhook endpoint for
    `https://your-domain.example/api/webhooks/resend`, replacing the host with
    the deployed Jobstrian URL. Enable at least `email.bounced` and
