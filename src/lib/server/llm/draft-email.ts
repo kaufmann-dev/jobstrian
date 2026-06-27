@@ -3,7 +3,7 @@ import { chatJson, type LlmConfig } from './client';
 import { profileBlock } from './rank';
 import type { LlmLimiter } from './limiter';
 
-export const DRAFT_PROMPT_VERSION = 'draft-cold-email-v3-signature';
+export const DRAFT_PROMPT_VERSION = 'draft-cold-email-v4';
 
 export interface EmailDraft {
 	subject: string;
@@ -13,10 +13,12 @@ export interface EmailDraft {
 const SYSTEM = `Du schreibst eine kurze, höfliche Initiativbewerbung auf Deutsch an einen Betrieb.
 Der Bewerber sucht eine Stelle passend zu den Stellen-Keywords und seinem Profil. Nenne eine konkrete Zielrolle nur, wenn sie aus den Keywords klar hervorgeht, sonst formuliere neutral als passende Mitarbeit.
 Komm schnell zum Punkt und schreib konkret. Keine Werbefloskeln und keine leeren Standardsätze (z.B. kein "mit großem Interesse", kein "ich hoffe, diese Nachricht erreicht Sie gut").
+Keine Gedankenstriche (– oder —) als Satzzeichen. Formuliere Einschübe als eigenen Satz oder mit Komma.
+Schreib in natürlichem, ungezwungenem Deutsch. Keine Amts- oder Behördensprache (z.B. nicht "mitwirken", sondern "arbeiten").
 Erwähne genau einmal beiläufig, dass der Lebenslauf im Anhang liegt.
 Schließe mit Grußformel und dem Namen des Absenders.
 Antworte ausschließlich als JSON: {"subject": "<Betreff>", "body": "<E-Mail-Text>"}.
-4-7 Sätze, mit Anrede, ohne Platzhalter in eckigen Klammern.`;
+4-7 Sätze, mit Anrede, ohne Platzhalter in eckigen Klammern. Variiere Satzlänge und Satzbau.`;
 
 export function targetRoleLine(settings: Settings): string {
 	return settings.jobSearchKeywords.length
