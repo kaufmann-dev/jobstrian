@@ -287,8 +287,8 @@ async function markLeadsWithPostings(): Promise<void> {
 		update ${lead} l set has_active_posting = exists (
 			select 1 from ${listing} j
 			where j.status = 'active' and length(trim(j.company)) > 0
-			and (lower(j.company) like '%' || lower(l.name) || '%'
-			     or lower(l.name) like '%' || lower(j.company) || '%')
+			and (position(lower(l.name) in lower(j.company)) > 0
+			     or position(lower(j.company) in lower(l.name)) > 0)
 		)
 	`);
 }
