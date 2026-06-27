@@ -239,15 +239,15 @@ async function refreshCounts(runId: number): Promise<Counts> {
 async function cancelPendingRows(runId: number, counts: Counts): Promise<void> {
 	const pending = await queuedRows(runId);
 	if (!pending.length) return;
-	await db
-		.update(applicationEmail)
-		.set({ status: 'canceled' })
-		.where(
-			inArray(
-				applicationEmail.id,
-				pending.map((row) => row.id)
-			)
-		);
+	// Delete (don't merely mark 'canceled') the not-yet-sent rows so the lead is freed for
+	// future outreach: this clears both the eligibleLeadWhere() notExists check and the unique
+	// application_email_lead_id index that would otherwise permanently block re-queuing.
+	await db.delete(applicationEmail).where(
+		inArray(
+			applicationEmail.id,
+			pending.map((row) => row.id)
+		)
+	);
 	counts.skipped += pending.length;
 	counts.queued = Math.max(0, counts.queued - pending.length);
 }

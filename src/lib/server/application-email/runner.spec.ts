@@ -181,6 +181,22 @@ const fake = vi.hoisted(() => {
 					};
 				}
 			};
+		},
+		delete(table: unknown) {
+			const name = tableName(table);
+			return {
+				// cancelPendingRows() deletes exactly the queued/sending rows it just selected via
+				// queuedRows(); modeling delete as "drop the not-yet-sent rows" is faithful to that
+				// single call site (the fake's where() cannot inspect the inArray id list).
+				where() {
+					if (name === 'application_email') {
+						state.emails = state.emails.filter(
+							(row) => row.status !== 'queued' && row.status !== 'sending'
+						);
+					}
+					return Promise.resolve([]);
+				}
+			};
 		}
 	};
 
@@ -330,7 +346,30 @@ describe('interrupted application e-mail recovery', () => {
 		expect(result).toBe('canceled');
 		expect(fake.state.runs[0].status).toBe('canceled');
 		expect(fake.state.runs[0].counts).toEqual({ queued: 0, sent: 1, failed: 0, skipped: 2 });
-		expect(fake.state.emails.map((row) => row.status)).toEqual(['sent', 'canceled', 'canceled']);
+		// The not-yet-sent rows are removed (not marked 'canceled'); only the sent row remains.
+		expect(fake.state.emails.map((row) => row.status)).toEqual(['sent']);
 		expect(fake.state.sendCalls).toEqual([]);
+	});
+
+	it('deletes not-yet-sent rows on cancel so their leads become re-eligible, preserving sent rows', async () => {
+		const sent = seedEmail('sent', 21);
+		sent.resendEmailId = 'already-sent';
+		sent.sentAt = new Date();
+		fake.state.runs.push(seedRun('canceling'));
+		fake.state.emails.push(sent, seedEmail('queued', 22), seedEmail('sending', 23));
+		fake.state.leads.push({ id: 121, status: 'new' });
+
+		const result = await recoverInterruptedApplicationEmailRun(1);
+
+		expect(result).toBe('canceled');
+		// No leftover application_email row exists for the previously queued/sending leads, so neither
+		// the eligibleLeadWhere() notExists check nor the unique lead_id index blocks a future run.
+		expect(fake.state.emails.some((row) => row.leadId === 122 || row.leadId === 123)).toBe(false);
+		// The already-sent row is untouched.
+		expect(fake.state.emails).toHaveLength(1);
+		expect(fake.state.emails[0].leadId).toBe(121);
+		expect(fake.state.emails[0].status).toBe('sent');
+		// The canceled emails still count as skipped on the run's persisted snapshot.
+		expect(fake.state.runs[0].counts).toEqual({ queued: 0, sent: 1, failed: 0, skipped: 2 });
 	});
 });
