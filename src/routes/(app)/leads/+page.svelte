@@ -531,6 +531,7 @@
 				class="w-full sm:w-auto"
 				disabled={!canStartEmailRun}
 				onclick={() => (emailConfirmOpen = true)}
+				size="lg"
 				title={!data.applicationEmail.ready
 					? data.applicationEmail.reasons.join(' ')
 					: data.applicationEmail.eligibleCount === 0
