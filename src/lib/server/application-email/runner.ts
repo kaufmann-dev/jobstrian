@@ -1,18 +1,6 @@
 import Renderer, { toPlainText } from 'better-svelte-email/render';
 import { Resend } from 'resend';
-import {
-	and,
-	asc,
-	count,
-	desc,
-	eq,
-	inArray,
-	isNotNull,
-	isNull,
-	notExists,
-	or,
-	sql
-} from 'drizzle-orm';
+import { and, asc, count, desc, eq, inArray, isNotNull, notExists, or, sql } from 'drizzle-orm';
 import { db } from '../db';
 import {
 	applicationEmail,
@@ -42,6 +30,7 @@ const MAX_ATTEMPTS = 3;
 
 type Counts = { queued: number; sent: number; failed: number; skipped: number };
 type ActiveRun = { runId: number; controller: AbortController; startedAt: Date };
+type InterruptedApplicationEmailRecovery = 'resumed' | 'canceled' | 'ignored';
 
 let activeRun: ActiveRun | null = null;
 let starting = false;
@@ -71,6 +60,20 @@ function createProgress(headline = 'Bewerbungsversand startet'): ApplicationEmai
 			finalize: emptyPhase()
 		}
 	};
+}
+
+function progressOrDefault(progress: ApplicationEmailRun['progress']): ApplicationEmailProgress {
+	if (
+		progress &&
+		progress.version === 1 &&
+		progress.phases?.setup &&
+		progress.phases.queue &&
+		progress.phases.send &&
+		progress.phases.finalize
+	) {
+		return progress;
+	}
+	return createProgress();
 }
 
 function abortReason(signal: AbortSignal): unknown {
@@ -107,7 +110,11 @@ class ProgressWriter {
 		readonly progress: ApplicationEmailProgress
 	) {}
 
-	phase(id: ApplicationEmailPhaseId, patch: Partial<ApplicationEmailPhaseProgress>, headline?: string) {
+	phase(
+		id: ApplicationEmailPhaseId,
+		patch: Partial<ApplicationEmailPhaseProgress>,
+		headline?: string
+	) {
 		this.progress.phases[id] = { ...this.progress.phases[id], ...patch };
 		if (headline) this.progress.headline = headline;
 		if (patch.detail != null) this.progress.detail = patch.detail;
@@ -142,10 +149,7 @@ export function hasActiveApplicationEmailRun(runId?: number): boolean {
 }
 
 async function eligibleLeadCount(): Promise<number> {
-	const [row] = await db
-		.select({ value: count() })
-		.from(lead)
-		.where(eligibleLeadWhere());
+	const [row] = await db.select({ value: count() }).from(lead).where(eligibleLeadWhere());
 	return row?.value ?? 0;
 }
 
@@ -157,10 +161,16 @@ function eligibleLeadWhere() {
 		isNotNull(lead.draftSubject),
 		isNotNull(lead.draftBody),
 		notExists(
-			db.select({ value: sql`1` }).from(applicationEmail).where(eq(applicationEmail.leadId, lead.id))
+			db
+				.select({ value: sql`1` })
+				.from(applicationEmail)
+				.where(eq(applicationEmail.leadId, lead.id))
 		),
 		notExists(
-			db.select({ value: sql`1` }).from(applicationEmailSuppression).where(normalizedSuppression)
+			db
+				.select({ value: sql`1` })
+				.from(applicationEmailSuppression)
+				.where(normalizedSuppression)
 		)
 	);
 }
@@ -226,6 +236,22 @@ async function refreshCounts(runId: number): Promise<Counts> {
 	return counts;
 }
 
+async function cancelPendingRows(runId: number, counts: Counts): Promise<void> {
+	const pending = await queuedRows(runId);
+	if (!pending.length) return;
+	await db
+		.update(applicationEmail)
+		.set({ status: 'canceled' })
+		.where(
+			inArray(
+				applicationEmail.id,
+				pending.map((row) => row.id)
+			)
+		);
+	counts.skipped += pending.length;
+	counts.queued = Math.max(0, counts.queued - pending.length);
+}
+
 async function queueRun(runId: number, rows: Lead[]): Promise<number> {
 	const scheduled = scheduleApplicationEmails(rows.length);
 	if (!rows.length) return 0;
@@ -265,7 +291,10 @@ function unwrapSendId(result: unknown): string | null {
 	return response.data?.id ?? null;
 }
 
-async function sendApplicationEmail(row: ApplicationEmail, settings: Settings): Promise<string | null> {
+async function sendApplicationEmail(
+	row: ApplicationEmail,
+	settings: Settings
+): Promise<string | null> {
 	const cv = await getCvData();
 	if (!cv) throw new Error('Lebenslauf-PDF fehlt.');
 	const html = await new Renderer().render(ApplicationEmailTemplate, {
@@ -416,15 +445,7 @@ async function runApplicationEmailWorker(
 			.where(eq(applicationEmailRun.id, runId));
 	} catch (err) {
 		if (isAbortLike(err) || signal.aborted) {
-			const pending = await queuedRows(runId);
-			if (pending.length) {
-				await db
-					.update(applicationEmail)
-					.set({ status: 'canceled' })
-					.where(inArray(applicationEmail.id, pending.map((row) => row.id)));
-				counts.skipped += pending.length;
-				counts.queued = Math.max(0, counts.queued - pending.length);
-			}
+			await cancelPendingRows(runId, counts);
 			writer.cancelRunning();
 			await writer.flush(true);
 			await db
@@ -446,7 +467,11 @@ async function runApplicationEmailWorker(
 		for (const id of Object.keys(writer.progress.phases) as ApplicationEmailPhaseId[]) {
 			const phase = writer.progress.phases[id];
 			if (phase.state === 'running') {
-				writer.phase(id, { state: 'error', detail: writer.progress.detail, failed: phase.failed + 1 });
+				writer.phase(id, {
+					state: 'error',
+					detail: writer.progress.detail,
+					failed: phase.failed + 1
+				});
 			}
 		}
 		await writer.flush(true);
@@ -481,8 +506,17 @@ export async function startApplicationEmailRun(): Promise<number | null> {
 		const rows = await eligibleLeads();
 		const queued = await queueRun(run.id, rows);
 		const counts: Counts = { queued, sent: 0, failed: 0, skipped: rows.length - queued };
-		const progress = createProgress(queued > 0 ? 'Bewerbungen werden vorbereitet' : 'Keine E-Mails offen');
-		progress.phases.setup = { state: 'done', current: 1, total: 1, detail: 'Versand geprüft', skipped: 0, failed: 0 };
+		const progress = createProgress(
+			queued > 0 ? 'Bewerbungen werden vorbereitet' : 'Keine E-Mails offen'
+		);
+		progress.phases.setup = {
+			state: 'done',
+			current: 1,
+			total: 1,
+			detail: 'Versand geprüft',
+			skipped: 0,
+			failed: 0
+		};
 		progress.phases.queue = {
 			state: 'done',
 			current: rows.length,
@@ -518,25 +552,62 @@ export async function cancelApplicationEmailRun(runId: number): Promise<{ active
 		.update(applicationEmailRun)
 		.set({ status: 'canceling', cancelRequestedAt: new Date(), phase: 'Abbruch angefordert' })
 		.where(and(eq(applicationEmailRun.id, runId), eq(applicationEmailRun.status, 'running')));
-	if (active) active.controller.abort(new DOMException('Application e-mail run canceled.', 'AbortError'));
+	if (active)
+		active.controller.abort(new DOMException('Application e-mail run canceled.', 'AbortError'));
 	return { active: Boolean(active) };
 }
 
-export async function markInterruptedApplicationEmailRun(runId: number): Promise<void> {
-	const progress = createProgress('Bewerbungsversand unterbrochen');
-	progress.detail = 'Der Server wurde während des Versands neu gestartet.';
-	await db
-		.update(applicationEmail)
-		.set({ status: 'queued' })
-		.where(and(eq(applicationEmail.runId, runId), eq(applicationEmail.status, 'sending')));
+async function finishInterruptedCancelingRun(run: ApplicationEmailRun): Promise<void> {
+	const counts = await refreshCounts(run.id);
+	await cancelPendingRows(run.id, counts);
+	const writer = new ProgressWriter(run.id, counts, progressOrDefault(run.progress));
+	writer.cancelRunning();
+	await writer.flush(true);
 	await db
 		.update(applicationEmailRun)
 		.set({
-			status: 'error',
+			status: 'canceled',
+			phase: 'Abgebrochen',
 			finishedAt: new Date(),
-			phase: 'Unterbrochen',
-			progress,
-			error: progress.detail
+			counts,
+			progress: writer.progress,
+			error: null
 		})
-		.where(eq(applicationEmailRun.id, runId));
+		.where(eq(applicationEmailRun.id, run.id));
+}
+
+export async function recoverInterruptedApplicationEmailRun(
+	runId: number
+): Promise<InterruptedApplicationEmailRecovery> {
+	if (activeRun || starting) return 'ignored';
+	starting = true;
+	try {
+		const [run] = await db
+			.select()
+			.from(applicationEmailRun)
+			.where(eq(applicationEmailRun.id, runId))
+			.limit(1);
+		if (!run) return 'ignored';
+		if (run.status === 'canceling') {
+			await finishInterruptedCancelingRun(run);
+			return 'canceled';
+		}
+		if (run.status !== 'running') return 'ignored';
+
+		const controller = new AbortController();
+		activeRun = { runId, controller, startedAt: new Date() };
+		try {
+			await db
+				.update(applicationEmail)
+				.set({ status: 'queued' })
+				.where(and(eq(applicationEmail.runId, runId), eq(applicationEmail.status, 'sending')));
+			void runApplicationEmailWorker(runId, controller.signal, progressOrDefault(run.progress));
+		} catch (err) {
+			if (activeRun?.runId === runId) activeRun = null;
+			throw err;
+		}
+		return 'resumed';
+	} finally {
+		starting = false;
+	}
 }

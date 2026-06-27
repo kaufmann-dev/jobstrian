@@ -4,7 +4,7 @@ import { db } from '$lib/server/db';
 import { applicationEmailRun } from '$lib/server/db/schema';
 import {
 	hasActiveApplicationEmailRun,
-	markInterruptedApplicationEmailRun
+	recoverInterruptedApplicationEmailRun
 } from '$lib/server/application-email/runner';
 import type { RequestHandler } from './$types';
 
@@ -19,7 +19,7 @@ export const GET: RequestHandler = async () => {
 		(latest.status === 'running' || latest.status === 'canceling') &&
 		!hasActiveApplicationEmailRun(latest.id)
 	) {
-		await markInterruptedApplicationEmailRun(latest.id);
+		await recoverInterruptedApplicationEmailRun(latest.id);
 		[latest] = await db
 			.select()
 			.from(applicationEmailRun)
