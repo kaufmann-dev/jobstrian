@@ -22,7 +22,7 @@ import {
 	applicationEmailReadiness,
 	applicationEmailReplyTo
 } from './config';
-import { scheduleApplicationEmails } from './schedule';
+import { nextApplicationEmailWindowStart, scheduleApplicationEmails } from './schedule';
 import ApplicationEmailTemplate from './application-email-template.svelte';
 
 const PROGRESS_FLUSH_INTERVAL_MS = 1000;
@@ -277,6 +277,32 @@ async function queueRun(runId: number, rows: Lead[]): Promise<number> {
 	return inserted?.value ?? 0;
 }
 
+export function repaceScheduledAt<T extends { id: number; scheduledAt: Date }>(
+	rows: T[],
+	from = new Date()
+): Map<number, Date> {
+	const ordered = [...rows].sort(
+		(a, b) => a.scheduledAt.getTime() - b.scheduledAt.getTime() || a.id - b.id
+	);
+	const scheduled = scheduleApplicationEmails(ordered.length, { from });
+	return new Map(ordered.map((row, index) => [row.id, scheduled[index]]));
+}
+
+async function repaceQueuedRows(runId: number): Promise<void> {
+	const rows = await db
+		.select({ id: applicationEmail.id, scheduledAt: applicationEmail.scheduledAt })
+		.from(applicationEmail)
+		.where(and(eq(applicationEmail.runId, runId), eq(applicationEmail.status, 'queued')))
+		.orderBy(asc(applicationEmail.scheduledAt), asc(applicationEmail.id));
+	if (!rows.length) return;
+	for (const [id, scheduledAt] of repaceScheduledAt(rows)) {
+		await db
+			.update(applicationEmail)
+			.set({ scheduledAt })
+			.where(eq(applicationEmail.id, id));
+	}
+}
+
 function resendClient(s: Settings): Resend {
 	if (!s.resendApiKey) throw new Error('Resend API-Key fehlt.');
 	return new Resend(s.resendApiKey);
@@ -355,7 +381,9 @@ async function sendQueuedRow(
 				.set({
 					status: 'queued',
 					attempts,
-					scheduledAt: new Date(Date.now() + attempts * 5 * 60_000),
+					scheduledAt: nextApplicationEmailWindowStart(
+						new Date(Date.now() + attempts * 5 * 60_000)
+					),
 					error: message
 				})
 				.where(eq(applicationEmail.id, row.id));
@@ -601,6 +629,7 @@ export async function recoverInterruptedApplicationEmailRun(
 				.update(applicationEmail)
 				.set({ status: 'queued' })
 				.where(and(eq(applicationEmail.runId, runId), eq(applicationEmail.status, 'sending')));
+			await repaceQueuedRows(runId);
 			void runApplicationEmailWorker(runId, controller.signal, progressOrDefault(run.progress));
 		} catch (err) {
 			if (activeRun?.runId === runId) activeRun = null;

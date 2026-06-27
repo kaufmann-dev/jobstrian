@@ -235,7 +235,8 @@ vi.mock('resend', () => ({
 }));
 vi.mock('./application-email-template.svelte', () => ({ default: {} }));
 
-import { recoverInterruptedApplicationEmailRun } from './runner';
+import { recoverInterruptedApplicationEmailRun, repaceScheduledAt } from './runner';
+import { isApplicationEmailSendWindow } from './schedule';
 
 function seedRun(status: RunRow['status']): RunRow {
 	return {
@@ -287,6 +288,33 @@ describe('interrupted application e-mail recovery', () => {
 		expect(fake.state.emails[0].resendEmailId).toBe('resend-1');
 		expect(fake.state.leads[0].status).toBe('contacted');
 		expect(fake.state.sendCalls).toEqual([{ idempotencyKey: 'application-email-lead-110' }]);
+	});
+
+	it('re-anchors past-due queued rows forward into the business window without bursting', async () => {
+		// Simulate a run interrupted overnight: every row is past-due (would burst at 0ms spacing)
+		// and was scheduled outside business hours.
+		const from = new Date('2026-06-29T07:00:00.000Z'); // Mon 09:00 Europe/Vienna
+		const rows = [
+			{ id: 30, scheduledAt: new Date('2026-06-28T20:00:00.000Z') },
+			{ id: 12, scheduledAt: new Date('2026-06-28T19:00:00.000Z') },
+			{ id: 21, scheduledAt: new Date('2026-06-28T19:30:00.000Z') }
+		];
+
+		const repaced = repaceScheduledAt(rows, from);
+
+		// Order preserved: by original scheduledAt, then id.
+		expect([...repaced.keys()]).toEqual([12, 21, 30]);
+
+		const times = [...repaced.values()];
+		// Nothing past-due relative to the resume moment.
+		for (const time of times) {
+			expect(time.getTime()).toBeGreaterThanOrEqual(from.getTime());
+			expect(isApplicationEmailSendWindow(time)).toBe(true);
+		}
+		// No back-to-back burst: consecutive sends are at least two minutes apart.
+		for (let i = 1; i < times.length; i++) {
+			expect(times[i].getTime() - times[i - 1].getTime()).toBeGreaterThanOrEqual(2 * 60_000);
+		}
 	});
 
 	it('finishes a stale canceling run without resuming pending sends', async () => {
