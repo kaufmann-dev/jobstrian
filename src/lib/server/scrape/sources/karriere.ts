@@ -120,7 +120,7 @@ export const karriere: SourceAdapter = {
 				} catch (err) {
 					rethrowIfAbort(err, signal);
 					complete = false;
-					console.error(`[karriere] "${keyword}" in "${locationName}" failed:`, err);
+					console.error(`[karriere] "${keyword}" in "${locationName}" fehlgeschlagen:`, err);
 				}
 			}
 		}

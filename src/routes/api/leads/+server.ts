@@ -16,7 +16,7 @@ export const GET: RequestHandler = async ({ url }) => {
 	try {
 		return json(await getLeadPage(filters, cursor));
 	} catch (error) {
-		console.error('Failed to list leads', error);
+		console.error('Betriebe konnten nicht aufgelistet werden', error);
 		return json({ message: 'Betriebe konnten nicht geladen werden.' }, { status: 500 });
 	}
 };

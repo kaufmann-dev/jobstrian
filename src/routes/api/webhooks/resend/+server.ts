@@ -31,7 +31,7 @@ function firstRecipient(value: unknown): string | null {
 export const POST: RequestHandler = async ({ request }) => {
 	const settings = await getSettings();
 	if (!settings.resendWebhookSecret) {
-		return json({ message: 'Webhook secret is not configured.' }, { status: 400 });
+		return json({ message: 'Webhook-Secret ist nicht konfiguriert.' }, { status: 400 });
 	}
 
 	const payload = await request.text();
@@ -47,10 +47,12 @@ export const POST: RequestHandler = async ({ request }) => {
 			webhookSecret: settings.resendWebhookSecret
 		})) as ResendWebhookPayload;
 	} catch {
-		return json({ message: 'Invalid webhook signature.' }, { status: 400 });
+		return json({ message: 'Webhook-Signatur ist ungültig.' }, { status: 400 });
 	}
 
-	if (!event.id || !event.type) return json({ message: 'Invalid webhook payload.' }, { status: 400 });
+	if (!event.id || !event.type) {
+		return json({ message: 'Webhook-Daten sind ungültig.' }, { status: 400 });
+	}
 
 	await db
 		.insert(resendWebhookEvent)

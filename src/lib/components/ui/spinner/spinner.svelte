@@ -10,7 +10,7 @@
 		name,
 		color,
 		stroke,
-		'aria-label': ariaLabel = 'Loading',
+		'aria-label': ariaLabel = 'Wird geladen',
 		...restProps
 	}: SVGAttributes<SVGSVGElement> = $props();
 </script>

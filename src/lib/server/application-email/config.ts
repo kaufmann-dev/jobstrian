@@ -125,9 +125,9 @@ function toDnsRecords(records: ResendDomainRecord[] | undefined): ApplicationEma
 
 function resendErrorMessage(message: string | undefined): string {
 	if (message?.includes('restricted to only send emails')) {
-		return 'Dieser Resend API-Key darf nur E-Mails senden. Für die Domain-Prüfung benötigst du einen API-Key mit Vollzugriff (Full access).';
+		return 'Dieser Resend API-Key darf nur E-Mails senden. Für die Domain-Prüfung benötigst du einen API-Key mit Vollzugriff.';
 	}
-	return message ?? 'Resend-Anfrage fehlgeschlagen.';
+	return 'Resend-Anfrage fehlgeschlagen.';
 }
 
 function unwrapResendData<T>(result: unknown): T {

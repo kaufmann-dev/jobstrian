@@ -51,7 +51,7 @@ export async function ensureLeadDraft(leadId: number): Promise<DraftRefreshResul
 			.returning();
 		return { lead: updated ?? row, warning: null };
 	} catch (err) {
-		console.error('[application-email] draft generation failed:', err);
+		console.error('[application-email] Entwurfserstellung fehlgeschlagen:', err);
 		return {
 			lead: row,
 			warning: 'E-Mail gespeichert, aber der KI-Entwurf konnte nicht erstellt werden.'

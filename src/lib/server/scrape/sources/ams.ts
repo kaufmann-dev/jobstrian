@@ -92,14 +92,14 @@ async function searchKeyword(
 		});
 		// The search field is the inner <input> of an <ams-autocomplete> element.
 		const box = await page.$('input[type=text], input[type=search], input:not([type])');
-		if (!box) throw new Error('AMS search input not found');
+		if (!box) throw new Error('AMS-Suchfeld wurde nicht gefunden.');
 		await box.fill(keyword);
 		await box.press('Enter');
 		await page
 			.waitForResponse((r) => /\/public\/emps\/api\/search/.test(r.url()), { timeout: 15_000 })
 			.catch(() => {});
 		await page.waitForTimeout(1200);
-		if (!sawResponse) throw new Error('AMS /api/search response not observed');
+		if (!sawResponse) throw new Error('AMS-Suchantwort wurde nicht empfangen.');
 
 		const byId = new Map<string, RawListing>();
 		for (const result of captured) {
@@ -125,7 +125,7 @@ export const ams: SourceAdapter = {
 			} catch (err) {
 				rethrowIfAbort(err, signal);
 				complete = false;
-				console.error(`[ams] "${keyword}" failed:`, err);
+				console.error(`[ams] "${keyword}" fehlgeschlagen:`, err);
 			}
 		}
 		return { listings: [...byId.values()], complete };

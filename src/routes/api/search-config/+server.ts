@@ -17,7 +17,7 @@ export const PATCH: RequestHandler = async ({ request }) => {
 		if (isSearchConfigAiError(error)) {
 			return json({ message: error.message }, { status: error.status });
 		}
-		console.error('Search config update failed', error);
+		console.error('Aktualisierung der Suchkonfiguration fehlgeschlagen', error);
 		return json(
 			{ message: 'Die Suchkonfiguration konnte nicht aktualisiert werden.' },
 			{ status: 500 }

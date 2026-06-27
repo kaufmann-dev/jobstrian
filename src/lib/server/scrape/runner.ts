@@ -84,7 +84,7 @@ function createProgress(headline = 'Aktualisierung startet'): RunProgress {
 }
 
 function abortReason(signal: AbortSignal): unknown {
-	return signal.reason ?? new DOMException('The operation was aborted.', 'AbortError');
+	return signal.reason ?? new DOMException('Der Vorgang wurde abgebrochen.', 'AbortError');
 }
 
 function throwIfAborted(signal: AbortSignal): void {
@@ -487,7 +487,7 @@ export async function runRefresh(
 			return;
 		}
 
-		console.error('[runner] run failed:', err);
+		console.error('[runner] Lauf fehlgeschlagen:', err);
 		writer.progress.headline = 'Aktualisierung fehlgeschlagen';
 		writer.progress.detail = err instanceof Error ? err.message : String(err);
 		for (const id of Object.keys(writer.progress.phases) as RunPhaseId[]) {
@@ -566,7 +566,7 @@ async function enrichDescriptions(writer: ProgressWriter, signal: AbortSignal): 
 			} catch (err) {
 				if (isAbortLike(err)) throw err;
 				failed++;
-				console.error(`[runner] enrich listing ${row.id} failed:`, err);
+				console.error(`[runner] Anreicherung der Stelle ${row.id} fehlgeschlagen:`, err);
 			} finally {
 				writer.phase('enrich', {
 					current: completed + failed,
@@ -692,7 +692,7 @@ async function rankListings(
 			} catch (err) {
 				if (isAbortLike(err)) throw err;
 				failed++;
-				console.error(`[runner] rank listing ${row.id} failed:`, err);
+				console.error(`[runner] Bewertung der Stelle ${row.id} fehlgeschlagen:`, err);
 			} finally {
 				const current = skipped + completed + failed;
 				writer.phase('rank-listings', {
@@ -778,7 +778,7 @@ async function rankLeads(
 			} catch (err) {
 				if (isAbortLike(err)) throw err;
 				failed++;
-				console.error(`[runner] rank lead ${row.id} failed:`, err);
+				console.error(`[runner] Bewertung des Betriebs ${row.id} fehlgeschlagen:`, err);
 			} finally {
 				const current = skipped + completed + failed;
 				writer.phase('rank-leads', {
@@ -852,7 +852,7 @@ export async function cancelRefresh(runId: number): Promise<{ active: boolean }>
 		);
 
 	if (activeRun?.runId !== runId) return { active: false };
-	activeRun.controller.abort(new DOMException('Refresh run canceled.', 'AbortError'));
+	activeRun.controller.abort(new DOMException('Aktualisierung abgebrochen.', 'AbortError'));
 	return { active: true };
 }
 

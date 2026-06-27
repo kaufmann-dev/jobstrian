@@ -155,7 +155,7 @@ async function fetchSuggestions(
 		const response = await fetch(`${ENDPOINT}?${params}`, { signal: controller.signal });
 		const durationMs = Date.now() - started;
 		if (!response.ok) {
-			console.error('Geoapify lookup failed', { status: response.status, durationMs, kind });
+			console.error('Geoapify-Suche fehlgeschlagen', { status: response.status, durationMs, kind });
 			if (response.status === 401 || response.status === 403) {
 				throw new GeoLookupError(
 					'provider_auth_failed',
@@ -166,7 +166,7 @@ async function fetchSuggestions(
 			if (response.status === 429) {
 				throw new GeoLookupError('rate_limited', 'Das Geoapify-Anfragelimit wurde erreicht.', 503);
 			}
-			throw new GeoLookupError('upstream_unavailable', 'Geo lookup is unavailable.', 502);
+			throw new GeoLookupError('upstream_unavailable', 'Geo-Suche ist nicht verfügbar.', 502);
 		}
 		console.info('Geoapify lookup completed', { status: response.status, durationMs, kind });
 		const body = (await response.json()) as GeoapifyResponse;
@@ -179,12 +179,12 @@ async function fetchSuggestions(
 		});
 	} catch (error) {
 		if (isGeoLookupError(error)) throw error;
-		console.error('Geoapify lookup failed', {
+		console.error('Geoapify-Suche fehlgeschlagen', {
 			status: 'network_error',
 			durationMs: Date.now() - started,
 			kind
 		});
-		throw new GeoLookupError('upstream_unavailable', 'Geo lookup is unavailable.', 502);
+		throw new GeoLookupError('upstream_unavailable', 'Geo-Suche ist nicht verfügbar.', 502);
 	} finally {
 		clearTimeout(timeout);
 	}
@@ -199,7 +199,7 @@ export async function geoSuggestions(
 	const trimmedApiKey = apiKey?.trim();
 	const minLength = kind === 'address' ? 3 : 2;
 	if (trimmed.length < minLength || trimmed.length > 200) {
-		throw new GeoLookupError('invalid_query', 'Invalid geo lookup query.', 400);
+		throw new GeoLookupError('invalid_query', 'Ungültige Geo-Suche.', 400);
 	}
 	if (!trimmedApiKey) {
 		throw new GeoLookupError(

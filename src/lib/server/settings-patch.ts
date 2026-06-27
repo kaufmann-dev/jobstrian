@@ -62,10 +62,10 @@ export const settingsPatchSchema = z
 	})
 	.strict()
 	.refine((value) => Object.keys(value.patch).every((field) => patchableFieldSet.has(field)), {
-		message: 'Patch contains unsupported fields.'
+		message: 'Die Änderung enthält nicht unterstützte Felder.'
 	})
 	.refine((value) => Object.keys(value.patch).length > 0 || value.homeLocation, {
-		message: 'Patch is empty.'
+		message: 'Die Änderung ist leer.'
 	});
 
 export type SettingsPatch = Omit<z.infer<typeof settingsPatchSchema>, 'patch'> & {

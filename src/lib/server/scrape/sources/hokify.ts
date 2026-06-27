@@ -91,7 +91,7 @@ export const hokify: SourceAdapter = {
 				} catch (err) {
 					rethrowIfAbort(err, signal);
 					complete = false;
-					console.error(`[hokify] "${keyword}" in "${locationName}" failed:`, err);
+					console.error(`[hokify] "${keyword}" in "${locationName}" fehlgeschlagen:`, err);
 				}
 			}
 		}

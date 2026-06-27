@@ -32,5 +32,5 @@
 	{...restProps}
 >
 	<PanelLeftIcon />
-	<span class="sr-only">Toggle Sidebar</span>
+	<span class="sr-only">Seitenleiste umschalten</span>
 </Button>

@@ -11,7 +11,7 @@ export const PATCH: RequestHandler = async ({ request }) => {
 		if (error instanceof ZodError) {
 			return json({ code: 'invalid_patch', message: 'Ungültige Einstellungen.' }, { status: 400 });
 		}
-		console.error('Settings patch failed', error);
+		console.error('Speichern der Einstellungen fehlgeschlagen', error);
 		return json({ code: 'save_failed', message: 'Speichern fehlgeschlagen.' }, { status: 500 });
 	}
 };

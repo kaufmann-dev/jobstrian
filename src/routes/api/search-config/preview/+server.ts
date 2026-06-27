@@ -21,7 +21,7 @@ export const POST: RequestHandler = async ({ request }) => {
 		if (isSearchConfigAiError(error)) {
 			return json({ message: error.message }, { status: error.status });
 		}
-		console.error('Search config preview failed', error);
+		console.error('Vorschau der Suchkonfiguration fehlgeschlagen', error);
 		return json({ message: 'Die Suchkonfiguration konnte nicht erzeugt werden.' }, { status: 500 });
 	}
 };

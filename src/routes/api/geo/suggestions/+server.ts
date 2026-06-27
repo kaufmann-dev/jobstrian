@@ -25,7 +25,7 @@ export const GET: RequestHandler = async ({ url }) => {
 				{ status: error.status }
 			);
 		}
-		console.error('Geo suggestion endpoint failed', error);
+		console.error('Geo-Vorschlagsendpunkt fehlgeschlagen', error);
 		return json(
 			{ code: 'upstream_unavailable', message: 'Geo-Suche ist vorübergehend nicht verfügbar.' },
 			{ status: 502 }

@@ -81,7 +81,7 @@ export const willhaben: SourceAdapter = {
 			} catch (err) {
 				rethrowIfAbort(err, signal);
 				complete = false;
-				console.error(`[willhaben] "${keyword}" failed:`, err);
+				console.error(`[willhaben] "${keyword}" fehlgeschlagen:`, err);
 			}
 		}
 		return { listings: [...byId.values()], complete };

@@ -7,7 +7,7 @@ export const POST: RequestHandler = async () => {
 		const settings = await syncResendDomain();
 		return json({ config: applicationEmailDomainConfig(settings) });
 	} catch (err) {
-		console.error('[api/application-emails/domain] sync failed:', err);
+		console.error('[api/application-emails/domain] Synchronisierung fehlgeschlagen:', err);
 		return json(
 			{ message: err instanceof Error ? err.message : 'DNS-Einträge konnten nicht geladen werden.' },
 			{ status: 400 }

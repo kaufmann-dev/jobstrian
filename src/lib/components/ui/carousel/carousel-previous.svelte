@@ -35,5 +35,5 @@
 	bind:ref
 >
 	<ChevronLeftIcon />
-	<span class="sr-only">Previous slide</span>
+	<span class="sr-only">Vorherige Folie</span>
 </Button>

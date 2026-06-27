@@ -17,7 +17,7 @@ export const PATCH: RequestHandler = async ({ request }) => {
 		if (isCvProfileError(error)) {
 			return json({ message: error.message }, { status: error.status });
 		}
-		console.error('CV profile update failed', error);
+		console.error('Lebenslauf-Profilaktualisierung fehlgeschlagen', error);
 		return json({ message: 'Das Profil konnte nicht aktualisiert werden.' }, { status: 500 });
 	}
 };

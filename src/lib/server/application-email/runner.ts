@@ -77,7 +77,7 @@ function progressOrDefault(progress: ApplicationEmailRun['progress']): Applicati
 }
 
 function abortReason(signal: AbortSignal): unknown {
-	return signal.reason ?? new DOMException('The operation was aborted.', 'AbortError');
+	return signal.reason ?? new DOMException('Der Vorgang wurde abgebrochen.', 'AbortError');
 }
 
 function throwIfAborted(signal: AbortSignal): void {
@@ -313,7 +313,7 @@ function unwrapSendId(result: unknown): string | null {
 		data?: { id?: string } | null;
 		error?: { message?: string; statusCode?: number } | null;
 	};
-	if (response.error) throw new Error(response.error.message ?? 'Resend-Versand fehlgeschlagen.');
+	if (response.error) throw new Error('Resend-Versand fehlgeschlagen.');
 	return response.data?.id ?? null;
 }
 
@@ -489,7 +489,7 @@ async function runApplicationEmailWorker(
 			return;
 		}
 
-		console.error('[application-email] run failed:', err);
+		console.error('[application-email] Lauf fehlgeschlagen:', err);
 		writer.progress.headline = 'Bewerbungsversand fehlgeschlagen';
 		writer.progress.detail = err instanceof Error ? err.message : String(err);
 		for (const id of Object.keys(writer.progress.phases) as ApplicationEmailPhaseId[]) {
@@ -525,7 +525,9 @@ export async function startApplicationEmailRun(): Promise<number | null> {
 	try {
 		const settings = await getSettings();
 		const readiness = await applicationEmailReadiness(settings);
-		if (!readiness.ready) throw new Error(readiness.reasons.join(' '));
+		if (!readiness.ready) {
+			throw new Error(`Bewerbungsversand ist noch nicht bereit. ${readiness.reasons.join(' ')}`);
+		}
 
 		const [run] = await db
 			.insert(applicationEmailRun)
@@ -581,7 +583,7 @@ export async function cancelApplicationEmailRun(runId: number): Promise<{ active
 		.set({ status: 'canceling', cancelRequestedAt: new Date(), phase: 'Abbruch angefordert' })
 		.where(and(eq(applicationEmailRun.id, runId), eq(applicationEmailRun.status, 'running')));
 	if (active)
-		active.controller.abort(new DOMException('Application e-mail run canceled.', 'AbortError'));
+		active.controller.abort(new DOMException('Bewerbungsversand abgebrochen.', 'AbortError'));
 	return { active: Boolean(active) };
 }
 
