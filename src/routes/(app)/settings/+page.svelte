@@ -37,6 +37,7 @@
 	import Copy from '@lucide/svelte/icons/copy';
 	import Check from '@lucide/svelte/icons/check';
 	import RefreshCw from '@lucide/svelte/icons/refresh-cw';
+	import MailCheck from '@lucide/svelte/icons/mail-check';
 	import type {
 		GeneratedSearchConfigField,
 		SearchConfig,
@@ -57,6 +58,7 @@
 	let autosaveDirty = $state(false);
 	let homeLocationVerified = $state(untrack(() => data.homeLocationVerified));
 	let emailDomainBusy = $state(false);
+	let testEmailBusy = $state(false);
 
 	const autosave = new SettingsAutosaveQueue(
 		async (patch) => {
@@ -264,6 +266,27 @@
 			);
 		} finally {
 			emailDomainBusy = false;
+		}
+	}
+
+	async function sendTestEmail() {
+		testEmailBusy = true;
+		try {
+			const response = await fetch('/api/application-emails/test', { method: 'POST' });
+			const body = (await response.json().catch(() => ({}))) as {
+				recipient?: string;
+				message?: string;
+			};
+			if (!response.ok) throw new Error(body.message ?? 'Test-E-Mail konnte nicht gesendet werden');
+			toast.success(
+				body.recipient ? `Test-E-Mail an ${body.recipient} gesendet` : 'Test-E-Mail gesendet'
+			);
+		} catch (error) {
+			toast.error(
+				error instanceof Error ? error.message : 'Test-E-Mail konnte nicht gesendet werden'
+			);
+		} finally {
+			testEmailBusy = false;
 		}
 	}
 
@@ -979,6 +1002,16 @@
 			>
 				{#if emailDomainBusy}<Spinner />{:else}<RefreshCw />{/if}
 				Resend-Status prüfen
+			</Button>
+			<Button
+				type="button"
+				variant="outline"
+				class="w-full sm:w-auto"
+				disabled={testEmailBusy || !emailDomain.hasResendApiKey}
+				onclick={sendTestEmail}
+			>
+				{#if testEmailBusy}<Spinner />{:else}<MailCheck />{/if}
+				Test-E-Mail senden
 			</Button>
 		</Card.Footer>
 	</Card.Root>

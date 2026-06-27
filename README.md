@@ -116,6 +116,8 @@ For automatic applications, also configure Resend in **Settings**:
 5. Copy the webhook signing secret from Resend (usually `whsec_…`) into
    **Webhook Secret**. Jobstrian uses it to verify that incoming bounce /
    complaint events really came from Resend.
+6. Click **Test-E-Mail senden** to send a CV-backed test e-mail to the saved
+   reply-to address before starting automatic applications.
 
 For local development, Resend cannot call `localhost` directly; expose the app
 with a tunnel and use that public tunnel URL as the webhook endpoint.
