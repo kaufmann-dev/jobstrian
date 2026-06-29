@@ -145,7 +145,7 @@
 	<Combobox.Portal>
 		<Combobox.Content
 			collisionPadding={8}
-			class="z-50 max-h-60 w-(--bits-combobox-anchor-width) max-w-[calc(100vw-1rem)] overflow-auto rounded-xl border bg-popover p-1 text-popover-foreground shadow-md"
+			class="z-50 max-h-60 w-(--bits-combobox-anchor-width) max-w-[calc(100vw-1rem)] overflow-auto rounded-xl border bg-popover p-1 text-popover-foreground"
 		>
 			{#if status === 'loading'}
 				<div class="px-2 py-1.5 text-sm text-muted-foreground">Vorschläge werden geladen …</div>

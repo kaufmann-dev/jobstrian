@@ -42,7 +42,7 @@
 				class="flex shrink-0 items-center gap-2.5 font-semibold tracking-tight"
 			>
 				<span
-					class="flex size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground shadow-sm"
+					class="flex size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground"
 				>
 					<Briefcase class="size-4.5" />
 				</span>

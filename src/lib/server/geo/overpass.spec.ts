@@ -89,7 +89,7 @@ describe('business Overpass queries', () => {
 			compileBusinessOverpassQueries(48.2082, 16.3738, 500, [
 				{ key: 'amenity', value: 'not_in_catalog' } as OsmBusinessTag
 			])
-		).toThrow('Invalid OSM business tag: amenity=not_in_catalog');
+		).toThrow('Ungültige OSM-Betriebskategorie: amenity=not_in_catalog');
 	});
 });
 
@@ -159,7 +159,7 @@ describe('findNearbyBusinesses', () => {
 
 		await expect(findNearbyBusinesses(48.2082, 16.3738, 500, testTags)).rejects.toMatchObject({
 			name: 'OverpassUnavailableError',
-			message: 'Overpass -> 504',
+			message: 'Overpass-Status 504',
 			attempts: 3
 		});
 		expect(fetchMock).toHaveBeenCalledTimes(3);
@@ -206,7 +206,7 @@ describe('findNearbyBusinesses', () => {
 
 		expect(error).toBeInstanceOf(Error);
 		expect(error).not.toBeInstanceOf(OverpassUnavailableError);
-		expect((error as Error).message).toBe('Overpass -> 400');
+		expect((error as Error).message).toBe('Overpass-Status 400');
 		expect(fetchMock).toHaveBeenCalledOnce();
 	});
 });

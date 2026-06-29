@@ -221,7 +221,7 @@
 						onmousedown={(event) => event.preventDefault()}
 						role="listbox"
 						tabindex="-1"
-						class="absolute z-50 mt-1 max-h-60 w-full overflow-auto rounded-xl border bg-popover p-1 text-popover-foreground shadow-md"
+						class="absolute z-50 mt-1 max-h-60 w-full overflow-auto rounded-xl border bg-popover p-1 text-popover-foreground"
 					>
 						{#each tagSuggestions as suggestion (suggestion.raw)}
 							<button
