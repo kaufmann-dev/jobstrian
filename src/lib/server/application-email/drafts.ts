@@ -23,10 +23,7 @@ export async function ensureLeadDraft(leadId: number): Promise<DraftRefreshResul
 		cfg = await getLlmConfig(settings);
 	} catch (err) {
 		if (err instanceof LlmNotConfiguredError) {
-			return {
-				lead: row,
-				warning: 'E-Mail gespeichert, aber KI-Konfiguration fehlt für den Entwurf.'
-			};
+			return { lead: row, warning: 'E-Mail gespeichert, aber KI-Konfiguration fehlt für den Entwurf.' };
 		}
 		throw err;
 	}

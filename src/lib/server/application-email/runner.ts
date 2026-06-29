@@ -1,19 +1,6 @@
 import Renderer, { toPlainText } from 'better-svelte-email/render';
 import { Resend } from 'resend';
-import {
-	and,
-	asc,
-	count,
-	desc,
-	eq,
-	gte,
-	inArray,
-	isNotNull,
-	lt,
-	notExists,
-	or,
-	sql
-} from 'drizzle-orm';
+import { and, asc, count, desc, eq, gte, inArray, isNotNull, lt, notExists, or, sql } from 'drizzle-orm';
 import { db } from '../db';
 import {
 	applicationEmail,

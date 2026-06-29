@@ -83,9 +83,7 @@ export async function syncLeads(
 	signal?: AbortSignal
 ): Promise<LeadSyncResult> {
 	if (settings.homeLat == null || settings.homeLon == null) {
-		throw new Error(
-			'Wohnort-Koordinaten fehlen. Betriebe in der Nähe können nicht gesucht werden.'
-		);
+		throw new Error('Wohnort-Koordinaten fehlen. Betriebe in der Nähe können nicht gesucht werden.');
 	}
 	const places = await findNearbyBusinesses(
 		settings.homeLat,

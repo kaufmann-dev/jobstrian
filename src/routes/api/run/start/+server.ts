@@ -3,10 +3,7 @@ import type { RequestHandler } from './$types';
 
 function startFailureMessage(err: unknown): string {
 	const message = err instanceof Error ? err.message : String(err);
-	if (
-		message.includes('DATABASE_URL is not set') ||
-		message.includes('DATABASE_URL ist nicht gesetzt')
-	) {
+	if (message.includes('DATABASE_URL is not set') || message.includes('DATABASE_URL ist nicht gesetzt')) {
 		return 'Aktualisierung konnte nicht gestartet werden: DATABASE_URL ist nicht gesetzt.';
 	}
 	if (message.includes('ECONNREFUSED')) {

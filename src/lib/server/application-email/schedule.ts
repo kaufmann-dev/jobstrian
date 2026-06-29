@@ -25,9 +25,7 @@ type ZonedParts = {
 };
 
 function zonedParts(date: Date): ZonedParts {
-	const parts = Object.fromEntries(
-		formatter.formatToParts(date).map((part) => [part.type, part.value])
-	);
+	const parts = Object.fromEntries(formatter.formatToParts(date).map((part) => [part.type, part.value]));
 	return {
 		weekday: parts.weekday,
 		year: Number(parts.year),
@@ -39,9 +37,7 @@ function zonedParts(date: Date): ZonedParts {
 	};
 }
 
-function localEpoch(
-	parts: Pick<ZonedParts, 'year' | 'month' | 'day' | 'hour' | 'minute' | 'second'>
-) {
+function localEpoch(parts: Pick<ZonedParts, 'year' | 'month' | 'day' | 'hour' | 'minute' | 'second'>) {
 	return Date.UTC(parts.year, parts.month - 1, parts.day, parts.hour, parts.minute, parts.second);
 }
 
@@ -78,17 +74,18 @@ function isBusinessDay(weekday: string): boolean {
 }
 
 function isInsideBusinessWindow(parts: ZonedParts): boolean {
-	return (
-		isBusinessDay(parts.weekday) &&
-		parts.hour >= BUSINESS_START_HOUR &&
-		parts.hour < BUSINESS_END_HOUR
-	);
+	return isBusinessDay(parts.weekday) && parts.hour >= BUSINESS_START_HOUR && parts.hour < BUSINESS_END_HOUR;
 }
 
 function nextBusinessDay(parts: Pick<ZonedParts, 'year' | 'month' | 'day'>): Date {
 	let cursor = addLocalDays(parts, 1);
 	for (;;) {
-		const candidate = dateInVienna(cursor.year, cursor.month, cursor.day, BUSINESS_START_HOUR);
+		const candidate = dateInVienna(
+			cursor.year,
+			cursor.month,
+			cursor.day,
+			BUSINESS_START_HOUR
+		);
 		if (isBusinessDay(zonedParts(candidate).weekday)) return candidate;
 		cursor = addLocalDays(cursor, 1);
 	}
@@ -138,8 +135,7 @@ export function scheduleApplicationEmails(
 	let currentDay = viennaDayKey(zonedParts(cursor));
 	// Today's already-sent count only applies when sending actually resumes today;
 	// an after-hours or weekend start begins on a fresh day with a full budget.
-	let sentToday =
-		currentDay === viennaDayKey(zonedParts(from)) ? (options.alreadySentToday ?? 0) : 0;
+	let sentToday = currentDay === viennaDayKey(zonedParts(from)) ? (options.alreadySentToday ?? 0) : 0;
 
 	for (let i = 0; i < count; i++) {
 		cursor = nextApplicationEmailWindowStart(cursor);
