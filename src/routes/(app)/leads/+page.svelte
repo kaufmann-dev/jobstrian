@@ -15,9 +15,9 @@
 	import { Label } from '$lib/components/ui/label/index.js';
 	import { Textarea } from '$lib/components/ui/textarea/index.js';
 	import { Input } from '$lib/components/ui/input/index.js';
-	import { Progress } from '$lib/components/ui/progress/index.js';
 	import { Spinner } from '$lib/components/ui/spinner/index.js';
 	import PageHeader from '$lib/components/page-header.svelte';
+	import RunStatusCard, { type RunStatusCardPhase } from '$lib/components/run-status-card.svelte';
 	import ServerDataTable from '$lib/components/server-data-table.svelte';
 	import TableFilterCheckbox from '$lib/components/table-filter-checkbox.svelte';
 	import RankFactors from '$lib/components/rank-factors.svelte';
@@ -39,7 +39,11 @@
 	import CircleX from '@lucide/svelte/icons/circle-x';
 	import TriangleAlert from '@lucide/svelte/icons/triangle-alert';
 	import type { Lead } from '$lib/server/db/schema';
-	import type { ApplicationEmailProgress, ApplicationEmailRun } from '$lib/server/db/schema';
+	import type {
+		ApplicationEmailPhaseId,
+		ApplicationEmailProgress,
+		ApplicationEmailRun
+	} from '$lib/server/db/schema';
 
 	let { data } = $props();
 
@@ -68,7 +72,7 @@
 		emailRun?.status === 'running' || emailRun?.status === 'canceling' || emailStarting
 	);
 	const emailProgress = $derived(normalizeEmailProgress(emailRun));
-	const emailPercent = $derived(emailProgressPercent(emailProgress));
+	const emailPhaseRows = $derived(toEmailPhaseRows(emailProgress));
 	const canStartEmailRun = $derived(
 		data.applicationEmail.ready &&
 			data.applicationEmail.eligibleCount > 0 &&
@@ -85,6 +89,15 @@
 		}
 	);
 	const { form: contactData, errors: contactErrors } = contactForm;
+
+	type EmailPhaseRow = RunStatusCardPhase & { id: ApplicationEmailPhaseId };
+
+	const emailPhaseLabels: Record<ApplicationEmailPhaseId, string> = {
+		setup: 'Vorbereitung',
+		queue: 'Einplanung',
+		send: 'Versand',
+		finalize: 'Abschluss'
+	};
 
 	function resetFilters(): void {
 		onlyWithEmail = false;
@@ -271,10 +284,12 @@
 		};
 	}
 
-	function emailProgressPercent(progress: ApplicationEmailProgress): number {
-		const phase = progress.phases.send;
-		if (phase.total <= 0) return emailRun?.status === 'done' ? 100 : 0;
-		return Math.round((Math.min(phase.current, phase.total) / phase.total) * 100);
+	function toEmailPhaseRows(progress: ApplicationEmailProgress): EmailPhaseRow[] {
+		return (Object.keys(emailPhaseLabels) as ApplicationEmailPhaseId[]).map((id) => ({
+			id,
+			label: emailPhaseLabels[id],
+			...progress.phases[id]
+		}));
 	}
 
 	function emailStatusLabel(status: ApplicationEmailRun['status'] | undefined): string {
@@ -551,19 +566,15 @@
 			<Alert.Description>{data.applicationEmail.reasons.join(' ')}</Alert.Description>
 		</Alert.Root>
 	{:else}
-		<div class="rounded-lg border p-4">
-			<div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-				<div class="space-y-1">
-					<div class="flex flex-wrap items-center gap-2">
-						<p class="font-medium">Automatischer Bewerbungsversand</p>
-						<Badge variant={emailStatusVariant(emailRun?.status)}>
-							{emailStatusLabel(emailRun?.status)}
-						</Badge>
-					</div>
-					<p class="text-sm text-muted-foreground">
-						{data.applicationEmail.eligibleCount} neue Betriebe mit E-Mail und Entwurf sind offen.
-					</p>
-				</div>
+		<RunStatusCard
+			title="Automatischer Bewerbungsversand"
+			statusLabel={emailStatusLabel(emailRun?.status)}
+			statusVariant={emailStatusVariant(emailRun?.status)}
+			active={emailRunActive}
+			phases={emailPhaseRows}
+			summary={`${data.applicationEmail.eligibleCount} neue Betriebe mit E-Mail und Entwurf sind offen.`}
+		>
+			{#snippet actions()}
 				{#if emailRunActive && emailRun}
 					<Button
 						variant="outline"
@@ -575,32 +586,31 @@
 						Abbrechen
 					</Button>
 				{/if}
-			</div>
-			{#if emailRun}
-				<div class="mt-4 space-y-2">
-					<div class="flex items-center justify-between gap-4 text-sm">
-						<span>{emailProgress.headline}</span>
-						<span class="text-muted-foreground tabular-nums">{emailPercent}%</span>
-					</div>
-					<Progress value={emailPercent} />
-					<div
-						class="flex flex-col gap-1 text-sm text-muted-foreground sm:flex-row sm:justify-between"
-					>
-						<span>{emailProgress.detail}</span>
-						{#if emailProgress.nextSendAt}
-							<span class="flex items-center gap-1">
-								<Clock class="size-4" />
-								Nächste E-Mail: {new Date(emailProgress.nextSendAt).toLocaleString('de-AT')}
-							</span>
+			{/snippet}
+
+			{#snippet details()}
+				{#if emailRun}
+					<div class="space-y-2 border-t pt-3 text-sm text-muted-foreground">
+						<div class="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+							<span>{emailProgress.headline}</span>
+							{#if emailProgress.nextSendAt}
+								<span class="flex items-center gap-1">
+									<Clock class="size-4" />
+									Nächste E-Mail: {new Date(emailProgress.nextSendAt).toLocaleString('de-AT')}
+								</span>
+							{/if}
+						</div>
+						{#if emailProgress.detail}
+							<p>{emailProgress.detail}</p>
 						{/if}
 					</div>
 					<p class="text-xs text-muted-foreground">
 						{emailRun.counts.sent} gesendet · {emailRun.counts.failed} fehlgeschlagen ·
 						{emailRun.counts.queued} offen
 					</p>
-				</div>
-			{/if}
-		</div>
+				{/if}
+			{/snippet}
+		</RunStatusCard>
 	{/if}
 
 	{#snippet filters()}
