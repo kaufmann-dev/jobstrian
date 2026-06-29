@@ -134,6 +134,13 @@
       "when": 1782514188145,
       "tag": "0018_milky_sally_floyd",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1782722033112,
+      "tag": "0019_add_application_email_daily_limit",
+      "breakpoints": true
     }
   ]
 }

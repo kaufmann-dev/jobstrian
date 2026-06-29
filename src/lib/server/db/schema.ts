@@ -177,6 +177,7 @@ export const settings = pgTable('settings', {
 	resendReplyTo: text('resend_reply_to').notNull().default(''),
 	resendWebhookSecret: text('resend_webhook_secret').notNull().default(''),
 	applicationEmailEnabled: boolean('application_email_enabled').notNull().default(false),
+	applicationEmailDailyLimit: integer('application_email_daily_limit').notNull().default(90),
 	updatedAt: timestamp('updated_at')
 		.defaultNow()
 		.$onUpdate(() => new Date())

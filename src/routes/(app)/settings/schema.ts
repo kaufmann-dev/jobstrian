@@ -54,7 +54,8 @@ export const settingsSchema = z.object({
 		.default('bewerbung'),
 	resendFromName: z.string().trim().max(200).default(''),
 	resendReplyTo: z.union([z.email(), z.literal('')]).default(''),
-	resendWebhookSecret: z.string().trim().max(500).default('')
+	resendWebhookSecret: z.string().trim().max(500).default(''),
+	applicationEmailDailyLimit: z.number().int().min(1).max(1000).default(90)
 });
 
 export const apiKeySchema = settingsSchema.pick({ llmApiKey: true });

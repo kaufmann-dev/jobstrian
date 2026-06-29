@@ -100,24 +100,59 @@ export function nextApplicationEmailWindowStart(after = new Date()): Date {
 	return nextBusinessDay(parts);
 }
 
-function minutesBetween(min: number, max: number, random: () => number): number {
+function secondsBetween(min: number, max: number, random: () => number): number {
 	return min + random() * (max - min);
+}
+
+function viennaDayKey(parts: Pick<ZonedParts, 'year' | 'month' | 'day'>): string {
+	return `${parts.year}-${parts.month}-${parts.day}`;
+}
+
+export function viennaDayBounds(date = new Date()): { start: Date; end: Date } {
+	const parts = zonedParts(date);
+	const next = addLocalDays(parts, 1);
+	return {
+		start: dateInVienna(parts.year, parts.month, parts.day, 0, 0, 0),
+		end: dateInVienna(next.year, next.month, next.day, 0, 0, 0)
+	};
 }
 
 export function scheduleApplicationEmails(
 	count: number,
-	options: { from?: Date; random?: () => number } = {}
+	options: {
+		from?: Date;
+		random?: () => number;
+		dailyLimit?: number;
+		alreadySentToday?: number;
+	} = {}
 ): Date[] {
 	const random = options.random ?? Math.random;
+	const dailyLimit =
+		options.dailyLimit && options.dailyLimit > 0 ? options.dailyLimit : Number.POSITIVE_INFINITY;
+	const from = options.from ?? new Date();
 	const dates: Date[] = [];
-	let cursor = nextApplicationEmailWindowStart(options.from ?? new Date());
+	let cursor = nextApplicationEmailWindowStart(from);
+	let currentDay = viennaDayKey(zonedParts(cursor));
+	// Today's already-sent count only applies when sending actually resumes today;
+	// an after-hours or weekend start begins on a fresh day with a full budget.
+	let sentToday = currentDay === viennaDayKey(zonedParts(from)) ? (options.alreadySentToday ?? 0) : 0;
 
 	for (let i = 0; i < count; i++) {
 		cursor = nextApplicationEmailWindowStart(cursor);
+		const day = viennaDayKey(zonedParts(cursor));
+		if (day !== currentDay) {
+			currentDay = day;
+			sentToday = 0;
+		}
+		if (sentToday >= dailyLimit) {
+			cursor = nextBusinessDay(zonedParts(cursor));
+			currentDay = viennaDayKey(zonedParts(cursor));
+			sentToday = 0;
+		}
 		dates.push(cursor);
-		let delayMinutes = minutesBetween(2, 4, random);
-		if ((i + 1) % 20 === 0) delayMinutes += minutesBetween(10, 15, random);
-		cursor = new Date(cursor.getTime() + Math.round(delayMinutes * 60_000));
+		sentToday++;
+		const delaySeconds = secondsBetween(30, 90, random);
+		cursor = new Date(cursor.getTime() + Math.round(delaySeconds * 1000));
 	}
 
 	return dates;

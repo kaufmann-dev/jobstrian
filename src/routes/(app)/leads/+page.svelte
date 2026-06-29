@@ -45,6 +45,12 @@
 		ApplicationEmailRun
 	} from '$lib/server/db/schema';
 
+	const viennaDateTime = new Intl.DateTimeFormat('de-AT', {
+		timeZone: 'Europe/Vienna',
+		dateStyle: 'medium',
+		timeStyle: 'medium'
+	});
+
 	let { data } = $props();
 
 	const controller = new ServerListController<Lead>(
@@ -595,12 +601,12 @@
 							<span>{emailProgress.headline}</span>
 							{#if emailProgress.nextSendAt}
 								<span class="flex items-center gap-1">
-									<Clock class="size-4" />
-									Nächste E-Mail: {new Date(emailProgress.nextSendAt).toLocaleString('de-AT')}
+									<Clock class="size-4 shrink-0" />
+									Nächste E-Mail: {viennaDateTime.format(new Date(emailProgress.nextSendAt))}
 								</span>
 							{/if}
 						</div>
-						{#if emailProgress.detail}
+						{#if !emailProgress.nextSendAt && emailProgress.detail}
 							<p>{emailProgress.detail}</p>
 						{/if}
 					</div>
@@ -665,7 +671,7 @@
 			<Dialog.Title>Bewerbungen automatisch senden?</Dialog.Title>
 			<Dialog.Description>
 				{data.applicationEmail.eligibleCount} neue Betriebe werden eingeplant. Der Versand läuft nur Montag
-				bis Freitag von 09:00 bis 18:00 Uhr, mit 2 bis 4 Minuten Abstand und Pausen nach 20 E-Mails.
+				bis Freitag von 09:00 bis 18:00 Uhr, mit 30 bis 90 Sekunden Abstand und einem täglichen Sendelimit.
 			</Dialog.Description>
 		</Dialog.Header>
 		<div class="rounded-lg border p-3 text-sm text-muted-foreground">
