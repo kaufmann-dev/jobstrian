@@ -5,7 +5,7 @@ import {
 	DEFAULT_LISTING_RANKING_CRITERIA
 } from '$lib/ranking-criteria';
 import type { LlmLimiter } from './limiter';
-import { buildColdEmailPrompt, draftColdEmail } from './draft-email';
+import { DRAFT_PROMPT_VERSION, buildColdEmailPrompt, draftColdEmail } from './draft-email';
 
 const chatJson = vi.hoisted(() => vi.fn());
 vi.mock('./client', () => ({ chatJson }));
@@ -109,6 +109,21 @@ describe('cold email prompt', () => {
 		expect(prompt).toContain('Absender (mit diesem Namen unterschreiben): Anna Beispiel');
 		expect(prompt).not.toMatch(/Gastro|Gastronomie|Servicekraft|Barista|Kellner/);
 	});
+
+	it('keeps exact private address and meter distance out of the draft prompt', () => {
+		const prompt = buildColdEmailPrompt(
+			settings({ homeAddress: 'Fuhrmannsgasse 12, 1080 Wien, Österreich' }),
+			lead({ distanceMeters: 112 })
+		);
+
+		expect(prompt).toContain('Nähe zum Wohnort: direkt in der Nähe');
+		expect(prompt).not.toContain('Fuhrmannsgasse');
+		expect(prompt).not.toMatch(/\b112\b|112\s*m|Entfernung vom Wohnort/);
+	});
+
+	it('bumps the draft prompt version so existing drafts are regenerated', () => {
+		expect(DRAFT_PROMPT_VERSION).toBe('draft-cold-email-v5');
+	});
 });
 
 describe('draftColdEmail', () => {
@@ -125,6 +140,21 @@ describe('draftColdEmail', () => {
 		const draft = await draftColdEmail(cfg, settings(), lead(), limiter);
 
 		expect(draft).toEqual({ subject: 'Bewerbung', body: 'Guten Tag...' });
+	});
+
+	it('passes strict email structure and signoff instructions to the model', async () => {
+		chatJson.mockResolvedValue({ subject: 'Bewerbung', body: 'Guten Tag...' });
+
+		await draftColdEmail(cfg, settings(), lead(), limiter);
+
+		const messages = chatJson.mock.calls[0][1] as { role: string; content: string }[];
+		const system = messages.find((message) => message.role === 'system')?.content ?? '';
+		expect(system).toContain('Der body muss exakt diese Struktur haben');
+		expect(system).toContain('Leerzeile');
+		expect(system).toContain('Mit freundlichen Grüßen\n<Absendername>');
+		expect(system).toContain('Nach dem Absendernamen kommt kein weiterer Text');
+		expect(system).toContain('Nenne keine exakten Meterangaben');
+		expect(system).toContain('keine genaue Wohnadresse');
 	});
 
 	it('throws instead of manufacturing an empty body when the model omits it', async () => {

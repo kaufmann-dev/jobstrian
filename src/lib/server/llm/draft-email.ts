@@ -3,7 +3,7 @@ import { chatJson, type LlmConfig } from './client';
 import { profileBlock } from './rank';
 import type { LlmLimiter } from './limiter';
 
-export const DRAFT_PROMPT_VERSION = 'draft-cold-email-v4';
+export const DRAFT_PROMPT_VERSION = 'draft-cold-email-v5';
 
 export interface EmailDraft {
 	subject: string;
@@ -15,10 +15,35 @@ Der Bewerber sucht eine Stelle passend zu den Stellen-Keywords und seinem Profil
 Komm schnell zum Punkt und schreib konkret. Keine Werbefloskeln und keine leeren Standardsätze (z.B. kein "mit großem Interesse", kein "ich hoffe, diese Nachricht erreicht Sie gut").
 Keine Gedankenstriche (– oder —) als Satzzeichen. Formuliere Einschübe als eigenen Satz oder mit Komma.
 Schreib in natürlichem, ungezwungenem Deutsch. Keine Amts- oder Behördensprache (z.B. nicht "mitwirken", sondern "arbeiten").
-Erwähne genau einmal beiläufig, dass der Lebenslauf im Anhang liegt.
-Schließe mit Grußformel und dem Namen des Absenders.
+Erwähne genau einmal beiläufig vor der Grußformel, dass der Lebenslauf im Anhang liegt.
+Nutze Nähe nur natürlich: "in der Nähe", "direkt in der Nähe" oder "gut erreichbar". Nenne keine exakten Meterangaben, keine Zahlen zur Entfernung und keine genaue Wohnadresse des Bewerbers.
+Der body muss exakt diese Struktur haben:
+Anrede in einer eigenen Zeile.
+Leerzeile.
+Ein Hauptabsatz mit 4-6 kurzen, natürlichen Sätzen.
+Leerzeile.
+Mit freundlichen Grüßen
+<Absendername>
+Der body muss mit dem Absendernamen enden. Nach dem Absendernamen kommt kein weiterer Text, keine Anweisung, kein Kommentar, kein Platzhalter und kein Komma.
 Antworte ausschließlich als JSON: {"subject": "<Betreff>", "body": "<E-Mail-Text>"}.
-4-7 Sätze, mit Anrede, ohne Platzhalter in eckigen Klammern. Variiere Satzlänge und Satzbau.`;
+Keine Platzhalter in eckigen Klammern. Variiere Satzlänge und Satzbau.`;
+
+function draftProfileBlock(settings: Settings): string {
+	const block = profileBlock(settings);
+	if (!settings.homeAddress) return block;
+	return block
+		.split('\n')
+		.filter((line) => !line.startsWith('Wohnort: '))
+		.join('\n');
+}
+
+function proximityLabel(distanceMeters: number): string {
+	if (!Number.isFinite(distanceMeters)) return 'Nähe zum Wohnort: unbekannt';
+	if (distanceMeters <= 300) return 'Nähe zum Wohnort: direkt in der Nähe';
+	if (distanceMeters <= 1000) return 'Nähe zum Wohnort: in der Nähe';
+	if (distanceMeters <= 3000) return 'Nähe zum Wohnort: gut erreichbar';
+	return 'Nähe zum Wohnort: im Suchradius';
+}
 
 export function targetRoleLine(settings: Settings): string {
 	return settings.jobSearchKeywords.length
@@ -31,7 +56,7 @@ export function buildColdEmailPrompt(settings: Settings, lead: Lead): string {
 		? lead.matchedOsmTags.map((tag) => tag.label).join(', ')
 		: 'keine gespeicherten OSM-Kategorien';
 	return `BEWERBERPROFIL:
-${profileBlock(settings) || 'Bewerber sucht eine passende Stelle in Österreich.'}
+${draftProfileBlock(settings) || 'Bewerber sucht eine passende Stelle in Österreich.'}
 ${targetRoleLine(settings)}
 Absender (mit diesem Namen unterschreiben): ${settings.fullName || 'Name nicht angegeben'}
 
@@ -40,7 +65,7 @@ Name: ${lead.name}
 Art: ${lead.category ?? 'Betrieb'}
 Passende OSM-Kategorien: ${matchedTags}
 Adresse: ${lead.address ?? 'unbekannt'}
-Entfernung vom Wohnort: ${lead.distanceMeters} m
+${proximityLabel(lead.distanceMeters)}
 
 Schreibe eine passende Initiativbewerbung per E-Mail an diesen Betrieb. Der Lebenslauf liegt der E-Mail als Anhang bei.`;
 }
