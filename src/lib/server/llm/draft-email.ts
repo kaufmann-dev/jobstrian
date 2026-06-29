@@ -92,8 +92,7 @@ export async function draftColdEmail(
 		throw new Error('LLM lieferte keinen E-Mail-Text für den Entwurf.');
 	}
 	return {
-		subject:
-			(raw.subject ?? 'Initiativbewerbung').toString().trim().slice(0, 200) || 'Initiativbewerbung',
+		subject: (raw.subject ?? 'Initiativbewerbung').toString().trim().slice(0, 200) || 'Initiativbewerbung',
 		body
 	};
 }

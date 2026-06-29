@@ -135,9 +135,7 @@ Regeln:
 export async function createSearchConfigPreview(intent: string): Promise<SearchConfigPreview> {
 	const trimmedIntent = intent.trim();
 	if (!trimmedIntent) {
-		throw new SearchConfigAiError(
-			'Beschreibe kurz, welche Stellen und Betriebe gefunden werden sollen.'
-		);
+		throw new SearchConfigAiError('Beschreibe kurz, welche Stellen und Betriebe gefunden werden sollen.');
 	}
 	if (trimmedIntent.length > 3000) {
 		throw new SearchConfigAiError('Die Beschreibung ist zu lang.', 413);

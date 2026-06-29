@@ -67,6 +67,8 @@
 			if (ref === node) ref = null;
 		};
 	}
+
+	const resolvePath = resolve as unknown as (path: string) => string;
 </script>
 
 {#if href}
@@ -87,7 +89,7 @@
 			{@attach attachRef}
 			data-slot="button"
 			class={cn(buttonVariants({ variant, size }), className)}
-			href={resolve(href as '/')}
+			href={resolvePath(href)}
 			{...restProps}
 		>
 			{@render children?.()}

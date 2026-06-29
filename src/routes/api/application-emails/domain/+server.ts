@@ -1,8 +1,5 @@
 import { json } from '@sveltejs/kit';
-import {
-	applicationEmailDomainConfig,
-	syncResendDomain
-} from '$lib/server/application-email/config';
+import { applicationEmailDomainConfig, syncResendDomain } from '$lib/server/application-email/config';
 import type { RequestHandler } from './$types';
 
 export const POST: RequestHandler = async () => {
@@ -12,9 +9,7 @@ export const POST: RequestHandler = async () => {
 	} catch (err) {
 		console.error('[api/application-emails/domain] Synchronisierung fehlgeschlagen:', err);
 		return json(
-			{
-				message: err instanceof Error ? err.message : 'DNS-Einträge konnten nicht geladen werden.'
-			},
+			{ message: err instanceof Error ? err.message : 'DNS-Einträge konnten nicht geladen werden.' },
 			{ status: 400 }
 		);
 	}
