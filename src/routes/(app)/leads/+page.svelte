@@ -41,6 +41,12 @@
 	import type { Lead } from '$lib/server/db/schema';
 	import type { ApplicationEmailProgress, ApplicationEmailRun } from '$lib/server/db/schema';
 
+	const viennaDateTime = new Intl.DateTimeFormat('de-AT', {
+		timeZone: 'Europe/Vienna',
+		dateStyle: 'medium',
+		timeStyle: 'medium'
+	});
+
 	let { data } = $props();
 
 	const controller = new ServerListController<Lead>(
@@ -583,15 +589,12 @@
 						<span class="text-muted-foreground tabular-nums">{emailPercent}%</span>
 					</div>
 					<Progress value={emailPercent} />
-					<div
-						class="flex flex-col gap-1 text-sm text-muted-foreground sm:flex-row sm:justify-between"
-					>
-						<span>{emailProgress.detail}</span>
+					<div class="flex items-center gap-1 text-sm text-muted-foreground">
 						{#if emailProgress.nextSendAt}
-							<span class="flex items-center gap-1">
-								<Clock class="size-4" />
-								Nächste E-Mail: {new Date(emailProgress.nextSendAt).toLocaleString('de-AT')}
-							</span>
+							<Clock class="size-4 shrink-0" />
+							<span>Nächste E-Mail: {viennaDateTime.format(new Date(emailProgress.nextSendAt))}</span>
+						{:else if emailProgress.detail}
+							<span>{emailProgress.detail}</span>
 						{/if}
 					</div>
 					<p class="text-xs text-muted-foreground">
