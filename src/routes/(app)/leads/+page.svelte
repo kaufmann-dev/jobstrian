@@ -584,9 +584,8 @@
 			{#snippet actions()}
 				{#if emailRunActive && emailRun}
 					<Button
-						variant="outline"
-						size="sm"
-						class="shrink-0 border-destructive text-destructive hover:bg-destructive/10"
+						variant="destructive"
+						class="w-full sm:w-auto"
 						disabled={emailCanceling || emailRun.status === 'canceling'}
 						onclick={cancelApplicationEmailRun}
 					>
@@ -600,26 +599,33 @@
 				{/if}
 			{/snippet}
 
+			{#snippet metrics()}
+				{#if emailRun}
+					<div class="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+						<span class="tabular-nums">
+							{emailRun.counts.sent} gesendet · {emailRun.counts.failed} fehlgeschlagen ·
+							{emailRun.counts.queued} offen
+						</span>
+						{#if emailProgress.nextSendAt}
+							<span class="flex min-w-0 items-center gap-1">
+								<Clock class="size-4 shrink-0" />
+								<span class="truncate">
+									Nächste E-Mail: {viennaDateTime.format(new Date(emailProgress.nextSendAt))}
+								</span>
+							</span>
+						{/if}
+					</div>
+				{/if}
+			{/snippet}
+
 			{#snippet details()}
 				{#if emailRun}
 					<div class="space-y-2 border-t pt-3 text-sm text-muted-foreground">
-						<div class="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
-							<span>{emailProgress.headline}</span>
-							{#if emailProgress.nextSendAt}
-								<span class="flex items-center gap-1">
-									<Clock class="size-4 shrink-0" />
-									Nächste E-Mail: {viennaDateTime.format(new Date(emailProgress.nextSendAt))}
-								</span>
-							{/if}
-						</div>
+						<p>{emailProgress.headline}</p>
 						{#if !emailProgress.nextSendAt && emailProgress.detail}
 							<p>{emailProgress.detail}</p>
 						{/if}
 					</div>
-					<p class="text-xs text-muted-foreground">
-						{emailRun.counts.sent} gesendet · {emailRun.counts.failed} fehlgeschlagen ·
-						{emailRun.counts.queued} offen
-					</p>
 				{/if}
 			{/snippet}
 		</RunStatusCard>

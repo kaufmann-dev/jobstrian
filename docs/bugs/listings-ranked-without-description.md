@@ -17,8 +17,8 @@ content hash (`fingerprints.ts:listingContentHash`) includes it, and
 company, location, salary); the runner did no detail enrichment.
 
 With `description` always empty, the listing-ranking prompt had no requirement
-text. Combined with the prompt rule *"Wenn die Stellenbeschreibung keine
-Anforderung nennt, nimm an, dass sie erfüllbar ist (nicht bestrafen)"*, the LLM
+text. Combined with the prompt rule _"Wenn die Stellenbeschreibung keine
+Anforderung nennt, nimm an, dass sie erfüllbar ist (nicht bestrafen)"_, the LLM
 assumed German (and other requirements) were met for essentially every job and
 handed out high sub-scores.
 
