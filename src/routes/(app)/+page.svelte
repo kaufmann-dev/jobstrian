@@ -1,30 +1,25 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { slide } from 'svelte/transition';
 	import { invalidateAll } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import { toast } from 'svelte-sonner';
 	import * as Card from '$lib/components/ui/card/index.js';
 	import { Button } from '$lib/components/ui/button/index.js';
 	import { Badge } from '$lib/components/ui/badge/index.js';
-	import { Progress } from '$lib/components/ui/progress/index.js';
 	import { Spinner } from '$lib/components/ui/spinner/index.js';
 	import * as Alert from '$lib/components/ui/alert/index.js';
 	import PageHeader from '$lib/components/page-header.svelte';
+	import RunStatusCard, { type RunStatusCardPhase } from '$lib/components/run-status-card.svelte';
 	import RefreshCw from '@lucide/svelte/icons/refresh-cw';
 	import X from '@lucide/svelte/icons/x';
 	import TriangleAlert from '@lucide/svelte/icons/triangle-alert';
-	import ChevronDown from '@lucide/svelte/icons/chevron-down';
-	import ChevronUp from '@lucide/svelte/icons/chevron-up';
-	import Check from '@lucide/svelte/icons/check';
-	import CircleX from '@lucide/svelte/icons/circle-x';
 	import Briefcase from '@lucide/svelte/icons/briefcase';
 	import Sparkles from '@lucide/svelte/icons/sparkles';
 	import Archive from '@lucide/svelte/icons/archive';
 	import MapPin from '@lucide/svelte/icons/map-pin';
 	import Mail from '@lucide/svelte/icons/mail';
 	import DoorOpen from '@lucide/svelte/icons/door-open';
-	import type { RunPhaseId, RunPhaseProgress, RunProgress, ScrapeRun } from '$lib/server/db/schema';
+	import type { RunPhaseId, RunProgress, ScrapeRun } from '$lib/server/db/schema';
 
 	let { data } = $props();
 
@@ -32,7 +27,6 @@
 	let polledRun = $state.raw<ScrapeRun | null>(null);
 	let starting = $state(false);
 	let canceling = $state(false);
-	let progressExpanded = $state(false);
 	let polling = false;
 	let stopped = false;
 
@@ -91,7 +85,7 @@
 		| { started: false; reason: string; message?: string };
 
 	type RunStatusResponse = { run: ScrapeRun | null };
-	type PhaseRow = RunPhaseProgress & { id: RunPhaseId; label: string };
+	type PhaseRow = RunStatusCardPhase & { id: RunPhaseId };
 
 	const phaseLabels: Record<RunPhaseId, string> = {
 		setup: 'Vorbereitung',
@@ -195,21 +189,6 @@
 		if (status === 'error') return 'destructive';
 		if (status === 'canceled') return 'outline';
 		return 'secondary';
-	}
-
-	function phaseStateLabel(state: RunPhaseProgress['state']): string {
-		if (state === 'running') return 'läuft';
-		if (state === 'done') return 'fertig';
-		if (state === 'warning') return 'mit Warnung fertig';
-		if (state === 'skipped') return 'übersprungen';
-		if (state === 'error') return 'Fehler';
-		if (state === 'canceled') return 'abgebrochen';
-		return 'wartet';
-	}
-
-	function phasePercent(phase: RunPhaseProgress): number {
-		if (phase.total <= 0) return phase.state === 'done' || phase.state === 'skipped' ? 100 : 0;
-		return Math.round((Math.min(phase.current, phase.total) / phase.total) * 100);
 	}
 
 	function toDate(value: Date | string | null | undefined): Date | null {
@@ -371,139 +350,51 @@
 	{/if}
 
 	{#if run}
-		<Card.Root>
-			<Card.Header class="gap-3 py-4">
-				<div class="flex min-w-0 items-start justify-between gap-2">
-					<div class="flex min-w-0 items-center gap-2">
-						{#if isActive}<Spinner class="size-4 shrink-0 text-primary" />{/if}
-						<Card.Title class="min-w-0 text-base leading-snug sm:truncate">
-							{progress.headline}
-						</Card.Title>
-					</div>
-					<Button
-						variant="ghost"
-						size="icon-sm"
-						class="shrink-0"
-						aria-label={progressExpanded ? 'Details einklappen' : 'Details ausklappen'}
-						aria-expanded={progressExpanded}
-						onclick={() => (progressExpanded = !progressExpanded)}
-					>
-						{#if progressExpanded}<ChevronUp class="size-4" />{:else}<ChevronDown
-								class="size-4"
-							/>{/if}
-					</Button>
-				</div>
-				<div class="flex items-center justify-between gap-2">
-					<div class="flex min-w-0 items-center gap-2">
-						<Badge class="shrink-0" variant={statusVariant(run.status)}
-							>{statusLabel(run.status)}</Badge
-						>
-						<span class="text-xs whitespace-nowrap text-muted-foreground">{elapsedLabel(run)}</span>
-					</div>
-					{#if isActive}
-						<Button
-							variant="outline"
-							size="sm"
-							class="shrink-0 border-destructive text-destructive hover:bg-destructive/10"
-							onclick={cancelRun}
-							disabled={canceling || run.status === 'canceling'}
-						>
-							{#if canceling || run.status === 'canceling'}
-								<Spinner class="size-4" />
-							{:else}
-								<X class="size-4" />
-							{/if}
-							Abbrechen
-						</Button>
-					{/if}
-				</div>
+		<RunStatusCard
+			title={progress.headline}
+			statusLabel={statusLabel(run.status)}
+			statusVariant={statusVariant(run.status)}
+			meta={elapsedLabel(run)}
+			active={isActive}
+			phases={phaseRows}
+			summary={isActive
+				? `${currentPhase?.label ?? 'Aktualisierung'} · ${currentPhase?.detail || progress.detail || 'Bereit'}`
+				: totalFailed > 0
+					? `${totalFailed} ${totalFailed === 1 ? 'Bewertung' : 'Bewertungen'} fehlgeschlagen.`
+					: undefined}
+		>
+			{#snippet actions()}
 				{#if isActive}
-					<Card.Description>
-						{currentPhase?.label ?? 'Aktualisierung'} · {currentPhase?.detail ||
-							progress.detail ||
-							'Bereit'}
-					</Card.Description>
-				{:else if totalFailed > 0}
-					<Card.Description class="text-amber-600 dark:text-amber-400">
-						{totalFailed}
-						{totalFailed === 1 ? 'Bewertung' : 'Bewertungen'} fehlgeschlagen.
-					</Card.Description>
-				{/if}
-			</Card.Header>
-			{#if progressExpanded}
-				<div transition:slide>
-					<Card.Content class="space-y-4">
-						<ul class="divide-y">
-							{#each phaseRows as phase (phase.id)}
-								<li class="space-y-1.5 py-2 text-sm first:pt-0 last:pb-0">
-									<div class="flex items-center justify-between gap-3">
-										<div class="flex min-w-0 items-center gap-2.5">
-											{#if phase.state === 'running'}
-												<Spinner class="size-4 shrink-0 text-primary" />
-											{:else if phase.state === 'done'}
-												<Check class="size-4 shrink-0 text-emerald-600 dark:text-emerald-400" />
-											{:else if phase.state === 'warning'}
-												<TriangleAlert class="size-4 shrink-0 text-amber-600 dark:text-amber-400" />
-											{:else if phase.state === 'error'}
-												<CircleX class="size-4 shrink-0 text-destructive" />
-											{:else}
-												<span class="mx-1 size-2 shrink-0 rounded-full bg-muted-foreground/30"
-												></span>
-											{/if}
-											<span
-												class={[
-													'truncate',
-													phase.state === 'pending' || phase.state === 'skipped'
-														? 'text-muted-foreground'
-														: 'font-medium'
-												]}
-											>
-												{phase.label}
-											</span>
-											<span class="sr-only">{phaseStateLabel(phase.state)}</span>
-										</div>
-										<span
-											class="shrink-0 text-xs whitespace-nowrap text-muted-foreground tabular-nums"
-										>
-											{phase.current} / {phase.total}
-										</span>
-									</div>
-									{#if phase.failed > 0 || phase.skipped > 0}
-										<p class="pl-[26px] text-xs text-muted-foreground">
-											{#if phase.failed > 0}<span class="text-amber-600 dark:text-amber-400"
-													>{phase.failed} fehlgeschlagen</span
-												>{/if}{#if phase.failed > 0 && phase.skipped > 0}
-												·
-											{/if}{#if phase.skipped > 0}{phase.skipped}
-												übersprungen{/if}
-										</p>
-									{/if}
-									{#if phase.state === 'running'}
-										{#if phase.total > 1}
-											<Progress value={phasePercent(phase)} class="h-1" />
-										{/if}
-										{#if phase.detail}
-											<p class="text-xs break-words text-muted-foreground">{phase.detail}</p>
-										{/if}
-									{/if}
-								</li>
-							{/each}
-						</ul>
-
-						<p class="border-t pt-3 text-sm text-muted-foreground">
-							{run.counts.added} neue Stellen · {run.counts.closed} nicht mehr verfügbar · {run
-								.counts.ranked} bewertet · {run.counts.leads} Betriebe gefunden
-							{#if isActive}
-								· KI: {progress.llm.inFlight} aktiv, {progress.llm.queued} warten
-							{/if}
-						</p>
-						{#if run.error}
-							<p class="text-sm text-destructive">{run.error}</p>
+					<Button
+						variant="outline"
+						size="sm"
+						class="shrink-0 border-destructive text-destructive hover:bg-destructive/10"
+						onclick={cancelRun}
+						disabled={canceling || run.status === 'canceling'}
+					>
+						{#if canceling || run.status === 'canceling'}
+							<Spinner class="size-4" />
+						{:else}
+							<X class="size-4" />
 						{/if}
-					</Card.Content>
-				</div>
-			{/if}
-		</Card.Root>
+						Abbrechen
+					</Button>
+				{/if}
+			{/snippet}
+
+			{#snippet footer()}
+				<p class="border-t pt-3 text-sm text-muted-foreground">
+					{run.counts.added} neue Stellen · {run.counts.closed} nicht mehr verfügbar · {run.counts
+						.ranked} bewertet · {run.counts.leads} Betriebe gefunden
+					{#if isActive}
+						· KI: {progress.llm.inFlight} aktiv, {progress.llm.queued} warten
+					{/if}
+				</p>
+				{#if run.error}
+					<p class="text-sm text-destructive">{run.error}</p>
+				{/if}
+			{/snippet}
+		</RunStatusCard>
 	{/if}
 
 	<div class="grid gap-6 lg:grid-cols-2">
