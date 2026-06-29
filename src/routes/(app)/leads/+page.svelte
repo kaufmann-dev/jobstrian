@@ -558,7 +558,7 @@
 						? 'Keine neuen Betriebe mit E-Mail und Entwurf offen.'
 						: undefined}
 			>
-				{#if emailStarting}<Spinner />{:else}<Send />{/if}
+				{#if emailRunActive}<Spinner class="size-4" />{:else}<Send class="size-4" />{/if}
 				Bewerbungen senden
 			</Button>
 		{/snippet}
