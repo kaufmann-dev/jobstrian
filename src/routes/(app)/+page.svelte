@@ -187,7 +187,6 @@
 		status: ScrapeRun['status'] | undefined
 	): 'default' | 'secondary' | 'destructive' | 'outline' {
 		if (status === 'error') return 'destructive';
-		if (status === 'canceled') return 'outline';
 		return 'secondary';
 	}
 
