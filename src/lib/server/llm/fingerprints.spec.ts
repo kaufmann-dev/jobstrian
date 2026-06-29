@@ -68,6 +68,7 @@ function settings(patch: Partial<Settings> = {}): Settings {
 		resendReplyTo: '',
 		resendWebhookSecret: '',
 		applicationEmailEnabled: false,
+		applicationEmailDailyLimit: 90,
 		updatedAt: new Date('2026-01-01T00:00:00Z'),
 		...patch
 	};

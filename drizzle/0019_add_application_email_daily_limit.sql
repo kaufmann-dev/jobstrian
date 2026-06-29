@@ -1,0 +1,1 @@
+ALTER TABLE "settings" ADD COLUMN "application_email_daily_limit" integer DEFAULT 90 NOT NULL;

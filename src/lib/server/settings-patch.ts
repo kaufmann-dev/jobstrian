@@ -32,7 +32,8 @@ const PATCHABLE_FIELDS = [
 	'llmBaseUrl',
 	'llmModel',
 	'llmRequestsPerMinute',
-	'llmMaxConcurrent'
+	'llmMaxConcurrent',
+	'applicationEmailDailyLimit'
 ] as const;
 type PatchableField = (typeof PATCHABLE_FIELDS)[number];
 const patchableFieldSet = new Set<string>(PATCHABLE_FIELDS);

@@ -835,6 +835,25 @@
 			</div>
 		</Card.Header>
 		<Card.Content class="space-y-5">
+			<Form.Field {form} name="applicationEmailDailyLimit">
+				<Form.Control>
+					{#snippet children({ props })}
+						<Form.Label>Tägliches Sendelimit</Form.Label>
+						<Input
+							{...props}
+							type="number"
+							min="1"
+							max="1000"
+							class="sm:max-w-xs"
+							bind:value={$formData.applicationEmailDailyLimit}
+						/>
+					{/snippet}
+				</Form.Control>
+				<Form.Description>
+					Maximale Anzahl automatischer Bewerbungs-E-Mails pro Tag.
+				</Form.Description>
+				<Form.FieldErrors />
+			</Form.Field>
 			<div class="grid gap-4 sm:grid-cols-2">
 				<Form.Field {form} name="resendDomain">
 					<Form.Control>

@@ -658,7 +658,7 @@
 			<Dialog.Title>Bewerbungen automatisch senden?</Dialog.Title>
 			<Dialog.Description>
 				{data.applicationEmail.eligibleCount} neue Betriebe werden eingeplant. Der Versand läuft nur Montag
-				bis Freitag von 09:00 bis 18:00 Uhr, mit 2 bis 4 Minuten Abstand und Pausen nach 20 E-Mails.
+				bis Freitag von 09:00 bis 18:00 Uhr, mit 30 bis 90 Sekunden Abstand und einem täglichen Sendelimit.
 			</Dialog.Description>
 		</Dialog.Header>
 		<div class="rounded-lg border p-3 text-sm text-muted-foreground">

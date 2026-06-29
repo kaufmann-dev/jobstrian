@@ -49,7 +49,8 @@ function settingsFormData(s: Settings) {
 		resendFromLocalPart: s.resendFromLocalPart,
 		resendFromName: s.resendFromName || s.fullName,
 		resendReplyTo: s.resendReplyTo || s.email,
-		resendWebhookSecret: ''
+		resendWebhookSecret: '',
+		applicationEmailDailyLimit: s.applicationEmailDailyLimit
 	};
 }
 
