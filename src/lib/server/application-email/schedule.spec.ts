@@ -17,24 +17,38 @@ describe('application e-mail schedule', () => {
 		expect(isApplicationEmailSendWindow(next)).toBe(true);
 	});
 
-	it('paces regular sends by two to four minutes', () => {
+	it('paces regular sends by 30 to 90 seconds', () => {
 		const dates = scheduleApplicationEmails(3, {
 			from: new Date('2026-06-29T07:00:00.000Z'),
 			random: () => 0.5
 		});
 		expect(dates.map((date) => date.toISOString())).toEqual([
 			'2026-06-29T07:00:00.000Z',
-			'2026-06-29T07:03:00.000Z',
-			'2026-06-29T07:06:00.000Z'
+			'2026-06-29T07:01:00.000Z',
+			'2026-06-29T07:02:00.000Z'
 		]);
 	});
 
-	it('adds a larger pause after twenty sends', () => {
-		const dates = scheduleApplicationEmails(21, {
+	it('rolls remaining sends to the next business day once the daily limit is reached', () => {
+		const dates = scheduleApplicationEmails(3, {
 			from: new Date('2026-06-29T07:00:00.000Z'),
-			random: () => 0
+			random: () => 0,
+			dailyLimit: 2
 		});
-		expect(dates[19].toISOString()).toBe('2026-06-29T07:38:00.000Z');
-		expect(dates[20].toISOString()).toBe('2026-06-29T07:50:00.000Z');
+		expect(dates.map((date) => date.toISOString())).toEqual([
+			'2026-06-29T07:00:00.000Z',
+			'2026-06-29T07:00:30.000Z',
+			'2026-06-30T07:00:00.000Z'
+		]);
+	});
+
+	it('counts emails already sent today against the first day budget', () => {
+		const dates = scheduleApplicationEmails(1, {
+			from: new Date('2026-06-29T07:00:00.000Z'),
+			random: () => 0,
+			dailyLimit: 2,
+			alreadySentToday: 2
+		});
+		expect(dates[0].toISOString()).toBe('2026-06-30T07:00:00.000Z');
 	});
 });

@@ -165,6 +165,12 @@ const fake = vi.hoisted(() => {
 						},
 						limit(count: number) {
 							return Promise.resolve(cloneRows(name).slice(0, count));
+						},
+						// Terminal `await …where()` is only used by the count queries
+						// (e.g. sentTodayCount); resolve it to the number of sent rows.
+						then(resolve: (rows: Array<{ value: number }>) => unknown) {
+							const value = state.emails.filter((row) => row.status === 'sent').length;
+							return Promise.resolve([{ value }]).then(resolve);
 						}
 					};
 					return builder;
@@ -272,6 +278,7 @@ function defaultSettings(patch: Partial<Settings> = {}): Settings {
 		resendFromName: 'Applicant',
 		resendReplyTo: 'reply@example.com',
 		applicationEmailEnabled: true,
+		applicationEmailDailyLimit: 90,
 		fullName: 'Applicant',
 		email: 'reply@example.com',
 		...patch
@@ -404,9 +411,9 @@ describe('interrupted application e-mail recovery', () => {
 			expect(time.getTime()).toBeGreaterThanOrEqual(from.getTime());
 			expect(isApplicationEmailSendWindow(time)).toBe(true);
 		}
-		// No back-to-back burst: consecutive sends are at least two minutes apart.
+		// No back-to-back burst: consecutive sends are at least thirty seconds apart.
 		for (let i = 1; i < times.length; i++) {
-			expect(times[i].getTime() - times[i - 1].getTime()).toBeGreaterThanOrEqual(2 * 60_000);
+			expect(times[i].getTime() - times[i - 1].getTime()).toBeGreaterThanOrEqual(30_000);
 		}
 	});
 
