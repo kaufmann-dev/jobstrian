@@ -497,7 +497,7 @@ async function runApplicationEmailWorker(
 					state: 'running',
 					current: counts.sent + counts.failed + counts.skipped,
 					total,
-					detail: `${next.leadName}: geplant ${next.scheduledAt.toLocaleString('de-AT')}`,
+					detail: '',
 					failed: counts.failed,
 					skipped: counts.skipped
 				},
