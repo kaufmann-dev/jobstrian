@@ -1,6 +1,6 @@
 import Renderer, { toPlainText } from 'better-svelte-email/render';
 import { Resend } from 'resend';
-import { and, asc, count, desc, eq, inArray, isNotNull, notExists, or, sql } from 'drizzle-orm';
+import { and, asc, count, desc, eq, gte, inArray, isNotNull, lt, notExists, or, sql } from 'drizzle-orm';
 import { db } from '../db';
 import {
 	applicationEmail,
@@ -22,7 +22,11 @@ import {
 	applicationEmailReadiness,
 	applicationEmailReplyTo
 } from './config';
-import { nextApplicationEmailWindowStart, scheduleApplicationEmails } from './schedule';
+import {
+	nextApplicationEmailWindowStart,
+	scheduleApplicationEmails,
+	viennaDayBounds
+} from './schedule';
 import ApplicationEmailTemplate from './application-email-template.svelte';
 
 const PROGRESS_FLUSH_INTERVAL_MS = 1000;
@@ -273,9 +277,29 @@ async function cancelPendingRows(runId: number, counts: Counts): Promise<void> {
 	counts.queued = Math.max(0, counts.queued - pending.length);
 }
 
-async function queueRun(runId: number, rows: Lead[]): Promise<number> {
-	const scheduled = scheduleApplicationEmails(rows.length);
+async function sentTodayCount(from: Date): Promise<number> {
+	const { start, end } = viennaDayBounds(from);
+	const [row] = await db
+		.select({ value: count() })
+		.from(applicationEmail)
+		.where(
+			and(
+				eq(applicationEmail.status, 'sent'),
+				gte(applicationEmail.sentAt, start),
+				lt(applicationEmail.sentAt, end)
+			)
+		);
+	return row?.value ?? 0;
+}
+
+async function queueRun(runId: number, rows: Lead[], dailyLimit: number): Promise<number> {
 	if (!rows.length) return 0;
+	const from = new Date();
+	const scheduled = scheduleApplicationEmails(rows.length, {
+		from,
+		dailyLimit,
+		alreadySentToday: await sentTodayCount(from)
+	});
 	await db
 		.insert(applicationEmail)
 		.values(
@@ -300,12 +324,13 @@ async function queueRun(runId: number, rows: Lead[]): Promise<number> {
 
 export function repaceScheduledAt<T extends { id: number; scheduledAt: Date }>(
 	rows: T[],
-	from = new Date()
+	from = new Date(),
+	options: { dailyLimit?: number; alreadySentToday?: number } = {}
 ): Map<number, Date> {
 	const ordered = [...rows].sort(
 		(a, b) => a.scheduledAt.getTime() - b.scheduledAt.getTime() || a.id - b.id
 	);
-	const scheduled = scheduleApplicationEmails(ordered.length, { from });
+	const scheduled = scheduleApplicationEmails(ordered.length, { from, ...options });
 	return new Map(ordered.map((row, index) => [row.id, scheduled[index]]));
 }
 
@@ -316,7 +341,13 @@ async function repaceQueuedRows(runId: number): Promise<void> {
 		.where(and(eq(applicationEmail.runId, runId), eq(applicationEmail.status, 'queued')))
 		.orderBy(asc(applicationEmail.scheduledAt), asc(applicationEmail.id));
 	if (!rows.length) return;
-	for (const [id, scheduledAt] of repaceScheduledAt(rows)) {
+	const settings = await getSettings();
+	const from = new Date();
+	const repaced = repaceScheduledAt(rows, from, {
+		dailyLimit: settings.applicationEmailDailyLimit,
+		alreadySentToday: await sentTodayCount(from)
+	});
+	for (const [id, scheduledAt] of repaced) {
 		await db.update(applicationEmail).set({ scheduledAt }).where(eq(applicationEmail.id, id));
 	}
 }
@@ -598,7 +629,7 @@ export async function startApplicationEmailRun(): Promise<number | null> {
 			.values({ status: 'running', phase: 'Bewerbungsversand startet', progress: createProgress() })
 			.returning();
 		const rows = await eligibleLeads();
-		const queued = await queueRun(run.id, rows);
+		const queued = await queueRun(run.id, rows, settings.applicationEmailDailyLimit);
 		const counts: Counts = { queued, sent: 0, failed: 0, skipped: rows.length - queued };
 		const progress = createProgress(
 			queued > 0 ? 'Bewerbungen werden vorbereitet' : 'Keine E-Mails offen'
