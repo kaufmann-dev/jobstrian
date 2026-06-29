@@ -79,6 +79,7 @@
 	);
 	const emailProgress = $derived(normalizeEmailProgress(emailRun));
 	const emailPhaseRows = $derived(toEmailPhaseRows(emailProgress));
+	const activeEmailPhase = $derived(emailPhaseRows.find((p) => p.state === 'running'));
 	const canStartEmailRun = $derived(
 		data.applicationEmail.ready &&
 			data.applicationEmail.eligibleCount > 0 &&
@@ -311,7 +312,6 @@
 		status: ApplicationEmailRun['status'] | undefined
 	): 'default' | 'secondary' | 'destructive' | 'outline' {
 		if (status === 'error') return 'destructive';
-		if (status === 'canceled') return 'outline';
 		return 'secondary';
 	}
 
@@ -578,7 +578,9 @@
 			statusVariant={emailStatusVariant(emailRun?.status)}
 			active={emailRunActive}
 			phases={emailPhaseRows}
-			summary={`${data.applicationEmail.eligibleCount} neue Betriebe mit E-Mail und Entwurf sind offen.`}
+			summary={emailRunActive
+				? `${activeEmailPhase?.label ?? 'Bewerbungsversand'} · ${activeEmailPhase?.detail || emailProgress.detail || 'Bereit'}`
+				: undefined}
 		>
 			{#snippet actions()}
 				{#if emailRunActive && emailRun}
