@@ -15,7 +15,9 @@ export async function politeFetch(url: string, opts: FetchOpts = {}): Promise<Re
 		opts.timeoutMs ?? 15_000
 	);
 	const abortFromParent = () => {
-		ctrl.abort(opts.signal?.reason ?? new DOMException('Der Vorgang wurde abgebrochen.', 'AbortError'));
+		ctrl.abort(
+			opts.signal?.reason ?? new DOMException('Der Vorgang wurde abgebrochen.', 'AbortError')
+		);
 	};
 	if (opts.signal) {
 		if (opts.signal.aborted) {

@@ -40,9 +40,9 @@ export const POST: RequestHandler = async ({ request }) => {
 		event = (await new Resend(settings.resendApiKey).webhooks.verify({
 			payload,
 			headers: {
-				'id': request.headers.get('svix-id') ?? '',
-				'timestamp': request.headers.get('svix-timestamp') ?? '',
-				'signature': request.headers.get('svix-signature') ?? ''
+				id: request.headers.get('svix-id') ?? '',
+				timestamp: request.headers.get('svix-timestamp') ?? '',
+				signature: request.headers.get('svix-signature') ?? ''
 			},
 			webhookSecret: settings.resendWebhookSecret
 		})) as ResendWebhookPayload;

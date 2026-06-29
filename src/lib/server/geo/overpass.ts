@@ -78,7 +78,9 @@ function combineWithTimeout(
 	const ctrl = new AbortController();
 	let callerAbort: (() => void) | undefined;
 	const timeout = setTimeout(() => {
-		ctrl.abort(new DOMException('Overpass-Anfrage hat das Zeitlimit überschritten.', 'TimeoutError'));
+		ctrl.abort(
+			new DOMException('Overpass-Anfrage hat das Zeitlimit überschritten.', 'TimeoutError')
+		);
 	}, timeoutMs);
 
 	if (signal) {

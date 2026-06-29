@@ -68,9 +68,7 @@ export async function createRankingCriteriaPreview(
 ): Promise<RankingCriteriaAiPreview> {
 	const trimmedIntent = intent.trim();
 	if (!trimmedIntent) {
-		throw new RankingCriteriaAiError(
-			'Beschreibe kurz, wonach Treffer bewertet werden sollen.'
-		);
+		throw new RankingCriteriaAiError('Beschreibe kurz, wonach Treffer bewertet werden sollen.');
 	}
 	if (trimmedIntent.length > 3000) {
 		throw new RankingCriteriaAiError('Die Beschreibung ist zu lang.', 413);

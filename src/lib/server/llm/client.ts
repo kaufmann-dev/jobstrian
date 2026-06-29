@@ -74,7 +74,10 @@ function attemptSignal(
 } {
 	const timeout = new AbortController();
 	const timer = setTimeout(
-		() => timeout.abort(new DOMException('LLM-Anfrage hat das Zeitlimit überschritten.', 'TimeoutError')),
+		() =>
+			timeout.abort(
+				new DOMException('LLM-Anfrage hat das Zeitlimit überschritten.', 'TimeoutError')
+			),
 		timeoutMs
 	);
 	return {

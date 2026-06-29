@@ -33,6 +33,7 @@
 		open?: boolean;
 		phases?: RunStatusCardPhase[];
 		actions?: Snippet;
+		metrics?: Snippet;
 		details?: Snippet;
 		footer?: Snippet;
 	};
@@ -63,11 +64,13 @@
 		open = $bindable(defaultExpanded),
 		phases = [],
 		actions,
+		metrics,
 		details,
 		footer
 	}: Props = $props();
 
 	const hasExpandableContent = $derived(phases.length > 0 || Boolean(details) || Boolean(footer));
+	const compactProgressPhase = $derived(phases.find((phase) => phase.state === 'running'));
 
 	function phaseStateLabel(state: RunStatusCardPhaseState): string {
 		if (state === 'running') return 'läuft';
@@ -86,34 +89,70 @@
 </script>
 
 <Collapsible.Root bind:open>
-	<Card.Root>
-		<Card.Header class="gap-3 py-4">
-			<div class="flex min-w-0 items-start justify-between gap-2">
-				<div class="flex min-w-0 items-center gap-2">
+	<Card.Root class="gap-0 overflow-visible rounded-2xl py-0">
+		<Card.Header class="gap-4 px-4 py-4 sm:px-5">
+			<div class="min-w-0 space-y-3">
+				<Card.Title class="truncate text-base leading-tight font-semibold">{title}</Card.Title>
+				<div class="flex min-w-0 flex-wrap items-center gap-2">
 					{#if active}<Spinner class="size-4 shrink-0 text-primary" />{/if}
-					<Card.Title class="min-w-0 text-base leading-snug sm:truncate">{title}</Card.Title>
-				</div>
-				{#if hasExpandableContent}
-					<Collapsible.Trigger
-						class={buttonVariants({ variant: 'ghost', size: 'icon-sm', class: 'shrink-0' })}
-						aria-label={open ? 'Details einklappen' : 'Details ausklappen'}
-						aria-expanded={open}
-					>
-						{#if open}<ChevronUp class="size-4" />{:else}<ChevronDown class="size-4" />{/if}
-					</Collapsible.Trigger>
-				{/if}
-			</div>
-			<div class="flex items-center justify-between gap-2">
-				<div class="flex min-w-0 items-center gap-2">
 					<Badge class="shrink-0" variant={statusVariant}>{statusLabel}</Badge>
 					{#if meta}
 						<span class="text-xs whitespace-nowrap text-muted-foreground">{meta}</span>
 					{/if}
 				</div>
-				{@render actions?.()}
+				{#if summary}
+					<Card.Description class="line-clamp-2 text-sm leading-snug">{summary}</Card.Description>
+				{/if}
 			</div>
-			{#if summary}
-				<Card.Description>{summary}</Card.Description>
+
+			{#if compactProgressPhase && compactProgressPhase.total > 1}
+				<div class="space-y-1.5">
+					<Progress
+						value={phasePercent(compactProgressPhase)}
+						class="h-1.5"
+						aria-label={`${compactProgressPhase.label}: ${phasePercent(compactProgressPhase)} Prozent`}
+					/>
+					<div
+						class="flex min-w-0 items-center justify-between gap-3 text-xs text-muted-foreground"
+					>
+						<span class="truncate">{compactProgressPhase.label}</span>
+						<span class="shrink-0 tabular-nums">
+							{compactProgressPhase.current} / {compactProgressPhase.total}
+						</span>
+					</div>
+				</div>
+			{/if}
+
+			{#if metrics}
+				<div class="rounded-xl bg-muted/45 px-3 py-2 text-sm text-muted-foreground">
+					{@render metrics()}
+				</div>
+			{/if}
+
+			{#if actions || hasExpandableContent}
+				<div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+					<div class="flex flex-col gap-2 sm:flex-row sm:items-center">
+						{@render actions?.()}
+					</div>
+					{#if hasExpandableContent}
+						<Collapsible.Trigger
+							class={buttonVariants({
+								variant: 'ghost',
+								size: 'default',
+								class: 'w-full justify-center sm:w-auto sm:shrink-0'
+							})}
+							aria-expanded={open}
+						>
+							{#if open}
+								<ChevronUp class="size-4" />
+								Details ausblenden
+							{:else}
+								<ChevronDown class="size-4" />
+								Details anzeigen
+							{/if}
+						</Collapsible.Trigger>
+					{/if}
+				</div>
 			{/if}
 		</Card.Header>
 		{#if hasExpandableContent}

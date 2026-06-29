@@ -5,7 +5,6 @@
 	import { toast } from 'svelte-sonner';
 	import * as Card from '$lib/components/ui/card/index.js';
 	import { Button } from '$lib/components/ui/button/index.js';
-	import { Badge } from '$lib/components/ui/badge/index.js';
 	import { Spinner } from '$lib/components/ui/spinner/index.js';
 	import * as Alert from '$lib/components/ui/alert/index.js';
 	import PageHeader from '$lib/components/page-header.svelte';
@@ -365,9 +364,8 @@
 			{#snippet actions()}
 				{#if isActive}
 					<Button
-						variant="outline"
-						size="sm"
-						class="shrink-0 border-destructive text-destructive hover:bg-destructive/10"
+						variant="destructive"
+						class="w-full sm:w-auto"
 						onclick={cancelRun}
 						disabled={canceling || run.status === 'canceling'}
 					>
@@ -381,14 +379,17 @@
 				{/if}
 			{/snippet}
 
-			{#snippet footer()}
-				<p class="border-t pt-3 text-sm text-muted-foreground">
+			{#snippet metrics()}
+				<p class="tabular-nums">
 					{run.counts.added} neue Stellen · {run.counts.closed} nicht mehr verfügbar · {run.counts
 						.ranked} bewertet · {run.counts.leads} Betriebe gefunden
 					{#if isActive}
 						· KI: {progress.llm.inFlight} aktiv, {progress.llm.queued} warten
 					{/if}
 				</p>
+			{/snippet}
+
+			{#snippet footer()}
 				{#if run.error}
 					<p class="text-sm text-destructive">{run.error}</p>
 				{/if}
