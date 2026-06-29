@@ -36,7 +36,6 @@
 	import X from '@lucide/svelte/icons/x';
 	import Send from '@lucide/svelte/icons/send';
 	import Clock from '@lucide/svelte/icons/clock';
-	import CircleX from '@lucide/svelte/icons/circle-x';
 	import TriangleAlert from '@lucide/svelte/icons/triangle-alert';
 	import type { Lead } from '$lib/server/db/schema';
 	import type {
@@ -586,11 +585,16 @@
 				{#if emailRunActive && emailRun}
 					<Button
 						variant="outline"
-						class="w-full sm:w-auto"
+						size="sm"
+						class="shrink-0 border-destructive text-destructive hover:bg-destructive/10"
 						disabled={emailCanceling || emailRun.status === 'canceling'}
 						onclick={cancelApplicationEmailRun}
 					>
-						{#if emailCanceling}<Spinner />{:else}<CircleX />{/if}
+						{#if emailCanceling || emailRun.status === 'canceling'}
+							<Spinner class="size-4" />
+						{:else}
+							<X class="size-4" />
+						{/if}
 						Abbrechen
 					</Button>
 				{/if}
