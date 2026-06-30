@@ -43,12 +43,10 @@
 	import * as Card from '$lib/components/ui/card/index.js';
 	import * as Collapsible from '$lib/components/ui/collapsible/index.js';
 	import { Badge } from '$lib/components/ui/badge/index.js';
-	import { buttonVariants } from '$lib/components/ui/button/index.js';
 	import { Progress } from '$lib/components/ui/progress/index.js';
 	import { Spinner } from '$lib/components/ui/spinner/index.js';
 	import Check from '@lucide/svelte/icons/check';
 	import ChevronDown from '@lucide/svelte/icons/chevron-down';
-	import ChevronUp from '@lucide/svelte/icons/chevron-up';
 	import CircleX from '@lucide/svelte/icons/circle-x';
 	import TriangleAlert from '@lucide/svelte/icons/triangle-alert';
 
@@ -86,22 +84,11 @@
 </script>
 
 <Collapsible.Root bind:open>
-	<Card.Root>
+	<Card.Root class="gap-0 py-0">
 		<Card.Header class="gap-3 py-4">
-			<div class="flex min-w-0 items-start justify-between gap-2">
-				<div class="flex min-w-0 items-center gap-2">
-					{#if active}<Spinner class="size-4 shrink-0 text-primary" />{/if}
-					<Card.Title class="min-w-0 text-base leading-snug sm:truncate">{title}</Card.Title>
-				</div>
-				{#if hasExpandableContent}
-					<Collapsible.Trigger
-						class={buttonVariants({ variant: 'ghost', size: 'icon-sm', class: 'shrink-0' })}
-						aria-label={open ? 'Details einklappen' : 'Details ausklappen'}
-						aria-expanded={open}
-					>
-						{#if open}<ChevronUp class="size-4" />{:else}<ChevronDown class="size-4" />{/if}
-					</Collapsible.Trigger>
-				{/if}
+			<div class="flex min-w-0 items-center gap-2">
+				{#if active}<Spinner class="size-4 shrink-0 text-primary" />{/if}
+				<Card.Title class="min-w-0 text-base leading-snug sm:truncate">{title}</Card.Title>
 			</div>
 			<div class="flex items-center justify-between gap-2">
 				<div class="flex min-w-0 items-center gap-2">
@@ -120,7 +107,7 @@
 			<Collapsible.Content>
 				{#if open}
 					<div transition:slide>
-						<Card.Content class="space-y-4">
+						<div class="space-y-4 border-t px-5 pt-4 pb-2">
 							{#if phases.length > 0}
 								<ul class="divide-y">
 									{#each phases as phase (phase.id)}
@@ -184,10 +171,18 @@
 
 							{@render details?.()}
 							{@render footer?.()}
-						</Card.Content>
+						</div>
 					</div>
 				{/if}
 			</Collapsible.Content>
+
+			<Collapsible.Trigger
+				class="flex w-full items-center justify-center py-2 text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none"
+				aria-label={open ? 'Details einklappen' : 'Details ausklappen'}
+				aria-expanded={open}
+			>
+				<ChevronDown class={['size-4 transition-transform duration-200', open && 'rotate-180']} />
+			</Collapsible.Trigger>
 		{/if}
 	</Card.Root>
 </Collapsible.Root>
