@@ -96,7 +96,9 @@
 				{#if meta || actions}
 					<div class="order-2 flex shrink-0 items-center gap-2 sm:order-3">
 						{#if meta}
-							<span class="text-xs whitespace-nowrap text-muted-foreground tabular-nums">{meta}</span>
+							<span class="text-xs whitespace-nowrap text-muted-foreground tabular-nums"
+								>{meta}</span
+							>
 						{/if}
 						{@render actions?.()}
 					</div>
@@ -109,7 +111,9 @@
 								<span class="truncate text-sm font-medium sm:order-1 sm:shrink-0">
 									{activePhase.label}
 								</span>
-								<span class="shrink-0 text-xs whitespace-nowrap text-muted-foreground tabular-nums sm:order-3">
+								<span
+									class="shrink-0 text-xs whitespace-nowrap text-muted-foreground tabular-nums sm:order-3"
+								>
 									{activePhase.current} / {activePhase.total}
 								</span>
 							</div>
