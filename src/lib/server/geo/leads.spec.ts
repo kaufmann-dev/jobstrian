@@ -173,6 +173,60 @@ describe('extractEmailFromWebsite', () => {
 		);
 	});
 
+	it('fetches English-only contact pages within the default page budget', async () => {
+		fetchText.mockImplementation(async (url: string) =>
+			url.endsWith('/contact')
+				? '<body>Applications: careers@betrieb.example</body>'
+				: '<body>No email here</body>'
+		);
+
+		await expect(extractEmailFromWebsite('https://betrieb.example')).resolves.toBe(
+			'careers@betrieb.example'
+		);
+		expect(fetchText.mock.calls.map((call) => call[0])).toContain(
+			'https://betrieb.example/contact'
+		);
+	});
+
+	it('fetches German contact pages within the default page budget', async () => {
+		fetchText.mockImplementation(async (url: string) =>
+			url.endsWith('/kontakt')
+				? '<body>Bewerbungen: jobs@betrieb.example</body>'
+				: '<body>No email here</body>'
+		);
+
+		await expect(extractEmailFromWebsite('https://betrieb.example')).resolves.toBe(
+			'jobs@betrieb.example'
+		);
+		expect(fetchText.mock.calls.map((call) => call[0])).toContain(
+			'https://betrieb.example/kontakt'
+		);
+	});
+
+	it('attempts German, English, and imprint pages before lower-priority pages', async () => {
+		fetchText.mockImplementation(async (url: string) =>
+			url === 'https://betrieb.example/'
+				? `<body>
+					<a href="/team">Team</a>
+					<a href="/jobs">Jobs</a>
+					<a href="/ueber-uns">Über uns</a>
+				</body>`
+				: '<body>No email here</body>'
+		);
+
+		await expect(extractEmailFromWebsite('https://betrieb.example')).resolves.toBeUndefined();
+
+		const urls = fetchText.mock.calls.map((call) => call[0]);
+		expect(urls.slice(0, 5)).toEqual([
+			'https://betrieb.example/',
+			'https://betrieb.example/contact',
+			'https://betrieb.example/impressum',
+			'https://betrieb.example/kontakt',
+			'https://betrieb.example/jobs'
+		]);
+		expect(urls).not.toContain('https://betrieb.example/team');
+	});
+
 	it('extracts common obfuscated email addresses', async () => {
 		fetchText.mockResolvedValue('<body>Kontakt: office [at] betrieb [dot] example</body>');
 
