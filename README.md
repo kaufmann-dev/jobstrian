@@ -20,9 +20,12 @@ OpenAI-compatible LLM.
     city.
 - **Nearby businesses**: OpenStreetMap (Overpass) finds configured business
   categories within a radius; missing e-mail addresses are extracted from the
-  respective website (imprint / contact page). If Overpass is temporarily
-  overloaded, the update skips this business sync and still completes the job
-  scraping / ranking run.
+  respective website by scanning bounded same-origin contact, imprint and
+  recruiting pages. Automatic e-mail candidates are filtered for clearly
+  unusable technical / no-reply addresses and reviewed in batches by the
+  configured LLM before they become eligible for application sending. If
+  Overpass is temporarily overloaded, the update skips this business sync and
+  still completes the job scraping / ranking run.
   Websites, phone numbers and e-mail addresses can be manually added, edited,
   or deleted; manual changes remain authoritative during later updates.
 - **LLM ranking**: jobs and businesses are scored through configurable weighted

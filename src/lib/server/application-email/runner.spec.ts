@@ -76,7 +76,13 @@ const fake = vi.hoisted(() => {
 		idempotencyKey: string;
 		error: string | null;
 	};
-	type MutableLeadRow = { id: number; status: string };
+	type MutableLeadRow = {
+		id: number;
+		status: string;
+		email: string | null;
+		emailManual: boolean;
+		emailQualityStatus: string;
+	};
 
 	const state = {
 		runs: [] as MutableRunRow[],
@@ -103,6 +109,7 @@ const fake = vi.hoisted(() => {
 				.filter((row) => row.status === 'queued' || row.status === 'sending')
 				.sort((a, b) => a.scheduledAt.getTime() - b.scheduledAt.getTime() || a.id - b.id);
 		}
+		if (name === 'lead') return state.leads;
 		return [];
 	}
 
@@ -330,6 +337,25 @@ function seedEmail(status: EmailRow['status'], id = 10): EmailRow {
 	};
 }
 
+function seedLead(
+	id: number,
+	patch: Partial<{
+		status: string;
+		email: string | null;
+		emailManual: boolean;
+		emailQualityStatus: string;
+	}> = {}
+) {
+	return {
+		id,
+		status: 'new',
+		email: `lead-${id - 100}@example.com`,
+		emailManual: false,
+		emailQualityStatus: 'accepted',
+		...patch
+	};
+}
+
 describe('test application e-mail', () => {
 	it('sends the rendered template with the CV attachment to the reply-to address', async () => {
 		const result = await sendTestApplicationEmail();
@@ -377,7 +403,7 @@ describe('interrupted application e-mail recovery', () => {
 	it('resumes a stale running run and sends its existing sending row', async () => {
 		fake.state.runs.push(seedRun('running'));
 		fake.state.emails.push(seedEmail('sending'));
-		fake.state.leads.push({ id: 110, status: 'new' });
+		fake.state.leads.push(seedLead(110));
 
 		const result = await recoverInterruptedApplicationEmailRun(1);
 
@@ -388,6 +414,21 @@ describe('interrupted application e-mail recovery', () => {
 		expect(fake.state.emails[0].resendEmailId).toBe('resend-1');
 		expect(fake.state.leads[0].status).toBe('contacted');
 		expect(fake.state.sendCalls).toEqual([{ idempotencyKey: 'application-email-lead-110' }]);
+	});
+
+	it('skips a stale queued row when the lead email is no longer accepted', async () => {
+		fake.state.runs.push(seedRun('running'));
+		fake.state.emails.push(seedEmail('sending'));
+		fake.state.leads.push(seedLead(110, { emailQualityStatus: 'rejected' }));
+
+		const result = await recoverInterruptedApplicationEmailRun(1);
+
+		expect(result).toBe('resumed');
+		await vi.waitFor(() => expect(fake.state.runs[0].status).toBe('done'));
+		expect(fake.state.emails).toHaveLength(0);
+		expect(fake.state.runs[0].counts).toEqual({ queued: 0, sent: 0, failed: 0, skipped: 1 });
+		expect(fake.state.sendCalls).toEqual([]);
+		expect(fake.state.leads[0].status).toBe('new');
 	});
 
 	it('re-anchors past-due queued rows forward into the business window without bursting', async () => {
@@ -423,7 +464,7 @@ describe('interrupted application e-mail recovery', () => {
 		sent.sentAt = new Date();
 		fake.state.runs.push(seedRun('canceling'));
 		fake.state.emails.push(sent, seedEmail('queued', 12), seedEmail('sending', 13));
-		fake.state.leads.push({ id: 111, status: 'contacted' });
+		fake.state.leads.push(seedLead(111, { status: 'contacted' }));
 
 		const result = await recoverInterruptedApplicationEmailRun(1);
 
@@ -441,7 +482,7 @@ describe('interrupted application e-mail recovery', () => {
 		sent.sentAt = new Date();
 		fake.state.runs.push(seedRun('canceling'));
 		fake.state.emails.push(sent, seedEmail('queued', 22), seedEmail('sending', 23));
-		fake.state.leads.push({ id: 121, status: 'new' });
+		fake.state.leads.push(seedLead(121));
 
 		const result = await recoverInterruptedApplicationEmailRun(1);
 

@@ -283,6 +283,14 @@ export const lead = pgTable(
 		email: text('email'),
 		emailManual: boolean('email_manual').notNull().default(false),
 		emailSource: text('email_source', { enum: ['osm', 'website', 'manual'] }),
+		emailQualityStatus: text('email_quality_status', {
+			enum: ['unchecked', 'accepted', 'rejected']
+		})
+			.notNull()
+			.default('unchecked'),
+		emailQualityHash: text('email_quality_hash'),
+		emailQualityReason: text('email_quality_reason'),
+		emailQualityCheckedAt: timestamp('email_quality_checked_at'),
 		hasActivePosting: boolean('has_active_posting').notNull().default(false),
 		rankScore: integer('rank_score'),
 		rankReason: text('rank_reason'),

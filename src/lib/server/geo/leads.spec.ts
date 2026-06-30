@@ -153,6 +153,46 @@ describe('extractEmailFromWebsite', () => {
 			'hallo@betrieb.example'
 		);
 	});
+
+	it('normalizes websites without an explicit scheme', async () => {
+		fetchText.mockResolvedValue('<body>Kontakt: hallo@betrieb.example</body>');
+
+		await expect(extractEmailFromWebsite('betrieb.example')).resolves.toBe('hallo@betrieb.example');
+		expect(fetchText.mock.calls[0][0]).toBe('https://betrieb.example/');
+	});
+
+	it('discovers same-origin contact links from the homepage', async () => {
+		fetchText.mockImplementation(async (url: string) =>
+			url.endsWith('/kontakt')
+				? '<body>Bewerbungen: jobs@betrieb.example</body>'
+				: '<body><a href="/kontakt">Kontakt</a></body>'
+		);
+
+		await expect(extractEmailFromWebsite('https://betrieb.example')).resolves.toBe(
+			'jobs@betrieb.example'
+		);
+	});
+
+	it('extracts common obfuscated email addresses', async () => {
+		fetchText.mockResolvedValue('<body>Kontakt: office [at] betrieb [dot] example</body>');
+
+		await expect(extractEmailFromWebsite('https://betrieb.example')).resolves.toBe(
+			'office@betrieb.example'
+		);
+	});
+
+	it('ignores technical emails inside scripts and keeps visible contacts', async () => {
+		fetchText.mockResolvedValue(`
+			<body>
+				<script>var dsn = "605a7baede844d278b89dc95ae0a9123@sentry-next.wixpress.com";</script>
+				Kontakt: office@betrieb.example
+			</body>
+		`);
+
+		await expect(extractEmailFromWebsite('https://betrieb.example')).resolves.toBe(
+			'office@betrieb.example'
+		);
+	});
 });
 
 describe('syncLeads', () => {
