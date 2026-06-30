@@ -1,5 +1,5 @@
 export const USER_AGENT =
-	'JobstrianBot/0.1 (personal job-search assistant; contact: david@kaufmann.dev)';
+	'JobstrianBot/0.1 (personal job-search assistant)';
 
 export interface FetchOpts {
 	timeoutMs?: number;

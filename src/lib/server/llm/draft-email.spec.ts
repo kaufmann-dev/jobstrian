@@ -122,6 +122,12 @@ describe('cold email prompt', () => {
 		expect(prompt).not.toMatch(/\b112\b|112\s*m|Entfernung vom Wohnort/);
 	});
 
+	it('does not expose the stored lead contact email to the model', () => {
+		const prompt = buildColdEmailPrompt(settings(), lead({ email: 'kontakt@betrieb.example' }));
+
+		expect(prompt).not.toContain('kontakt@betrieb.example');
+	});
+
 	it('bumps the draft prompt version so existing drafts are regenerated', () => {
 		expect(DRAFT_PROMPT_VERSION).toBe('draft-cold-email-v5');
 	});

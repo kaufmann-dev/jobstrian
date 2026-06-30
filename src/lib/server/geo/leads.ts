@@ -1,7 +1,7 @@
 import * as cheerio from 'cheerio';
 import { and, eq, isNull, ne, or, sql } from 'drizzle-orm';
 import { db } from '../db';
-import { lead, type Settings } from '../db/schema';
+import { lead, user, type Settings } from '../db/schema';
 import { fetchText } from '../util/http';
 import { haversineMeters } from '../util/distance';
 import { mapLimit } from '../util/concurrency';
@@ -11,40 +11,79 @@ import { findNearbyBusinesses, type OverpassPlace } from './overpass';
 const EMAIL_RE = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g;
 const BAD_EMAIL_SUFFIX = /\.(png|jpg|jpeg|gif|webp|svg|css|js)$/i;
 
-function pickEmail(candidates: Iterable<string>): string | undefined {
+function normalizeEmailCandidate(raw: string): string | undefined {
+	const email = raw.trim().toLowerCase().replace(/^mailto:/, '').split('?')[0];
+	if (!email || BAD_EMAIL_SUFFIX.test(email)) return undefined;
+	if (/^(example|test|your|name|email)@/.test(email)) return undefined;
+	return email;
+}
+
+function pickEmail(candidates: Iterable<string>, blockedEmails = new Set<string>()): string | undefined {
 	for (const raw of candidates) {
-		const email = raw
-			.trim()
-			.toLowerCase()
-			.replace(/^mailto:/, '')
-			.split('?')[0];
-		if (!email || BAD_EMAIL_SUFFIX.test(email)) continue;
-		if (/^(example|test|your|name|email)@/.test(email)) continue;
+		const email = normalizeEmailCandidate(raw);
+		if (!email || blockedEmails.has(email)) continue;
 		return email;
 	}
 	return undefined;
 }
 
-function extractFromHtml(html: string): string | undefined {
+function extractFromHtml(html: string, blockedEmails = new Set<string>()): string | undefined {
 	const $ = cheerio.load(html);
 	const mailtos = $('a[href^="mailto:"]')
 		.map((_, el) => $(el).attr('href') ?? '')
 		.get();
-	const fromMailto = pickEmail(mailtos);
+	const fromMailto = pickEmail(mailtos, blockedEmails);
 	if (fromMailto) return fromMailto;
 	const text = $('body').text();
-	return pickEmail(text.match(EMAIL_RE) ?? []);
+	return pickEmail(text.match(EMAIL_RE) ?? [], blockedEmails);
+}
+
+function normalizeDomain(value: string): string {
+	return value
+		.trim()
+		.toLowerCase()
+		.replace(/^https?:\/\//, '')
+		.replace(/\/.*$/, '');
+}
+
+function configuredSenderEmail(settings: Settings): string | undefined {
+	const domain = normalizeDomain(settings.resendDomain);
+	if (!domain) return undefined;
+	const localPart = settings.resendFromLocalPart.trim().toLowerCase() || 'bewerbung';
+	return normalizeEmailCandidate(`${localPart}@${domain}`);
+}
+
+async function appOwnedEmails(settings: Settings): Promise<Set<string>> {
+	const rows = await db.select({ email: user.email }).from(user);
+	const emails = new Set<string>();
+	for (const raw of [
+		settings.email,
+		settings.resendReplyTo,
+		configuredSenderEmail(settings),
+		...rows.map((row) => row.email)
+	]) {
+		if (!raw) continue;
+		const email = normalizeEmailCandidate(raw);
+		if (email) emails.add(email);
+	}
+	return emails;
 }
 
 function throwIfAborted(signal?: AbortSignal): void {
 	if (signal?.aborted) throw signal.reason;
 }
 
+interface ExtractEmailOptions {
+	blockedEmails?: Set<string>;
+	signal?: AbortSignal;
+}
+
 /** Try to find a contact email by scanning the homepage + imprint/contact pages. */
 export async function extractEmailFromWebsite(
 	website: string,
-	signal?: AbortSignal
+	options: ExtractEmailOptions = {}
 ): Promise<string | undefined> {
+	const { blockedEmails = new Set<string>(), signal } = options;
 	let origin: string;
 	try {
 		origin = new URL(website).origin;
@@ -55,7 +94,7 @@ export async function extractEmailFromWebsite(
 		try {
 			throwIfAborted(signal);
 			const html = await fetchText(origin + path, { timeoutMs: 7000, signal });
-			return extractFromHtml(html);
+			return extractFromHtml(html, blockedEmails);
 		} catch (err) {
 			if (signal?.aborted) throw err;
 			return undefined;
@@ -95,6 +134,7 @@ export async function syncLeads(
 
 	const homeLat = settings.homeLat;
 	const homeLon = settings.homeLon;
+	const blockedEmails = await appOwnedEmails(settings);
 	// Enrich + upsert with bounded concurrency so large radii stay tractable.
 	const inserted = await mapLimit(
 		places,
@@ -102,10 +142,10 @@ export async function syncLeads(
 		async (place) => {
 			throwIfAborted(signal);
 			const distance = Math.round(haversineMeters(homeLat, homeLon, place.lat, place.lon));
-			let email = place.email;
+			let email = pickEmail(place.email ? [place.email] : [], blockedEmails);
 			let emailSource: 'osm' | 'website' | null = email ? 'osm' : null;
 			if (!email && place.website) {
-				const found = await extractEmailFromWebsite(place.website, signal);
+				const found = await extractEmailFromWebsite(place.website, { blockedEmails, signal });
 				if (found) {
 					email = found;
 					emailSource = 'website';
