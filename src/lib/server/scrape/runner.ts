@@ -71,6 +71,18 @@ function isAbortLike(err: unknown): boolean {
 	return isAbortError(err) || (err instanceof Error && /aborted|abort/i.test(err.message));
 }
 
+/**
+ * Surface the real failure reason. Drizzle wraps DB errors so `err.message` is
+ * only the `Failed query: … params: …` text; the actual Postgres message lives
+ * in `err.cause`. Lead with the cause so the run detail is readable.
+ */
+function describeRunError(err: unknown): string {
+	if (!(err instanceof Error)) return String(err);
+	const cause = (err as { cause?: unknown }).cause;
+	const causeMsg = cause instanceof Error ? cause.message : undefined;
+	return causeMsg && causeMsg !== err.message ? `${causeMsg} — ${err.message}` : err.message;
+}
+
 class ProgressWriter {
 	private lastFlush = 0;
 	private limiter: LlmLimiter | null = null;
@@ -465,7 +477,7 @@ export async function runRefresh(
 
 		console.error('[runner] Lauf fehlgeschlagen:', err);
 		writer.progress.headline = 'Aktualisierung fehlgeschlagen';
-		writer.progress.detail = err instanceof Error ? err.message : String(err);
+		writer.progress.detail = describeRunError(err);
 		for (const id of Object.keys(writer.progress.phases) as RunPhaseId[]) {
 			const phase = writer.progress.phases[id];
 			if (phase.state === 'running') {
@@ -485,7 +497,7 @@ export async function runRefresh(
 				finishedAt: new Date(),
 				counts,
 				progress: writer.progress,
-				error: err instanceof Error ? err.message : String(err)
+				error: writer.progress.detail
 			})
 			.where(eq(scrapeRun.id, runId));
 	} finally {

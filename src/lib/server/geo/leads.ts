@@ -389,7 +389,13 @@ async function upsertLead(
 					emailSource
 				})
 			: null;
-	const shouldUseNewAutomaticEmail = sql`${nextEmail} is not null and not (${lead.emailQualityStatus} = 'rejected' and ${lead.emailQualityHash} = ${nextEmailQualityHash}) and (${lead.email} is null or ${lead.emailQualityStatus} = 'rejected')`;
+	// Keep only typed, column-referencing terms in SQL. Interpolating `nextEmail`
+	// before a bare `is not null` would emit an untyped bound parameter, which
+	// Postgres refuses to prepare ("could not determine data type of parameter").
+	const shouldUseNewAutomaticEmail =
+		nextEmail !== null
+			? sql`not (${lead.emailQualityStatus} = 'rejected' and ${lead.emailQualityHash} = ${nextEmailQualityHash}) and (${lead.email} is null or ${lead.emailQualityStatus} = 'rejected')`
+			: sql`false`;
 	const result = await db
 		.insert(lead)
 		.values({
