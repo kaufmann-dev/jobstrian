@@ -12,13 +12,20 @@ const EMAIL_RE = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g;
 const BAD_EMAIL_SUFFIX = /\.(png|jpg|jpeg|gif|webp|svg|css|js)$/i;
 
 function normalizeEmailCandidate(raw: string): string | undefined {
-	const email = raw.trim().toLowerCase().replace(/^mailto:/, '').split('?')[0];
+	const email = raw
+		.trim()
+		.toLowerCase()
+		.replace(/^mailto:/, '')
+		.split('?')[0];
 	if (!email || BAD_EMAIL_SUFFIX.test(email)) return undefined;
 	if (/^(example|test|your|name|email)@/.test(email)) return undefined;
 	return email;
 }
 
-function pickEmail(candidates: Iterable<string>, blockedEmails = new Set<string>()): string | undefined {
+function pickEmail(
+	candidates: Iterable<string>,
+	blockedEmails = new Set<string>()
+): string | undefined {
 	for (const raw of candidates) {
 		const email = normalizeEmailCandidate(raw);
 		if (!email || blockedEmails.has(email)) continue;
@@ -122,7 +129,9 @@ export async function syncLeads(
 	signal?: AbortSignal
 ): Promise<LeadSyncResult> {
 	if (settings.homeLat == null || settings.homeLon == null) {
-		throw new Error('Wohnort-Koordinaten fehlen. Betriebe in der Nähe können nicht gesucht werden.');
+		throw new Error(
+			'Wohnort-Koordinaten fehlen. Betriebe in der Nähe können nicht gesucht werden.'
+		);
 	}
 	const places = await findNearbyBusinesses(
 		settings.homeLat,

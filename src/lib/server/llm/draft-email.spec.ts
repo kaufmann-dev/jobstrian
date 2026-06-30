@@ -10,6 +10,15 @@ import { DRAFT_PROMPT_VERSION, buildColdEmailPrompt, draftColdEmail } from './dr
 const chatJson = vi.hoisted(() => vi.fn());
 vi.mock('./client', () => ({ chatJson }));
 
+function validBody(sender = 'Anna Beispiel'): string {
+	return `Guten Tag,
+
+ich arbeite gerne organisiert und freundlich mit Menschen. Empfang und Administration passen gut zu meiner Erfahrung. Ihr Betrieb ist für mich gut erreichbar. Meinen Lebenslauf finden Sie im Anhang.
+
+Mit freundlichen Grüßen
+${sender}`;
+}
+
 function settings(patch: Partial<Settings> = {}): Settings {
 	return {
 		id: 1,
@@ -129,7 +138,7 @@ describe('cold email prompt', () => {
 	});
 
 	it('bumps the draft prompt version so existing drafts are regenerated', () => {
-		expect(DRAFT_PROMPT_VERSION).toBe('draft-cold-email-v5');
+		expect(DRAFT_PROMPT_VERSION).toBe('draft-cold-email-v6');
 	});
 });
 
@@ -141,16 +150,16 @@ describe('draftColdEmail', () => {
 		chatJson.mockReset();
 	});
 
-	it('returns the parsed subject and trimmed body', async () => {
-		chatJson.mockResolvedValue({ subject: '  Bewerbung  ', body: '  Guten Tag...  ' });
+	it('returns the parsed subject and validated body', async () => {
+		chatJson.mockResolvedValue({ subject: '  Bewerbung  ', body: `  ${validBody()}  ` });
 
 		const draft = await draftColdEmail(cfg, settings(), lead(), limiter);
 
-		expect(draft).toEqual({ subject: 'Bewerbung', body: 'Guten Tag...' });
+		expect(draft).toEqual({ subject: 'Bewerbung', body: validBody() });
 	});
 
 	it('passes strict email structure and signoff instructions to the model', async () => {
-		chatJson.mockResolvedValue({ subject: 'Bewerbung', body: 'Guten Tag...' });
+		chatJson.mockResolvedValue({ subject: 'Bewerbung', body: validBody() });
 
 		await draftColdEmail(cfg, settings(), lead(), limiter);
 
@@ -164,20 +173,86 @@ describe('draftColdEmail', () => {
 		expect(system).toContain('keine genaue Wohnadresse');
 	});
 
+	it('repairs a signoff and sender returned on one line', async () => {
+		chatJson.mockResolvedValue({
+			subject: 'Bewerbung',
+			body: `Guten Tag,
+
+ich arbeite gerne organisiert und freundlich mit Menschen. Empfang und Administration passen gut zu meiner Erfahrung. Ihr Betrieb ist für mich gut erreichbar. Meinen Lebenslauf finden Sie im Anhang.
+
+Mit freundlichen Grüßen Anna Beispiel`
+		});
+
+		const draft = await draftColdEmail(cfg, settings(), lead(), limiter);
+
+		expect(draft.body).toBe(validBody());
+	});
+
+	it('repairs missing blank lines when all required parts are present', async () => {
+		chatJson.mockResolvedValue({
+			subject: 'Bewerbung',
+			body: `Guten Tag,
+ich arbeite gerne organisiert und freundlich mit Menschen.
+Empfang und Administration passen gut zu meiner Erfahrung.
+Ihr Betrieb ist für mich gut erreichbar.
+Meinen Lebenslauf finden Sie im Anhang.
+Mit freundlichen Grüßen
+Anna Beispiel`
+		});
+
+		const draft = await draftColdEmail(cfg, settings(), lead(), limiter);
+
+		expect(draft.body).toBe(validBody());
+	});
+
+	it('retries when extra text appears after the sender name', async () => {
+		chatJson
+			.mockResolvedValueOnce({
+				subject: 'Erster Versuch',
+				body: `${validBody()}\n\nPS: Ich freue mich auf Ihre Rückmeldung.`
+			})
+			.mockResolvedValueOnce({ subject: 'Zweiter Versuch', body: validBody() });
+
+		const draft = await draftColdEmail(cfg, settings(), lead(), limiter);
+
+		expect(chatJson).toHaveBeenCalledTimes(2);
+		expect(draft).toEqual({ subject: 'Zweiter Versuch', body: validBody() });
+	});
+
 	it('throws instead of manufacturing an empty body when the model omits it', async () => {
 		chatJson.mockResolvedValue({ subject: 'Bewerbung' });
 
-		await expect(draftColdEmail(cfg, settings(), lead(), limiter)).rejects.toThrow(/E-Mail-Text/);
+		await expect(draftColdEmail(cfg, settings(), lead(), limiter)).rejects.toThrow(
+			/korrekt formatierten E-Mail-Entwurf/
+		);
+		expect(chatJson).toHaveBeenCalledTimes(2);
 	});
 
 	it('throws when the model returns a blank body', async () => {
 		chatJson.mockResolvedValue({ subject: 'Bewerbung', body: '   \n  ' });
 
-		await expect(draftColdEmail(cfg, settings(), lead(), limiter)).rejects.toThrow(/E-Mail-Text/);
+		await expect(draftColdEmail(cfg, settings(), lead(), limiter)).rejects.toThrow(
+			/korrekt formatierten E-Mail-Entwurf/
+		);
+		expect(chatJson).toHaveBeenCalledTimes(2);
+	});
+
+	it('throws when both draft attempts are unrepairable', async () => {
+		chatJson
+			.mockResolvedValueOnce({ subject: 'Erster Versuch', body: 'Guten Tag, ich bewerbe mich.' })
+			.mockResolvedValueOnce({
+				subject: 'Zweiter Versuch',
+				body: `${validBody()}\nDanke für Ihre Zeit.`
+			});
+
+		await expect(draftColdEmail(cfg, settings(), lead(), limiter)).rejects.toThrow(
+			/korrekt formatierten E-Mail-Entwurf/
+		);
+		expect(chatJson).toHaveBeenCalledTimes(2);
 	});
 
 	it('falls back to a default subject when the model omits it', async () => {
-		chatJson.mockResolvedValue({ body: 'Guten Tag...' });
+		chatJson.mockResolvedValue({ body: validBody() });
 
 		const draft = await draftColdEmail(cfg, settings(), lead(), limiter);
 

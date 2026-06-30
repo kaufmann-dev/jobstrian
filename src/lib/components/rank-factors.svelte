@@ -12,7 +12,7 @@
 			<li class="space-y-1">
 				<div class="flex items-center justify-between gap-2 text-sm">
 					<span>{factor.label}</span>
-					<span class="tabular-nums text-muted-foreground">{factor.score}/5</span>
+					<span class="text-muted-foreground tabular-nums">{factor.score}/5</span>
 				</div>
 				<Progress value={factor.score} max={5} />
 			</li>

@@ -610,8 +610,8 @@
 			{#snippet footer()}
 				{#if emailRun}
 					<p class="border-t pt-3 text-sm text-muted-foreground">
-						{emailRun.counts.sent} gesendet · {emailRun.counts.failed} fehlgeschlagen · {emailRun.counts
-							.queued} offen
+						{emailRun.counts.sent} gesendet · {emailRun.counts.failed} fehlgeschlagen · {emailRun
+							.counts.queued} offen
 					</p>
 					{#if emailRun.error}
 						<p class="text-sm text-destructive">{emailRun.error}</p>

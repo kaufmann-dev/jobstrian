@@ -2,17 +2,25 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Settings } from '../db/schema';
 import type { OverpassPlace } from './overpass';
 
-const { fetchText, findNearbyBusinesses, select, from, insert, values, onConflictDoUpdate, returning } =
-	vi.hoisted(() => ({
-		fetchText: vi.fn(),
-		findNearbyBusinesses: vi.fn(),
-		select: vi.fn(),
-		from: vi.fn(),
-		insert: vi.fn(),
-		values: vi.fn(),
-		onConflictDoUpdate: vi.fn(),
-		returning: vi.fn()
-	}));
+const {
+	fetchText,
+	findNearbyBusinesses,
+	select,
+	from,
+	insert,
+	values,
+	onConflictDoUpdate,
+	returning
+} = vi.hoisted(() => ({
+	fetchText: vi.fn(),
+	findNearbyBusinesses: vi.fn(),
+	select: vi.fn(),
+	from: vi.fn(),
+	insert: vi.fn(),
+	values: vi.fn(),
+	onConflictDoUpdate: vi.fn(),
+	returning: vi.fn()
+}));
 
 vi.mock('../util/http', () => ({
 	fetchText
@@ -165,7 +173,9 @@ describe('syncLeads', () => {
 
 		await syncLeads(settings(), 12);
 
-		expect(values).toHaveBeenCalledWith(expect.objectContaining({ email: undefined, emailSource: null }));
+		expect(values).toHaveBeenCalledWith(
+			expect.objectContaining({ email: undefined, emailSource: null })
+		);
 	});
 
 	it('uses a website email when the OSM email is app-owned and the website has a real contact', async () => {

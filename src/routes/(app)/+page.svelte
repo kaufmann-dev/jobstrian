@@ -5,7 +5,6 @@
 	import { toast } from 'svelte-sonner';
 	import * as Card from '$lib/components/ui/card/index.js';
 	import { Button } from '$lib/components/ui/button/index.js';
-	import { Badge } from '$lib/components/ui/badge/index.js';
 	import { Spinner } from '$lib/components/ui/spinner/index.js';
 	import * as Alert from '$lib/components/ui/alert/index.js';
 	import PageHeader from '$lib/components/page-header.svelte';
