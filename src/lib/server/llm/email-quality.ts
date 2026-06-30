@@ -23,6 +23,18 @@ export interface LeadEmailQualityResult {
 	hash: string;
 }
 
+export interface LeadEmailQualityReviewProgress {
+	reviewed: number;
+	total: number;
+	accepted: number;
+	rejected: number;
+	failedBatches: number;
+}
+
+export type LeadEmailQualityProgressCallback = (
+	progress: LeadEmailQualityReviewProgress
+) => void | Promise<void>;
+
 type LlmEmailQualityResponse = {
 	decisions?: LlmEmailQualityDecision[];
 };
@@ -52,8 +64,31 @@ const REJECTED_LOCAL_PARTS = new Set([
 	'webmaster'
 ]);
 
-const PLACEHOLDER_LOCAL_RE = /^(example|test|your|name|email|mail|user|kontaktformular)$/i;
-const RANDOM_LOCAL_RE = /^(?:[a-f0-9]{24,}|[a-z0-9]{32,})$/i;
+const PROTECTED_ACCEPT_LOCAL_PARTS = new Set([
+	'admin',
+	'bewerbung',
+	'bewerbungen',
+	'career',
+	'careers',
+	'contact',
+	'hallo',
+	'hello',
+	'hr',
+	'info',
+	'job',
+	'jobs',
+	'karriere',
+	'kontakt',
+	'mail',
+	'office',
+	'personal',
+	'recruiting',
+	'talent'
+]);
+
+const PLACEHOLDER_LOCAL_RE = /^(example|test|your|name|email|user|kontaktformular)$/i;
+const RANDOM_LOCAL_RE =
+	/^(?:[a-f0-9]{24,}|[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})$/i;
 const TECHNICAL_DOMAIN_RE = /(^|\.)wixpress\.com$|(^|\.)sentry\.io$|(^|\.)sentry-next\./i;
 
 function canonical(value: unknown): string {
@@ -77,6 +112,18 @@ function splitEmail(email: string): { local: string; domain: string } | null {
 function compactReason(value: unknown, fallback: string): string {
 	const reason = (value ?? '').toString().trim().replace(/\s+/g, ' ');
 	return (reason || fallback).slice(0, 240);
+}
+
+function protectedAcceptLocalPart(email: string): boolean {
+	const parts = splitEmail(email);
+	if (!parts) return false;
+	const normalized = parts.local.replace(/[._+-]/g, '');
+	const firstSegment = parts.local.split(/[._+-]/)[0];
+	return (
+		PROTECTED_ACCEPT_LOCAL_PARTS.has(parts.local) ||
+		PROTECTED_ACCEPT_LOCAL_PARTS.has(normalized) ||
+		PROTECTED_ACCEPT_LOCAL_PARTS.has(firstSegment)
+	);
 }
 
 export function leadEmailQualityHash(candidate: LeadEmailQualityCandidate): string {
@@ -148,9 +195,11 @@ function chunks<T>(items: T[], size: number): T[][] {
 	return result;
 }
 
-const SYSTEM = `Du pruefst E-Mail-Adressen fuer Initiativbewerbungen an Betriebe in Oesterreich.
-Akzeptiere Recruiting-, Karriere-, Personal-, Bewerbungs- und allgemeine Geschaeftsadressen wie kontakt@, office@ oder info@.
-Lehne nur klar ungeeignete Adressen ab: no-reply, Bounce-/Systemadressen, Datenschutz-/Rechtsadressen, Newsletter, Fehlertracking, technische Provider-Adressen, zufaellige Hash-Adressen oder Platzhalter.
+export const EMAIL_QUALITY_SYSTEM_PROMPT = `Du pruefst E-Mail-Adressen fuer Initiativbewerbungen an Betriebe in Oesterreich.
+Arbeite mit hoher Recall-Prioritaet: eine echte verwendbare Adresse faelschlich abzulehnen ist schlimmer, als eine fragliche Adresse zu behalten.
+In vielen Batches wird keine einzige Adresse klar ungeeignet sein. Null Ablehnungen sind ein gueltiges und erfolgreiches Ergebnis.
+Akzeptiere Recruiting-, Karriere-, Personal-, Bewerbungs- und allgemeine Geschaeftsadressen wie info@, office@, kontakt@, mail@, hello@ oder hallo@.
+Lehne nur ab, wenn die Unbrauchbarkeit aus Adresse oder Domain selbst offensichtlich ist: no-reply, Bounce-/Systemadressen, Datenschutz-/Rechtsadressen, Newsletter, Fehlertracking, technische Provider-Adressen, klare zufaellige Hash-Adressen oder Platzhalter.
 Wenn eine Adresse unsicher, aber als Betriebskontakt plausibel ist, akzeptiere sie.
 Antworte ausschliesslich als JSON-Objekt:
 {"decisions":[{"id":"<ID>","status":"accepted|rejected","reason":"<kurzer deutscher Grund>"}]}
@@ -181,12 +230,14 @@ function parseLlmResults(
 
 	return candidates.map((candidate) => {
 		const decision = byId.get(String(candidate.id));
-		const status = decision?.status === 'rejected' ? 'rejected' : 'accepted';
+		const llmStatus = decision?.status === 'rejected' ? 'rejected' : 'accepted';
+		const protectedOverride = llmStatus === 'rejected' && protectedAcceptLocalPart(candidate.email);
+		const status = protectedOverride ? 'accepted' : llmStatus;
 		return {
 			id: candidate.id,
 			status,
 			reason: compactReason(
-				decision?.reason,
+				protectedOverride ? 'geschuetzte plausible Geschaeftsadresse' : decision?.reason,
 				status === 'rejected'
 					? 'LLM bewertet Adresse als ungeeignet'
 					: 'plausible Geschaeftsadresse'
@@ -200,23 +251,43 @@ export async function reviewLeadEmailCandidates(
 	cfg: LlmConfig,
 	candidates: LeadEmailQualityCandidate[],
 	limiter: LlmLimiter,
-	signal?: AbortSignal
+	signal?: AbortSignal,
+	onProgress?: LeadEmailQualityProgressCallback
 ): Promise<LeadEmailQualityResult[]> {
 	const results = new Map<number, LeadEmailQualityResult>();
 	const llmWork: LeadEmailQualityCandidate[] = [];
+	let failedBatches = 0;
+
+	const emitProgress = async () => {
+		if (!onProgress) return;
+		let accepted = 0;
+		let rejected = 0;
+		for (const result of results.values()) {
+			if (result.status === 'rejected') rejected++;
+			else accepted++;
+		}
+		await onProgress({
+			reviewed: results.size,
+			total: candidates.length,
+			accepted,
+			rejected,
+			failedBatches
+		});
+	};
 
 	for (const candidate of candidates) {
 		const deterministic = deterministicResult(candidate);
 		if (deterministic) results.set(candidate.id, deterministic);
 		else llmWork.push(candidate);
 	}
+	await emitProgress();
 
 	for (const batch of chunks(llmWork, EMAIL_QUALITY_BATCH_SIZE)) {
 		try {
 			const raw = await chatJson<LlmEmailQualityResponse>(
 				cfg,
 				[
-					{ role: 'system', content: SYSTEM },
+					{ role: 'system', content: EMAIL_QUALITY_SYSTEM_PROMPT },
 					{ role: 'user', content: userPrompt(batch) }
 				],
 				{ temperature: 0, limiter, signal }
@@ -226,11 +297,13 @@ export async function reviewLeadEmailCandidates(
 			}
 		} catch (err) {
 			if (signal?.aborted) throw err;
+			failedBatches++;
 			console.error('[llm] E-Mail-Qualitaetspruefung fehlgeschlagen:', err);
 			for (const candidate of batch) {
 				results.set(candidate.id, fallbackAccepted(candidate));
 			}
 		}
+		await emitProgress();
 	}
 
 	return candidates.map((candidate) => results.get(candidate.id) ?? fallbackAccepted(candidate));

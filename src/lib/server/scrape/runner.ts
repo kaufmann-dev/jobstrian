@@ -31,6 +31,7 @@ import {
 	type LeadEmailQualityCandidate
 } from '../llm/email-quality';
 import { mapLimit } from '../util/concurrency';
+import { createRunProgress } from '../../run-progress';
 import { closeBrowser } from './browser';
 import { ADAPTERS, getEnabledAdapters, BROWSER_ADAPTERS } from './registry';
 import type { ProfileQuery, RawListing } from './types';
@@ -56,37 +57,7 @@ export function hasActiveRun(runId?: number): boolean {
 	return activeRun !== null && (runId == null || activeRun.runId === runId);
 }
 
-function emptyPhase(): RunPhaseProgress {
-	return { state: 'pending', current: 0, total: 0, detail: '', skipped: 0, failed: 0 };
-}
-
-function createProgress(headline = 'Aktualisierung startet'): RunProgress {
-	return {
-		version: 1,
-		headline,
-		detail: '',
-		phases: {
-			setup: emptyPhase(),
-			scrape: emptyPhase(),
-			reconcile: emptyPhase(),
-			enrich: emptyPhase(),
-			leads: emptyPhase(),
-			'rank-listings': emptyPhase(),
-			'rank-leads': emptyPhase(),
-			finalize: emptyPhase()
-		},
-		llm: {
-			requestsPerMinute: 300,
-			maxConcurrent: 50,
-			queued: 0,
-			inFlight: 0,
-			completed: 0,
-			failed: 0,
-			skipped: 0,
-			lastMinuteStarted: 0
-		}
-	};
-}
+export const createProgress = createRunProgress;
 
 function abortReason(signal: AbortSignal): unknown {
 	return signal.reason ?? new DOMException('Der Vorgang wurde abgebrochen.', 'AbortError');
@@ -611,6 +582,13 @@ async function rankAll(
 		cfg = await getLlmConfig(settings);
 	} catch (err) {
 		if (err instanceof LlmNotConfiguredError) {
+			writer.phase('email-quality', {
+				state: 'skipped',
+				current: 0,
+				total: 0,
+				detail: 'LLM nicht konfiguriert',
+				skipped: 1
+			});
 			writer.phase(
 				'rank-listings',
 				{
@@ -637,7 +615,7 @@ async function rankAll(
 
 	const rankContext = rankingContextHash(settings, cfg);
 	const draftContext = draftContextHash(settings, cfg);
-	await reviewAutomaticLeadEmails(cfg, limiter, signal);
+	await reviewAutomaticLeadEmails(cfg, limiter, writer, signal);
 	await rankListings(settings, cfg, limiter, rankContext, counts, writer, signal);
 	await rankLeads(settings, cfg, limiter, rankContext, draftContext, writer, signal);
 }
@@ -645,13 +623,15 @@ async function rankAll(
 async function reviewAutomaticLeadEmails(
 	cfg: LlmConfig,
 	limiter: LlmLimiter,
+	writer: ProgressWriter,
 	signal: AbortSignal
 ): Promise<void> {
 	const rows = await db
 		.select()
 		.from(lead)
 		.where(and(isNotNull(lead.email), eq(lead.emailManual, false)));
-	const candidates = rows
+	const rowsById = new Map(rows.map((row) => [row.id, row]));
+	const allCandidates = rows
 		.filter((row) => row.emailSource === 'osm' || row.emailSource === 'website')
 		.map(
 			(row): LeadEmailQualityCandidate => ({
@@ -662,21 +642,93 @@ async function reviewAutomaticLeadEmails(
 				email: row.email!,
 				emailSource: row.emailSource as 'osm' | 'website'
 			})
-		)
-		.filter((candidate) => {
-			const qualityHash = leadEmailQualityHash(candidate);
-			const row = rows.find((item) => item.id === candidate.id);
-			if (!row) return true;
-			return (
-				row.emailQualityHash !== qualityHash ||
-				(row.emailQualityStatus !== 'accepted' && row.emailQualityStatus !== 'rejected')
-			);
-		});
-	if (candidates.length === 0) return;
+		);
+	const candidates = allCandidates.filter((candidate) => {
+		const qualityHash = leadEmailQualityHash(candidate);
+		const row = rowsById.get(candidate.id);
+		if (!row) return true;
+		return (
+			row.emailQualityHash !== qualityHash ||
+			(row.emailQualityStatus !== 'accepted' && row.emailQualityStatus !== 'rejected')
+		);
+	});
+	const skipped = allCandidates.length - candidates.length;
 
-	const rowsById = new Map(rows.map((row) => [row.id, row]));
+	if (allCandidates.length === 0) {
+		writer.phase(
+			'email-quality',
+			{
+				state: 'skipped',
+				current: 0,
+				total: 0,
+				detail: 'Keine automatischen E-Mail-Adressen zu prüfen',
+				skipped: 0,
+				failed: 0
+			},
+			'E-Mail-Prüfung übersprungen'
+		);
+		await writer.flush(true);
+		return;
+	}
+	if (candidates.length === 0) {
+		writer.phase(
+			'email-quality',
+			{
+				state: 'done',
+				current: allCandidates.length,
+				total: allCandidates.length,
+				detail: `E-Mail-Adressen geprüft: 0 / ${allCandidates.length}, übersprungen: ${skipped}, akzeptiert: 0, abgelehnt: 0`,
+				skipped,
+				failed: 0
+			},
+			'E-Mail-Adressen geprüft'
+		);
+		await writer.flush(true);
+		return;
+	}
+
+	let latestAccepted = 0;
+	let latestRejected = 0;
+	let latestFailedBatches = 0;
+	const emailQualityDetail = (reviewed: number) =>
+		`E-Mail-Adressen geprüft: ${reviewed} / ${allCandidates.length}, übersprungen: ${skipped}, akzeptiert: ${latestAccepted}, abgelehnt: ${latestRejected}` +
+		(latestFailedBatches > 0 ? `, fehlgeschlagene Batches: ${latestFailedBatches}` : '');
+
+	writer.phase(
+		'email-quality',
+		{
+			state: 'running',
+			current: skipped,
+			total: allCandidates.length,
+			detail: emailQualityDetail(0),
+			skipped,
+			failed: 0
+		},
+		'E-Mail-Adressen werden geprüft'
+	);
+	await writer.flush(true);
+
 	const reviewedAt = new Date();
-	const results = await reviewLeadEmailCandidates(cfg, candidates, limiter, signal);
+	const results = await reviewLeadEmailCandidates(
+		cfg,
+		candidates,
+		limiter,
+		signal,
+		async (progress) => {
+			latestAccepted = progress.accepted;
+			latestRejected = progress.rejected;
+			latestFailedBatches = progress.failedBatches;
+			writer.phase('email-quality', {
+				state: 'running',
+				current: skipped + progress.reviewed,
+				total: allCandidates.length,
+				detail: emailQualityDetail(progress.reviewed),
+				skipped,
+				failed: progress.failedBatches
+			});
+			await writer.flush();
+		}
+	);
 	for (const result of results) {
 		const row = rowsById.get(result.id);
 		if (!row?.email) continue;
@@ -709,6 +761,19 @@ async function reviewAutomaticLeadEmails(
 				.where(and(eq(lead.id, result.id), eq(lead.email, row.email), eq(lead.emailManual, false)));
 		}
 	}
+	writer.phase(
+		'email-quality',
+		{
+			state: latestFailedBatches > 0 ? 'warning' : 'done',
+			current: allCandidates.length,
+			total: allCandidates.length,
+			detail: emailQualityDetail(results.length),
+			skipped,
+			failed: latestFailedBatches
+		},
+		latestFailedBatches > 0 ? 'E-Mail-Prüfung mit Warnung abgeschlossen' : 'E-Mail-Adressen geprüft'
+	);
+	await writer.flush(true);
 }
 
 async function rankListings(

@@ -18,6 +18,7 @@
 	import MapPin from '@lucide/svelte/icons/map-pin';
 	import Mail from '@lucide/svelte/icons/mail';
 	import DoorOpen from '@lucide/svelte/icons/door-open';
+	import { normalizeRunProgress, RUN_PHASE_LABELS } from '$lib/run-progress';
 	import type { RunPhaseId, RunProgress, ScrapeRun } from '$lib/server/db/schema';
 
 	let { data } = $props();
@@ -86,83 +87,10 @@
 	type RunStatusResponse = { run: ScrapeRun | null };
 	type PhaseRow = RunStatusCardPhase & { id: RunPhaseId };
 
-	const phaseLabels: Record<RunPhaseId, string> = {
-		setup: 'Vorbereitung',
-		scrape: 'Quellen',
-		reconcile: 'Abgleich',
-		enrich: 'Beschreibungen',
-		leads: 'Betriebe',
-		'rank-listings': 'Stellenbewertung',
-		'rank-leads': 'Betriebsbewertung',
-		finalize: 'Abschluss'
-	};
-
-	function fallbackProgress(currentRun: ScrapeRun | null): RunProgress {
-		return {
-			version: 1,
-			headline: currentRun?.phase ?? 'Noch kein Lauf',
-			detail: currentRun?.error ?? '',
-			phases: {
-				setup: {
-					state: currentRun ? 'done' : 'pending',
-					current: currentRun ? 1 : 0,
-					total: 1,
-					detail: '',
-					skipped: 0,
-					failed: 0
-				},
-				scrape: { state: 'pending', current: 0, total: 0, detail: '', skipped: 0, failed: 0 },
-				reconcile: { state: 'pending', current: 0, total: 0, detail: '', skipped: 0, failed: 0 },
-				enrich: { state: 'pending', current: 0, total: 0, detail: '', skipped: 0, failed: 0 },
-				leads: { state: 'pending', current: 0, total: 0, detail: '', skipped: 0, failed: 0 },
-				'rank-listings': {
-					state: 'pending',
-					current: 0,
-					total: 0,
-					detail: '',
-					skipped: 0,
-					failed: 0
-				},
-				'rank-leads': { state: 'pending', current: 0, total: 0, detail: '', skipped: 0, failed: 0 },
-				finalize: { state: 'pending', current: 0, total: 0, detail: '', skipped: 0, failed: 0 }
-			},
-			llm: {
-				requestsPerMinute: 300,
-				maxConcurrent: 50,
-				queued: 0,
-				inFlight: 0,
-				completed: 0,
-				failed: 0,
-				skipped: 0,
-				lastMinuteStarted: 0
-			}
-		};
-	}
+	const phaseLabels = RUN_PHASE_LABELS;
 
 	function normalizeProgress(currentRun: ScrapeRun | null): RunProgress {
-		const fallback = fallbackProgress(currentRun);
-		const stored = currentRun?.progress as Partial<RunProgress> | null | undefined;
-		if (stored?.version !== 1) return fallback;
-		const phases = Object.fromEntries(
-			(Object.keys(phaseLabels) as RunPhaseId[]).map((id) => {
-				const phase = { ...fallback.phases[id], ...stored.phases?.[id] };
-				if (
-					currentRun?.status === 'done' &&
-					(phase.state === 'error' || (phase.state === 'done' && phase.failed > 0))
-				) {
-					phase.state = 'warning';
-				}
-				return [id, phase];
-			})
-		) as RunProgress['phases'];
-		return {
-			...fallback,
-			...stored,
-			headline: stored.headline ?? fallback.headline,
-			detail: stored.detail ?? fallback.detail,
-			phases,
-			llm: { ...fallback.llm, ...stored.llm }
-		};
+		return normalizeRunProgress(currentRun);
 	}
 
 	function toPhaseRows(currentProgress: RunProgress): PhaseRow[] {

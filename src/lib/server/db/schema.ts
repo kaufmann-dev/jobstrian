@@ -410,6 +410,7 @@ export type RunPhaseId =
 	| 'reconcile'
 	| 'enrich'
 	| 'leads'
+	| 'email-quality'
 	| 'rank-listings'
 	| 'rank-leads'
 	| 'finalize';

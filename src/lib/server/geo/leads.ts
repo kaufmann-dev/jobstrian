@@ -11,7 +11,7 @@ import { findNearbyBusinesses, type OverpassPlace } from './overpass';
 
 const EMAIL_RE = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g;
 const BAD_EMAIL_SUFFIX = /\.(png|jpg|jpeg|gif|webp|svg|css|js)$/i;
-const MAX_FETCHED_EMAIL_PAGES = 3;
+const MAX_FETCHED_EMAIL_PAGES = 5;
 const MAX_DISCOVERED_EMAIL_PAGES = 8;
 const CONTACT_PATHS = [
 	'/',
@@ -27,6 +27,7 @@ const CONTACT_PATHS = [
 ];
 const CONTACT_LINK_RE =
 	/(kontakt|contact|impressum|imprint|karriere|career|jobs?|bewerb|team|ueber|uber|about|personal|recruit)/i;
+const CORE_CONTACT_PATH_RE = /^\/(?:kontakt|contact|impressum)\/?$/i;
 
 interface ScoredEmailCandidate {
 	email: string;
@@ -170,12 +171,13 @@ function normalizeWebsiteUrl(website: string): URL | null {
 	return null;
 }
 
-function linkScore(url: URL, text = ''): number {
+function linkScore(url: URL, text = '', linked = false): number {
 	const haystack = `${url.pathname} ${text}`;
 	let score = CONTACT_LINK_RE.test(haystack) ? 20 : 0;
 	if (/(kontakt|contact|impressum|imprint)/i.test(haystack)) score += 35;
 	if (/(karriere|career|jobs?|bewerb|personal|recruit)/i.test(haystack)) score += 30;
-	if (/^\/(?:kontakt|impressum)\/?$/i.test(url.pathname)) score += 5;
+	if (CORE_CONTACT_PATH_RE.test(url.pathname)) score += 80;
+	else if (linked) score += 45;
 	if (url.pathname === '/' || url.pathname === '') score += 5;
 	return score;
 }
@@ -197,7 +199,7 @@ function discoverContactUrls(html: string, baseUrl: URL): string[] {
 		if (!href || href.startsWith('mailto:') || href.startsWith('tel:')) return;
 		try {
 			const url = new URL(href, baseUrl);
-			const score = linkScore(url, $(el).text());
+			const score = linkScore(url, $(el).text(), true);
 			if (score > 0) add(url, score);
 		} catch {
 			// Ignore malformed links.
