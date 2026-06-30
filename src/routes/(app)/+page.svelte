@@ -190,21 +190,6 @@
 		return 'secondary';
 	}
 
-	function toDate(value: Date | string | null | undefined): Date | null {
-		if (!value) return null;
-		return value instanceof Date ? value : new Date(value);
-	}
-
-	function elapsedLabel(currentRun: ScrapeRun | null): string {
-		const start = toDate(currentRun?.startedAt);
-		if (!start) return '';
-		const end = toDate(currentRun?.finishedAt) ?? new Date();
-		const seconds = Math.max(0, Math.round((end.getTime() - start.getTime()) / 1000));
-		const minutes = Math.floor(seconds / 60);
-		const rest = seconds % 60;
-		return minutes > 0 ? `${minutes}m ${rest}s` : `${rest}s`;
-	}
-
 	async function readStartResponse(res: Response): Promise<StartRunResponse | null> {
 		try {
 			return (await res.json()) as StartRunResponse;
@@ -353,7 +338,6 @@
 			title={progress.headline}
 			statusLabel={statusLabel(run.status)}
 			statusVariant={statusVariant(run.status)}
-			meta={elapsedLabel(run)}
 			active={isActive}
 			phases={phaseRows}
 			summary={isActive
