@@ -86,24 +86,25 @@
 
 <Collapsible.Root bind:open>
 	<Card.Root class="gap-0 py-0">
-		<Card.Header class="py-4">
-			<div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
-				<div class="flex items-center justify-between gap-2 sm:contents">
-					<div class="flex min-w-0 items-center gap-2 sm:order-1 sm:max-w-[45%] sm:shrink">
-						{#if active}<Spinner class="size-4 shrink-0 text-primary" />{/if}
-						<Card.Title class="min-w-0 truncate text-base leading-snug">{title}</Card.Title>
-					</div>
-					<div class="flex shrink-0 items-center gap-2 sm:order-3">
+		<div class="px-5 py-4">
+			<div class="flex min-w-0 flex-wrap items-center gap-x-4 gap-y-3 sm:flex-nowrap">
+				<div class="order-1 flex min-w-0 flex-1 items-center gap-2">
+					{#if active}<Spinner class="size-4 shrink-0 text-primary" />{/if}
+					<Card.Title class="min-w-0 truncate text-base leading-snug">{title}</Card.Title>
+				</div>
+
+				{#if meta || actions}
+					<div class="order-2 flex shrink-0 items-center gap-2 sm:order-3">
 						{#if meta}
 							<span class="text-xs whitespace-nowrap text-muted-foreground tabular-nums">{meta}</span>
 						{/if}
 						{@render actions?.()}
 					</div>
-				</div>
+				{/if}
 
-				<div class="min-w-0 sm:order-2 sm:flex-1">
+				<div class="order-3 min-w-0 basis-full sm:order-2 sm:basis-auto">
 					{#if active && activePhase}
-						<div class="flex flex-col gap-1.5 sm:flex-row sm:items-center sm:gap-3">
+						<div class="flex flex-col gap-1.5 sm:w-64 sm:flex-row sm:items-center sm:gap-3">
 							<div class="flex items-center justify-between gap-2 sm:contents">
 								<span class="truncate text-sm font-medium sm:order-1 sm:shrink-0">
 									{activePhase.label}
@@ -117,9 +118,9 @@
 							{/if}
 						</div>
 					{:else if active && summary}
-						<p class="truncate text-sm text-muted-foreground">{summary}</p>
+						<p class="truncate text-sm text-muted-foreground sm:max-w-xs">{summary}</p>
 					{:else if !active}
-						<div class="flex min-w-0 items-center gap-2">
+						<div class="flex min-w-0 items-center gap-2 sm:max-w-sm">
 							<Badge class="shrink-0" variant={statusVariant}>{statusLabel}</Badge>
 							{#if summary}
 								<span class="truncate text-sm text-muted-foreground">{summary}</span>
@@ -128,7 +129,7 @@
 					{/if}
 				</div>
 			</div>
-		</Card.Header>
+		</div>
 		{#if hasExpandableContent}
 			<Collapsible.Content>
 				{#if open}

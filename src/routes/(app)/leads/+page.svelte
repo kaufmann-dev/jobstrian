@@ -587,6 +587,7 @@
 						variant="outline"
 						size="sm"
 						class="shrink-0 border-destructive text-destructive hover:bg-destructive/10"
+						aria-label="Abbrechen"
 						disabled={emailCanceling || emailRun.status === 'canceling'}
 						onclick={cancelApplicationEmailRun}
 					>
@@ -595,7 +596,7 @@
 						{:else}
 							<X class="size-4" />
 						{/if}
-						Abbrechen
+						<span class="hidden sm:inline">Abbrechen</span>
 					</Button>
 				{/if}
 			{/snippet}
