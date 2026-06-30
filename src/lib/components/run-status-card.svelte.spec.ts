@@ -41,7 +41,7 @@ it('renders the summary collapsed and expands phase details from the toggle', as
 	await expect.element(page.getByText('10m 49s')).toBeVisible();
 	await expect
 		.element(page.getByText('790 neue Betriebe mit E-Mail und Entwurf sind offen.'))
-		.not.toBeInTheDocument();
+		.toBeVisible();
 	await expect.element(page.getByText('Cafe Test: geplant 09:00')).not.toBeInTheDocument();
 
 	const toggle = page.getByRole('button', { name: 'Details ausklappen' });
@@ -51,9 +51,6 @@ it('renders the summary collapsed and expands phase details from the toggle', as
 	await expect
 		.element(page.getByRole('button', { name: 'Details einklappen' }))
 		.toHaveAttribute('aria-expanded', 'true');
-	await expect
-		.element(page.getByText('790 neue Betriebe mit E-Mail und Entwurf sind offen.'))
-		.toBeVisible();
 	await expect.element(page.getByText('Versand', { exact: true })).toBeVisible();
 	await expect.element(page.getByText('12 / 20')).toBeVisible();
 	await expect.element(page.getByText('1 fehlgeschlagen')).toBeVisible();

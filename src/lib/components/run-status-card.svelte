@@ -67,9 +67,7 @@
 		footer
 	}: Props = $props();
 
-	const hasExpandableContent = $derived(
-		Boolean(summary) || phases.length > 0 || Boolean(details) || Boolean(footer)
-	);
+	const hasExpandableContent = $derived(phases.length > 0 || Boolean(details) || Boolean(footer));
 
 	function phaseStateLabel(state: RunStatusCardPhaseState): string {
 		if (state === 'running') return 'läuft';
@@ -88,11 +86,22 @@
 </script>
 
 <Collapsible.Root bind:open>
-	<Card.Root class="gap-0 py-0">
-		<Card.Header class="gap-4 py-5">
-			<div class="flex min-w-0 items-center gap-3">
-				{#if active}<Spinner class="size-4 shrink-0 text-primary" />{/if}
-				<Card.Title class="min-w-0 text-base leading-snug sm:truncate">{title}</Card.Title>
+	<Card.Root>
+		<Card.Header class="gap-3 py-4">
+			<div class="flex min-w-0 items-start justify-between gap-2">
+				<div class="flex min-w-0 items-center gap-2">
+					{#if active}<Spinner class="size-4 shrink-0 text-primary" />{/if}
+					<Card.Title class="min-w-0 text-base leading-snug sm:truncate">{title}</Card.Title>
+				</div>
+				{#if hasExpandableContent}
+					<Collapsible.Trigger
+						class={buttonVariants({ variant: 'ghost', size: 'icon-sm', class: 'shrink-0' })}
+						aria-label={open ? 'Details einklappen' : 'Details ausklappen'}
+						aria-expanded={open}
+					>
+						{#if open}<ChevronUp class="size-4" />{:else}<ChevronDown class="size-4" />{/if}
+					</Collapsible.Trigger>
+				{/if}
 			</div>
 			<div class="flex items-center justify-between gap-2">
 				<div class="flex min-w-0 items-center gap-2">
@@ -103,27 +112,15 @@
 				</div>
 				{@render actions?.()}
 			</div>
+			{#if summary}
+				<Card.Description>{summary}</Card.Description>
+			{/if}
 		</Card.Header>
 		{#if hasExpandableContent}
-			<Collapsible.Trigger
-				class={buttonVariants({
-					variant: 'ghost',
-					size: 'icon-sm',
-					class:
-						'h-9 w-full rounded-none border-x-0 border-t border-b-0 border-border text-muted-foreground hover:text-foreground focus-visible:z-10'
-				})}
-				aria-label={open ? 'Details einklappen' : 'Details ausklappen'}
-				aria-expanded={open}
-			>
-				{#if open}<ChevronUp class="size-4" />{:else}<ChevronDown class="size-4" />{/if}
-			</Collapsible.Trigger>
 			<Collapsible.Content>
 				{#if open}
 					<div transition:slide>
 						<Card.Content class="space-y-4">
-							{#if summary}
-								<Card.Description>{summary}</Card.Description>
-							{/if}
 							{#if phases.length > 0}
 								<ul class="divide-y">
 									{#each phases as phase (phase.id)}
