@@ -35,7 +35,6 @@
 	import Save from '@lucide/svelte/icons/save';
 	import X from '@lucide/svelte/icons/x';
 	import Send from '@lucide/svelte/icons/send';
-	import Clock from '@lucide/svelte/icons/clock';
 	import TriangleAlert from '@lucide/svelte/icons/triangle-alert';
 	import type { Lead } from '$lib/server/db/schema';
 	import type {
@@ -291,11 +290,18 @@
 	}
 
 	function toEmailPhaseRows(progress: ApplicationEmailProgress): EmailPhaseRow[] {
-		return (Object.keys(emailPhaseLabels) as ApplicationEmailPhaseId[]).map((id) => ({
-			id,
-			label: emailPhaseLabels[id],
-			...progress.phases[id]
-		}));
+		return (Object.keys(emailPhaseLabels) as ApplicationEmailPhaseId[]).map((id) => {
+			const phase = progress.phases[id];
+			return {
+				id,
+				label: emailPhaseLabels[id],
+				...phase,
+				detail:
+					id === 'send' && progress.nextSendAt
+						? `Nächste E-Mail: ${viennaDateTime.format(new Date(progress.nextSendAt))}`
+						: phase.detail
+			};
+		});
 	}
 
 	function emailStatusLabel(status: ApplicationEmailRun['status'] | undefined): string {
@@ -601,26 +607,15 @@
 				{/if}
 			{/snippet}
 
-			{#snippet details()}
+			{#snippet footer()}
 				{#if emailRun}
-					<div class="space-y-2 border-t pt-3 text-sm text-muted-foreground">
-						<div class="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
-							<span>{emailProgress.headline}</span>
-							{#if emailProgress.nextSendAt}
-								<span class="flex items-center gap-1">
-									<Clock class="size-4 shrink-0" />
-									Nächste E-Mail: {viennaDateTime.format(new Date(emailProgress.nextSendAt))}
-								</span>
-							{/if}
-						</div>
-						{#if !emailProgress.nextSendAt && emailProgress.detail}
-							<p>{emailProgress.detail}</p>
-						{/if}
-					</div>
-					<p class="text-xs text-muted-foreground">
-						{emailRun.counts.sent} gesendet · {emailRun.counts.failed} fehlgeschlagen ·
-						{emailRun.counts.queued} offen
+					<p class="border-t pt-3 text-sm text-muted-foreground">
+						{emailRun.counts.sent} gesendet · {emailRun.counts.failed} fehlgeschlagen · {emailRun.counts
+							.queued} offen
 					</p>
+					{#if emailRun.error}
+						<p class="text-sm text-destructive">{emailRun.error}</p>
+					{/if}
 				{/if}
 			{/snippet}
 		</RunStatusCard>
