@@ -297,7 +297,11 @@ export async function findNearbyBusinesses(
 				lon: coord.lon,
 				matchedOsmTags: mergedTags,
 				address: buildAddress(elementTags),
-				website: elementTags.website ?? elementTags['contact:website'],
+				website:
+					elementTags.website ??
+					elementTags['contact:website'] ??
+					elementTags.url ??
+					elementTags['contact:url'],
 				phone: elementTags.phone ?? elementTags['contact:phone'],
 				email: elementTags.email ?? elementTags['contact:email']
 			});

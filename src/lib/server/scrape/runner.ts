@@ -1,4 +1,4 @@
-import { and, eq, isNull, ne, or, sql, type SQL } from 'drizzle-orm';
+import { and, eq, isNotNull, isNull, ne, or, sql, type SQL } from 'drizzle-orm';
 import { db } from '../db';
 import {
 	listing,
@@ -25,6 +25,11 @@ import {
 import { isAbortError, LlmLimiter } from '../llm/limiter';
 import { rankListing, rankLead } from '../llm/rank';
 import { draftColdEmail } from '../llm/draft-email';
+import {
+	leadEmailQualityHash,
+	reviewLeadEmailCandidates,
+	type LeadEmailQualityCandidate
+} from '../llm/email-quality';
 import { mapLimit } from '../util/concurrency';
 import { closeBrowser } from './browser';
 import { ADAPTERS, getEnabledAdapters, BROWSER_ADAPTERS } from './registry';
@@ -632,8 +637,78 @@ async function rankAll(
 
 	const rankContext = rankingContextHash(settings, cfg);
 	const draftContext = draftContextHash(settings, cfg);
+	await reviewAutomaticLeadEmails(cfg, limiter, signal);
 	await rankListings(settings, cfg, limiter, rankContext, counts, writer, signal);
 	await rankLeads(settings, cfg, limiter, rankContext, draftContext, writer, signal);
+}
+
+async function reviewAutomaticLeadEmails(
+	cfg: LlmConfig,
+	limiter: LlmLimiter,
+	signal: AbortSignal
+): Promise<void> {
+	const rows = await db
+		.select()
+		.from(lead)
+		.where(and(isNotNull(lead.email), eq(lead.emailManual, false)));
+	const candidates = rows
+		.filter((row) => row.emailSource === 'osm' || row.emailSource === 'website')
+		.map(
+			(row): LeadEmailQualityCandidate => ({
+				id: row.id,
+				name: row.name,
+				category: row.category,
+				website: row.website,
+				email: row.email!,
+				emailSource: row.emailSource as 'osm' | 'website'
+			})
+		)
+		.filter((candidate) => {
+			const qualityHash = leadEmailQualityHash(candidate);
+			const row = rows.find((item) => item.id === candidate.id);
+			if (!row) return true;
+			return (
+				row.emailQualityHash !== qualityHash ||
+				(row.emailQualityStatus !== 'accepted' && row.emailQualityStatus !== 'rejected')
+			);
+		});
+	if (candidates.length === 0) return;
+
+	const rowsById = new Map(rows.map((row) => [row.id, row]));
+	const reviewedAt = new Date();
+	const results = await reviewLeadEmailCandidates(cfg, candidates, limiter, signal);
+	for (const result of results) {
+		const row = rowsById.get(result.id);
+		if (!row?.email) continue;
+		if (result.status === 'rejected') {
+			await db
+				.update(lead)
+				.set({
+					email: null,
+					emailSource: null,
+					emailQualityStatus: 'rejected',
+					emailQualityHash: result.hash,
+					emailQualityReason: result.reason,
+					emailQualityCheckedAt: reviewedAt,
+					contentHash: null,
+					draftSubject: null,
+					draftBody: null,
+					draftContentHash: null,
+					draftContextHash: null
+				})
+				.where(and(eq(lead.id, result.id), eq(lead.email, row.email), eq(lead.emailManual, false)));
+		} else {
+			await db
+				.update(lead)
+				.set({
+					emailQualityStatus: 'accepted',
+					emailQualityHash: result.hash,
+					emailQualityReason: result.reason,
+					emailQualityCheckedAt: reviewedAt
+				})
+				.where(and(eq(lead.id, result.id), eq(lead.email, row.email), eq(lead.emailManual, false)));
+		}
+	}
 }
 
 async function rankListings(

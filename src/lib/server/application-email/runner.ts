@@ -196,6 +196,7 @@ function eligibleLeadWhere() {
 	return and(
 		eq(lead.status, 'new'),
 		isNotNull(lead.email),
+		or(eq(lead.emailManual, true), eq(lead.emailQualityStatus, 'accepted')),
 		sql`length(btrim(${lead.draftSubject})) > 0`,
 		sql`length(btrim(${lead.draftBody})) > 0`,
 		notExists(
@@ -465,8 +466,26 @@ export async function sendTestApplicationEmail(): Promise<TestApplicationEmailRe
 async function sendQueuedRow(
 	row: ApplicationEmail,
 	writer: ProgressWriter
-): Promise<'sent' | 'failed' | 'requeued'> {
+): Promise<'sent' | 'failed' | 'requeued' | 'skipped'> {
 	const settings = await getSettings();
+	const [currentLead] = await db
+		.select({
+			email: lead.email,
+			emailManual: lead.emailManual,
+			emailQualityStatus: lead.emailQualityStatus
+		})
+		.from(lead)
+		.where(eq(lead.id, row.leadId))
+		.limit(1);
+	if (
+		!currentLead?.email ||
+		currentLead.email.toLowerCase() !== row.recipientEmail.toLowerCase() ||
+		(!currentLead.emailManual && currentLead.emailQualityStatus !== 'accepted')
+	) {
+		await db.delete(applicationEmail).where(eq(applicationEmail.id, row.id));
+		writer.counts.skipped++;
+		return 'skipped';
+	}
 	await db
 		.update(applicationEmail)
 		.set({ status: 'sending', attempts: row.attempts + 1, error: null })
