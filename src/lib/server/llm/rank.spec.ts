@@ -189,6 +189,12 @@ describe('lead ranking prompt', () => {
 		expect(LEAD_SYSTEM).toContain('5 = ausgezeichnete Passung');
 		expect(LEAD_SYSTEM).not.toContain('Use the full');
 	});
+
+	it('does not expose the stored lead contact email to the model', () => {
+		const prompt = buildLeadRankingPrompt(settings(), lead({ email: 'kontakt@betrieb.example' }));
+
+		expect(prompt).not.toContain('kontakt@betrieb.example');
+	});
 });
 
 describe('listing ranking prompt', () => {
