@@ -26,7 +26,7 @@ const phases: RunStatusCardPhase[] = [
 	}
 ];
 
-it('renders the summary collapsed and expands phase details from the toggle', async () => {
+it('shows the active phase progress collapsed and expands phase details from the toggle', async () => {
 	render(RunStatusCard, {
 		title: 'Automatischer Bewerbungsversand',
 		statusLabel: 'läuft',
@@ -37,11 +37,17 @@ it('renders the summary collapsed and expands phase details from the toggle', as
 	});
 
 	await expect.element(page.getByText('Automatischer Bewerbungsversand')).toBeVisible();
-	await expect.element(page.getByText('läuft')).toBeVisible();
 	await expect.element(page.getByText('10m 49s')).toBeVisible();
+	// Running: the redundant status badge is dropped and the vague summary is replaced by the
+	// active phase progress meter (label + count + bar).
+	await expect.element(page.getByText('läuft')).not.toBeInTheDocument();
 	await expect
 		.element(page.getByText('790 neue Betriebe mit E-Mail und Entwurf sind offen.'))
-		.toBeVisible();
+		.not.toBeInTheDocument();
+	await expect.element(page.getByText('Versand', { exact: true })).toBeVisible();
+	await expect.element(page.getByText('12 / 20')).toBeVisible();
+	await expect.element(page.getByRole('progressbar')).toHaveAttribute('aria-valuenow', '60');
+	// Per-phase detail stays hidden until expanded.
 	await expect.element(page.getByText('Cafe Test: geplant 09:00')).not.toBeInTheDocument();
 
 	const toggle = page.getByRole('button', { name: 'Details ausklappen' });
@@ -51,11 +57,20 @@ it('renders the summary collapsed and expands phase details from the toggle', as
 	await expect
 		.element(page.getByRole('button', { name: 'Details einklappen' }))
 		.toHaveAttribute('aria-expanded', 'true');
-	await expect.element(page.getByText('Versand', { exact: true })).toBeVisible();
-	await expect.element(page.getByText('12 / 20')).toBeVisible();
+	// Assert only expand-only content; phase label / count / bar now also exist in the header meter.
 	await expect.element(page.getByText('1 fehlgeschlagen')).toBeVisible();
 	await expect.element(page.getByText('2 übersprungen')).toBeVisible();
 	await expect.element(page.getByText('Cafe Test: geplant 09:00')).toBeVisible();
-	await expect.element(page.getByRole('progressbar')).toBeInTheDocument();
-	await expect.element(page.getByRole('progressbar')).toHaveAttribute('aria-valuenow', '60');
+});
+
+it('shows the status badge and summary when not active', async () => {
+	render(RunStatusCard, {
+		title: 'Automatischer Bewerbungsversand',
+		statusLabel: 'fertig',
+		summary: '3 Bewertungen fehlgeschlagen.',
+		active: false
+	});
+
+	await expect.element(page.getByText('fertig')).toBeVisible();
+	await expect.element(page.getByText('3 Bewertungen fehlgeschlagen.')).toBeVisible();
 });

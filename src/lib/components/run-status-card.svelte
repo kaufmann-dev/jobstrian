@@ -66,6 +66,7 @@
 	}: Props = $props();
 
 	const hasExpandableContent = $derived(phases.length > 0 || Boolean(details) || Boolean(footer));
+	const activePhase = $derived(phases.find((phase) => phase.state === 'running'));
 
 	function phaseStateLabel(state: RunStatusCardPhaseState): string {
 		if (state === 'running') return 'läuft';
@@ -85,23 +86,48 @@
 
 <Collapsible.Root bind:open>
 	<Card.Root class="gap-0 py-0">
-		<Card.Header class="gap-3 py-4">
-			<div class="flex min-w-0 items-center gap-2">
-				{#if active}<Spinner class="size-4 shrink-0 text-primary" />{/if}
-				<Card.Title class="min-w-0 text-base leading-snug sm:truncate">{title}</Card.Title>
-			</div>
-			<div class="flex items-center justify-between gap-2">
-				<div class="flex min-w-0 items-center gap-2">
-					<Badge class="shrink-0" variant={statusVariant}>{statusLabel}</Badge>
-					{#if meta}
-						<span class="text-xs whitespace-nowrap text-muted-foreground">{meta}</span>
+		<Card.Header class="py-4">
+			<div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
+				<div class="flex items-center justify-between gap-2 sm:contents">
+					<div class="flex min-w-0 items-center gap-2 sm:order-1 sm:max-w-[45%] sm:shrink">
+						{#if active}<Spinner class="size-4 shrink-0 text-primary" />{/if}
+						<Card.Title class="min-w-0 truncate text-base leading-snug">{title}</Card.Title>
+					</div>
+					<div class="flex shrink-0 items-center gap-2 sm:order-3">
+						{#if meta}
+							<span class="text-xs whitespace-nowrap text-muted-foreground tabular-nums">{meta}</span>
+						{/if}
+						{@render actions?.()}
+					</div>
+				</div>
+
+				<div class="min-w-0 sm:order-2 sm:flex-1">
+					{#if active && activePhase}
+						<div class="flex flex-col gap-1.5 sm:flex-row sm:items-center sm:gap-3">
+							<div class="flex items-center justify-between gap-2 sm:contents">
+								<span class="truncate text-sm font-medium sm:order-1 sm:shrink-0">
+									{activePhase.label}
+								</span>
+								<span class="shrink-0 text-xs whitespace-nowrap text-muted-foreground tabular-nums sm:order-3">
+									{activePhase.current} / {activePhase.total}
+								</span>
+							</div>
+							{#if activePhase.total > 1}
+								<Progress value={phasePercent(activePhase)} class="h-1 sm:order-2 sm:flex-1" />
+							{/if}
+						</div>
+					{:else if active && summary}
+						<p class="truncate text-sm text-muted-foreground">{summary}</p>
+					{:else if !active}
+						<div class="flex min-w-0 items-center gap-2">
+							<Badge class="shrink-0" variant={statusVariant}>{statusLabel}</Badge>
+							{#if summary}
+								<span class="truncate text-sm text-muted-foreground">{summary}</span>
+							{/if}
+						</div>
 					{/if}
 				</div>
-				{@render actions?.()}
 			</div>
-			{#if summary}
-				<Card.Description>{summary}</Card.Description>
-			{/if}
 		</Card.Header>
 		{#if hasExpandableContent}
 			<Collapsible.Content>
