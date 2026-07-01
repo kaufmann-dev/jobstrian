@@ -3,6 +3,7 @@ import { fetchText } from '../../util/http';
 import { htmlToText } from '../../util/html';
 import { rethrowIfAbort } from '../abort';
 import type { ProfileQuery, RawListing, ScrapeResult, SourceAdapter } from '../types';
+import { detailPageGone } from './liveness';
 import { matchLocation } from './location';
 
 interface ParsedItem {
@@ -62,6 +63,10 @@ export const hokify: SourceAdapter = {
 		const $ = cheerio.load(html);
 		const inner = $('[itemprop="description"]').first().html();
 		return inner ? htmlToText(inner) : null;
+	},
+	// Removed hokify jobs answer 404/422 on their /job/<id> detail route.
+	async isListingGone(url: string, signal?: AbortSignal): Promise<boolean> {
+		return detailPageGone(url, (finalUrl) => finalUrl.pathname.startsWith('/job/'), signal);
 	},
 	async search(profile: ProfileQuery, signal?: AbortSignal): Promise<ScrapeResult> {
 		const byId = new Map<string, RawListing>();

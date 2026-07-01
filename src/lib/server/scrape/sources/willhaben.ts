@@ -2,6 +2,7 @@ import { fetchText } from '../../util/http';
 import { htmlToText } from '../../util/html';
 import { rethrowIfAbort } from '../abort';
 import type { ProfileQuery, RawListing, ScrapeResult, SourceAdapter } from '../types';
+import { detailPageGone } from './liveness';
 import { matchLocation } from './location';
 
 interface WhEntry {
@@ -65,6 +66,11 @@ export const willhaben: SourceAdapter = {
 		} | null;
 		const description = json?.props?.pageProps?.jobAdvertDetailsRoot?.data?.description;
 		return description ? htmlToText(description) : null;
+	},
+	// Expired willhaben ads redirect from /jobs/job/<slug>/<id> to the job
+	// search with an "advert expired" hint.
+	async isListingGone(url: string, signal?: AbortSignal): Promise<boolean> {
+		return detailPageGone(url, (finalUrl) => finalUrl.pathname.startsWith('/jobs/job/'), signal);
 	},
 	async search(profile: ProfileQuery, signal?: AbortSignal): Promise<ScrapeResult> {
 		const byId = new Map<string, RawListing>();

@@ -1,12 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { fetchText } from '../../util/http';
+import { fetchText, politeFetch } from '../../util/http';
 import { hokify } from './hokify';
 
 vi.mock('../../util/http', () => ({
-	fetchText: vi.fn()
+	fetchText: vi.fn(),
+	politeFetch: vi.fn()
 }));
 
 const fetchTextMock = vi.mocked(fetchText);
+const politeFetchMock = vi.mocked(politeFetch);
 
 const resultHtml = `
 	<ul>
@@ -31,6 +33,7 @@ const resultHtml = `
 describe('hokify scraper', () => {
 	beforeEach(() => {
 		fetchTextMock.mockReset();
+		politeFetchMock.mockReset();
 	});
 
 	it('uses the current search route and parses server-rendered job cards', async () => {
@@ -130,5 +133,34 @@ describe('hokify scraper', () => {
 		fetchTextMock.mockResolvedValue('<main><p>kein Beschreibungstext</p></main>');
 
 		expect(await hokify.fetchDescription!('https://hokify.at/job/123')).toBeNull();
+	});
+
+	it('closes a listing only when the detail page is confirmed gone', async () => {
+		politeFetchMock.mockResolvedValue({
+			status: 404,
+			ok: false,
+			redirected: false,
+			url: 'https://hokify.at/job/1',
+			body: null
+		} as Response);
+		await expect(hokify.isListingGone!('https://hokify.at/job/1')).resolves.toBe(true);
+
+		politeFetchMock.mockResolvedValue({
+			status: 200,
+			ok: true,
+			redirected: false,
+			url: 'https://hokify.at/job/1',
+			body: null
+		} as Response);
+		await expect(hokify.isListingGone!('https://hokify.at/job/1')).resolves.toBe(false);
+
+		politeFetchMock.mockResolvedValue({
+			status: 200,
+			ok: true,
+			redirected: true,
+			url: 'https://hokify.at/jobs',
+			body: null
+		} as Response);
+		await expect(hokify.isListingGone!('https://hokify.at/job/1')).resolves.toBe(true);
 	});
 });
