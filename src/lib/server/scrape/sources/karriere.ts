@@ -3,6 +3,7 @@ import { fetchText } from '../../util/http';
 import { htmlToText } from '../../util/html';
 import { rethrowIfAbort } from '../abort';
 import type { ProfileQuery, RawListing, ScrapeResult, SourceAdapter } from '../types';
+import { detailPageGone } from './liveness';
 import { matchLocation } from './location';
 
 /** Find a JobPosting object inside a JSON-LD value (object, array, or @graph). */
@@ -91,6 +92,10 @@ export const karriere: SourceAdapter = {
 			if (posting?.description) return htmlToText(posting.description);
 		}
 		return null;
+	},
+	// Removed karriere.at jobs answer 404 on their /jobs/<id> detail route.
+	async isListingGone(url: string, signal?: AbortSignal): Promise<boolean> {
+		return detailPageGone(url, (finalUrl) => /^\/jobs\/\d+/.test(finalUrl.pathname), signal);
 	},
 	async search(profile: ProfileQuery, signal?: AbortSignal): Promise<ScrapeResult> {
 		const byId = new Map<string, RawListing>();

@@ -44,4 +44,14 @@ export interface SourceAdapter {
 	 * when the description already comes from `search` (e.g. AMS).
 	 */
 	fetchDescription?(url: string, signal?: AbortSignal): Promise<string | null>;
+	/**
+	 * Confirm via the listing's own detail page that the ad is gone. Search
+	 * results only cover the first page, so the runner closes a vanished
+	 * listing of this source only after this returns true. Must return false
+	 * when the ad is still reachable and throw when the check is indeterminate
+	 * (the listing then stays active and is re-checked next run). Omit it when
+	 * the portal cannot be probed statelessly (e.g. the AMS SPA); such sources
+	 * are closed directly when they vanish from the results.
+	 */
+	isListingGone?(url: string, signal?: AbortSignal): Promise<boolean>;
 }

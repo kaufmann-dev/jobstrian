@@ -1,4 +1,4 @@
-import { and, eq, isNotNull, isNull, ne, or, sql, type SQL } from 'drizzle-orm';
+import { and, eq, inArray, isNotNull, isNull, ne, or, sql, type SQL } from 'drizzle-orm';
 import { db } from '../db';
 import {
 	listing,
@@ -255,6 +255,52 @@ export function listingReconcileWhere(
 	);
 }
 
+/**
+ * Close listings that vanished from the current search results. The portals
+ * paginate and the adapters only see the first results page, so falling out of
+ * the results does not prove an ad is gone — each candidate's own detail page
+ * is probed when the source supports it, and only confirmed-gone listings are
+ * closed. An indeterminate probe (network error, 5xx) keeps the listing active
+ * so the next run re-checks it. Sources without `isListingGone` (AMS) are
+ * closed directly, as before.
+ */
+async function closeVanishedListings(
+	where: SQL,
+	writer: ProgressWriter,
+	signal: AbortSignal
+): Promise<{ closed: number; candidates: number }> {
+	const candidates = await db.select().from(listing).where(where);
+	const toClose: number[] = [];
+	let checked = 0;
+	await mapLimit(
+		candidates,
+		DETAIL_FETCH_CONCURRENCY,
+		async (row) => {
+			throwIfAborted(signal);
+			const isListingGone = ADAPTERS[row.source]?.isListingGone;
+			try {
+				if (!isListingGone || (await isListingGone(row.url, signal))) toClose.push(row.id);
+			} catch (err) {
+				if (isAbortLike(err)) throw err;
+				console.warn(`[runner] Verfügbarkeit der Stelle ${row.id} unklar, bleibt aktiv:`, err);
+			} finally {
+				checked++;
+				writer.phase('reconcile', {
+					current: checked,
+					total: candidates.length,
+					detail: `Nicht mehr gelistete Stellen geprüft: ${checked} / ${candidates.length}`
+				});
+				await writer.flush();
+			}
+		},
+		signal
+	);
+	if (toClose.length > 0) {
+		await db.update(listing).set({ status: 'closed' }).where(inArray(listing.id, toClose));
+	}
+	return { closed: toClose.length, candidates: candidates.length };
+}
+
 /** Flag leads whose business name matches an active listing's company. */
 async function markLeadsWithPostings(): Promise<void> {
 	await db.execute(sql`
@@ -342,29 +388,29 @@ export async function runRefresh(
 
 		writer.phase(
 			'reconcile',
-			{ state: 'running', current: 0, total: 1, detail: 'Geschlossene Stellen werden erkannt' },
+			{ state: 'running', current: 0, total: 0, detail: 'Geschlossene Stellen werden erkannt' },
 			'Stellen werden abgeglichen'
 		);
 		await writer.flush(true);
+		let reconcileCandidates = 0;
 		if (profile && completeSources.size > 0) {
 			const scopes = listingSearchScopes([...completeSources], profile.locations);
 			const where = listingReconcileWhere(runId, scopes);
 			if (where) {
-				const closed = await db
-					.update(listing)
-					.set({ status: 'closed' })
-					.where(where)
-					.returning({ id: listing.id });
-				counts.closed = closed.length;
+				const result = await closeVanishedListings(where, writer, signal);
+				counts.closed = result.closed;
+				reconcileCandidates = result.candidates;
 			}
 		}
+		const stillOpen = reconcileCandidates - counts.closed;
 		const incompleteSources = profile ? adapters.length - completeSources.size : 0;
 		writer.phase('reconcile', {
 			state: 'done',
-			current: 1,
-			total: 1,
+			current: reconcileCandidates,
+			total: reconcileCandidates,
 			detail:
 				`${counts.closed} nicht mehr verfügbare Stellen erkannt` +
+				(stillOpen > 0 ? `, ${stillOpen} weiterhin online` : '') +
 				(incompleteSources > 0
 					? ` (${incompleteSources} unvollständige Quelle${incompleteSources === 1 ? '' : 'n'} übersprungen)`
 					: '')

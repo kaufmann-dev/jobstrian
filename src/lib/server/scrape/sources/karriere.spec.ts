@@ -1,12 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { fetchText } from '../../util/http';
+import { fetchText, politeFetch } from '../../util/http';
 import { karriere } from './karriere';
 
 vi.mock('../../util/http', () => ({
-	fetchText: vi.fn()
+	fetchText: vi.fn(),
+	politeFetch: vi.fn()
 }));
 
 const fetchTextMock = vi.mocked(fetchText);
+const politeFetchMock = vi.mocked(politeFetch);
 
 const resultHtml = `
 	<div class="m-jobsListItem">
@@ -19,6 +21,7 @@ const resultHtml = `
 describe('karriere scraper', () => {
 	beforeEach(() => {
 		fetchTextMock.mockReset();
+		politeFetchMock.mockReset();
 	});
 
 	it('searches every configured city for every keyword', async () => {
@@ -88,5 +91,34 @@ describe('karriere scraper', () => {
 		);
 
 		expect(await karriere.fetchDescription!('https://www.karriere.at/jobs/1')).toBeNull();
+	});
+
+	it('closes a listing only when the detail page is confirmed gone', async () => {
+		politeFetchMock.mockResolvedValue({
+			status: 404,
+			ok: false,
+			redirected: false,
+			url: 'https://www.karriere.at/jobs/123',
+			body: null
+		} as Response);
+		await expect(karriere.isListingGone!('https://www.karriere.at/jobs/123')).resolves.toBe(true);
+
+		politeFetchMock.mockResolvedValue({
+			status: 200,
+			ok: true,
+			redirected: false,
+			url: 'https://www.karriere.at/jobs/123',
+			body: null
+		} as Response);
+		await expect(karriere.isListingGone!('https://www.karriere.at/jobs/123')).resolves.toBe(false);
+
+		politeFetchMock.mockResolvedValue({
+			status: 200,
+			ok: true,
+			redirected: true,
+			url: 'https://www.karriere.at/jobs/koch/wien',
+			body: null
+		} as Response);
+		await expect(karriere.isListingGone!('https://www.karriere.at/jobs/123')).resolves.toBe(true);
 	});
 });

@@ -1,12 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { fetchText } from '../../util/http';
+import { fetchText, politeFetch } from '../../util/http';
 import { willhaben } from './willhaben';
 
 vi.mock('../../util/http', () => ({
-	fetchText: vi.fn()
+	fetchText: vi.fn(),
+	politeFetch: vi.fn()
 }));
 
 const fetchTextMock = vi.mocked(fetchText);
+const politeFetchMock = vi.mocked(politeFetch);
 
 function page(entries: unknown[]): string {
 	return `<script id="__NEXT_DATA__" type="application/json">${JSON.stringify({
@@ -17,6 +19,7 @@ function page(entries: unknown[]): string {
 describe('willhaben scraper', () => {
 	beforeEach(() => {
 		fetchTextMock.mockReset();
+		politeFetchMock.mockReset();
 	});
 
 	it('searches by keyword without Vienna area id and filters parsed cities', async () => {
@@ -111,5 +114,29 @@ describe('willhaben scraper', () => {
 		);
 
 		expect(description).toBe('Aufgaben Deutsch B2');
+	});
+
+	it('closes a listing only when the detail page is confirmed gone', async () => {
+		politeFetchMock.mockResolvedValue({
+			status: 200,
+			ok: true,
+			redirected: true,
+			url: 'https://www.willhaben.at/jobs/suche?similarAdvert=1&showAdvertExpiredHint=true',
+			body: null
+		} as Response);
+		await expect(willhaben.isListingGone!('https://www.willhaben.at/jobs/job/x/1')).resolves.toBe(
+			true
+		);
+
+		politeFetchMock.mockResolvedValue({
+			status: 200,
+			ok: true,
+			redirected: false,
+			url: 'https://www.willhaben.at/jobs/job/x/1',
+			body: null
+		} as Response);
+		await expect(willhaben.isListingGone!('https://www.willhaben.at/jobs/job/x/1')).resolves.toBe(
+			false
+		);
 	});
 });
