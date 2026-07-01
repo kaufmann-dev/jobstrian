@@ -31,6 +31,14 @@ Keine Platzhalter in eckigen Klammern. Variiere Satzlänge und Satzbau.`;
 const SIGNOFF = 'Mit freundlichen Grüßen';
 const MAX_DRAFT_ATTEMPTS = 2;
 
+/** Raised when the model never returns a body matching the required structure. */
+export class DraftFormatError extends Error {
+	constructor(message: string) {
+		super(message);
+		this.name = 'DraftFormatError';
+	}
+}
+
 function draftProfileBlock(settings: Settings): string {
 	const block = profileBlock(settings);
 	if (!settings.homeAddress) return block;
@@ -159,5 +167,7 @@ export async function draftColdEmail(
 			};
 		}
 	}
-	throw new Error(`LLM lieferte keinen korrekt formatierten E-Mail-Entwurf für "${lastSubject}".`);
+	throw new DraftFormatError(
+		`LLM lieferte keinen korrekt formatierten E-Mail-Entwurf für "${lastSubject}".`
+	);
 }

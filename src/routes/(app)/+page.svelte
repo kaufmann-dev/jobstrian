@@ -45,6 +45,19 @@
 			phaseRows.findLast((phase) => phase.state === 'done')
 	);
 	const totalFailed = $derived(phaseRows.reduce((sum, phase) => sum + phase.failed, 0));
+	const dominantFailureReason = $derived.by(() => {
+		const totals: Record<string, { label: string; count: number }> = {};
+		for (const phase of phaseRows) {
+			for (const reason of phase.failureReasons ?? []) {
+				const existing = totals[reason.code];
+				if (existing) existing.count += reason.count;
+				else totals[reason.code] = { label: reason.label, count: reason.count };
+			}
+		}
+		let top: { label: string; count: number } | undefined;
+		for (const reason of Object.values(totals)) if (!top || reason.count > top.count) top = reason;
+		return top?.label;
+	});
 
 	const statGroups = $derived([
 		{
@@ -270,7 +283,7 @@
 			summary={isActive
 				? `${currentPhase?.label ?? 'Aktualisierung'} · ${currentPhase?.detail || progress.detail || 'Bereit'}`
 				: totalFailed > 0
-					? `${totalFailed} ${totalFailed === 1 ? 'Bewertung' : 'Bewertungen'} fehlgeschlagen.`
+					? `${totalFailed} ${totalFailed === 1 ? 'Bewertung' : 'Bewertungen'} fehlgeschlagen${dominantFailureReason ? ` · ${dominantFailureReason}` : '.'}`
 					: undefined}
 		>
 			{#snippet actions()}

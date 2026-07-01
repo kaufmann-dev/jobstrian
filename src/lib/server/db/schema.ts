@@ -422,6 +422,11 @@ export type RunPhaseState =
 	| 'skipped'
 	| 'error'
 	| 'canceled';
+export interface RunPhaseFailureReason {
+	code: string;
+	label: string;
+	count: number;
+}
 export interface RunPhaseProgress {
 	state: RunPhaseState;
 	current: number;
@@ -429,6 +434,8 @@ export interface RunPhaseProgress {
 	detail: string;
 	skipped: number;
 	failed: number;
+	/** Per-cause breakdown of `failed`, most frequent first. Absent on old runs. */
+	failureReasons?: RunPhaseFailureReason[];
 }
 export interface RunLlmProgress {
 	requestsPerMinute: number;

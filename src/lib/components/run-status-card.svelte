@@ -11,6 +11,12 @@
 		| 'error'
 		| 'canceled';
 
+	export type RunStatusCardFailureReason = {
+		code: string;
+		label: string;
+		count: number;
+	};
+
 	export type RunStatusCardPhase = {
 		id: string;
 		label: string;
@@ -20,6 +26,7 @@
 		detail: string;
 		skipped: number;
 		failed: number;
+		failureReasons?: RunStatusCardFailureReason[];
 	};
 
 	type Props = {
@@ -186,6 +193,19 @@
 													{/if}{#if phase.skipped > 0}{phase.skipped}
 														übersprungen{/if}
 												</p>
+											{/if}
+											{#if phase.failed > 0 && phase.failureReasons?.length}
+												<ul class="pl-[26px] text-xs text-muted-foreground">
+													{#each phase.failureReasons as reason (reason.code)}
+														<li
+															class={reason.code === 'payment' || reason.code === 'auth'
+																? 'font-medium text-amber-600 dark:text-amber-400'
+																: undefined}
+														>
+															{reason.count}× {reason.label}
+														</li>
+													{/each}
+												</ul>
 											{/if}
 											{#if phase.state === 'running'}
 												{#if phase.total > 1}
