@@ -311,4 +311,30 @@ describe('LLM fingerprints', () => {
 			)
 		).toMatchObject({ rank: true, draft: true });
 	});
+
+	it('re-ranks and re-drafts everything under force, but postings stay unranked', () => {
+		const rankContext = rankingContextHash(settings(), cfg);
+		const emailContext = draftContextHash(settings(), cfg);
+		const row = leadRow();
+		const contentHash = leadContentHash(row);
+		const cached = leadRow({
+			contentHash,
+			rankContentHash: contentHash,
+			rankContextHash: rankContext,
+			draftContentHash: contentHash,
+			draftContextHash: emailContext
+		});
+
+		expect(planLeadLlmWork(cached, rankContext, emailContext)).toMatchObject({
+			rank: false,
+			draft: false
+		});
+		expect(planLeadLlmWork(cached, rankContext, emailContext, true)).toMatchObject({
+			rank: true,
+			draft: true
+		});
+		expect(
+			planLeadLlmWork({ ...cached, hasActivePosting: true }, rankContext, emailContext, true)
+		).toMatchObject({ rank: false, draft: true });
+	});
 });

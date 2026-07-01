@@ -21,10 +21,12 @@ function startFailureMessage(err: unknown): string {
 	return 'Aktualisierung konnte nicht gestartet werden.';
 }
 
-export const POST: RequestHandler = async () => {
+export const POST: RequestHandler = async ({ request }) => {
 	try {
+		const body = (await request.json().catch(() => null)) as { full?: boolean } | null;
+		const force = body?.full === true;
 		const { startRefresh } = await import('$lib/server/scrape/runner');
-		const runId = await startRefresh();
+		const runId = await startRefresh(force);
 		if (runId === null) {
 			return json(
 				{
