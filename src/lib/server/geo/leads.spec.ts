@@ -299,4 +299,15 @@ describe('syncLeads', () => {
 			expect.objectContaining({ email: 'kontakt@betrieb.example', emailSource: 'website' })
 		);
 	});
+
+	it('normalizes scheme-less OSM website tags to absolute https URLs', async () => {
+		findNearbyBusinesses.mockResolvedValue([place({ website: 'www.gasthaus-huber.at' })]);
+		fetchText.mockResolvedValue('<body></body>');
+
+		await syncLeads(settings(), 12);
+
+		expect(values).toHaveBeenCalledWith(
+			expect.objectContaining({ website: 'https://www.gasthaus-huber.at/' })
+		);
+	});
 });
