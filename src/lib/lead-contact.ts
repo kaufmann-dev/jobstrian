@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { normalizeWebsiteUrl } from './website';
 
 const optionalContact = z
 	.string()
@@ -21,8 +22,17 @@ const optionalWebsite = z
 	.nullable()
 	.optional()
 	.transform((value) => (value === '' ? null : value))
-	.refine((value) => value == null || z.url().safeParse(value).success, {
-		message: 'Gib eine gültige Website-URL ein.'
+	.transform((value, ctx) => {
+		if (value == null) return value;
+		const normalized = normalizeWebsiteUrl(value);
+		if (!normalized) {
+			ctx.addIssue({
+				code: z.ZodIssueCode.custom,
+				message: 'Gib eine gültige Website-URL ein.'
+			});
+			return z.NEVER;
+		}
+		return normalized.href;
 	});
 
 export const leadContactFormSchema = z.object({
@@ -38,8 +48,17 @@ export const leadContactFormSchema = z.object({
 		.string()
 		.trim()
 		.max(1000)
-		.refine((value) => value === '' || z.url().safeParse(value).success, {
-			message: 'Gib eine gültige Website-URL ein.'
+		.transform((value, ctx) => {
+			if (value === '') return '';
+			const normalized = normalizeWebsiteUrl(value);
+			if (!normalized) {
+				ctx.addIssue({
+					code: z.ZodIssueCode.custom,
+					message: 'Gib eine gültige Website-URL ein.'
+				});
+				return z.NEVER;
+			}
+			return normalized.href;
 		})
 });
 

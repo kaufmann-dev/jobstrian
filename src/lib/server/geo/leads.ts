@@ -8,6 +8,7 @@ import { mapLimit } from '../util/concurrency';
 import { leadContentHash } from '../llm/fingerprints';
 import { deterministicLeadEmailReview } from '../llm/email-quality';
 import { findNearbyBusinesses, type OverpassPlace } from './overpass';
+import { normalizeWebsiteUrl } from '$lib/website';
 
 const EMAIL_RE = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g;
 const BAD_EMAIL_SUFFIX = /\.(png|jpg|jpeg|gif|webp|svg|css|js)$/i;
@@ -155,20 +156,6 @@ function collectEmailCandidates(
 	for (const email of text.match(EMAIL_RE) ?? []) add(email, 'text');
 	for (const email of obfuscatedEmails(text)) add(email, 'obfuscated');
 	return [...candidates.values()];
-}
-
-function normalizeWebsiteUrl(website: string): URL | null {
-	const trimmed = website.trim();
-	if (!trimmed) return null;
-	for (const candidate of [trimmed, `https://${trimmed}`]) {
-		try {
-			const url = new URL(candidate);
-			if (url.protocol === 'http:' || url.protocol === 'https:') return url;
-		} catch {
-			// Try the next candidate.
-		}
-	}
-	return null;
 }
 
 function linkScore(url: URL, text = '', linked = false): number {
@@ -378,6 +365,9 @@ async function upsertLead(
 ): Promise<boolean> {
 	const nextEmail = email ?? null;
 	const nextEmailSource = emailSource;
+	const normalizedWebsite = place.website
+		? (normalizeWebsiteUrl(place.website)?.href ?? null)
+		: null;
 	// For automatic (non-manual) leads, adopt a freshly discovered address whenever one
 	// is present. Only a genuinely different address resets the quality review — an
 	// unchanged address keeps its existing verdict so a rejected address is not
@@ -395,7 +385,7 @@ async function upsertLead(
 			distanceMeters: distance,
 			address: place.address,
 			matchedOsmTags: place.matchedOsmTags,
-			website: place.website,
+			website: normalizedWebsite,
 			websiteManual: false,
 			phone: place.phone,
 			phoneManual: false,
@@ -411,7 +401,7 @@ async function upsertLead(
 				address: place.address ?? null,
 				matchedOsmTags: place.matchedOsmTags,
 				distanceMeters: distance,
-				website: place.website ?? null,
+				website: normalizedWebsite,
 				email: email ?? null
 			}),
 			lastSeenRunId: runId
@@ -424,7 +414,7 @@ async function upsertLead(
 				distanceMeters: distance,
 				address: place.address,
 				matchedOsmTags: place.matchedOsmTags,
-				website: sql`case when ${lead.websiteManual} then ${lead.website} else ${place.website ?? null} end`,
+				website: sql`case when ${lead.websiteManual} then ${lead.website} else ${normalizedWebsite} end`,
 				phone: sql`case when ${lead.phoneManual} then ${lead.phone} else ${place.phone ?? null} end`,
 				email: sql`case when ${lead.emailManual} then ${lead.email} when ${nextEmail}::text is not null then ${nextEmail} else ${lead.email} end`,
 				emailSource: sql`case when ${lead.emailManual} then ${lead.emailSource} when ${nextEmail}::text is not null then ${nextEmailSource} else ${lead.emailSource} end`,
