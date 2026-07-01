@@ -5,6 +5,7 @@ import {
 	lead,
 	scrapeRun,
 	type Lead,
+	type RunPhaseFailureReason,
 	type RunPhaseId,
 	type RunPhaseProgress,
 	type RunProgress,
@@ -13,7 +14,13 @@ import {
 import { getSettings } from '../settings';
 import { reconcileLeads, syncLeads } from '../geo/leads';
 import { OverpassUnavailableError } from '../geo/overpass';
-import { getLlmConfig, LlmNotConfiguredError, type LlmConfig } from '../llm/client';
+import {
+	describeLlmFailure,
+	errorCauseMessage,
+	getLlmConfig,
+	LlmNotConfiguredError,
+	type LlmConfig
+} from '../llm/client';
 import {
 	draftContextHash,
 	listingContentHash,
@@ -71,16 +78,17 @@ function isAbortLike(err: unknown): boolean {
 	return isAbortError(err) || (err instanceof Error && /aborted|abort/i.test(err.message));
 }
 
-/**
- * Surface the real failure reason. Drizzle wraps DB errors so `err.message` is
- * only the `Failed query: … params: …` text; the actual Postgres message lives
- * in `err.cause`. Lead with the cause so the run detail is readable.
- */
-function describeRunError(err: unknown): string {
-	if (!(err instanceof Error)) return String(err);
-	const cause = (err as { cause?: unknown }).cause;
-	const causeMsg = cause instanceof Error ? cause.message : undefined;
-	return causeMsg && causeMsg !== err.message ? `${causeMsg} — ${err.message}` : err.message;
+/** Tally a per-item failure by its classified cause for the phase breakdown. */
+function bumpFailure(reasons: Map<string, RunPhaseFailureReason>, err: unknown): void {
+	const { code, label } = describeLlmFailure(err);
+	const existing = reasons.get(code);
+	if (existing) existing.count++;
+	else reasons.set(code, { code, label, count: 1 });
+}
+
+/** Snapshot the failure tally as a plain array, most frequent cause first. */
+function toFailureReasons(reasons: Map<string, RunPhaseFailureReason>): RunPhaseFailureReason[] {
+	return [...reasons.values()].sort((a, b) => b.count - a.count).map((reason) => ({ ...reason }));
 }
 
 class ProgressWriter {
@@ -477,7 +485,7 @@ export async function runRefresh(
 
 		console.error('[runner] Lauf fehlgeschlagen:', err);
 		writer.progress.headline = 'Aktualisierung fehlgeschlagen';
-		writer.progress.detail = describeRunError(err);
+		writer.progress.detail = errorCauseMessage(err);
 		for (const id of Object.keys(writer.progress.phases) as RunPhaseId[]) {
 			const phase = writer.progress.phases[id];
 			if (phase.state === 'running') {
@@ -804,6 +812,7 @@ async function rankListings(
 	const skipped = rows.length - work.length;
 	let completed = 0;
 	let failed = 0;
+	const reasons = new Map<string, RunPhaseFailureReason>();
 
 	writer.phase(
 		'rank-listings',
@@ -844,6 +853,7 @@ async function rankListings(
 			} catch (err) {
 				if (isAbortLike(err)) throw err;
 				failed++;
+				bumpFailure(reasons, err);
 				console.error(`[runner] Bewertung der Stelle ${row.id} fehlgeschlagen:`, err);
 			} finally {
 				const current = skipped + completed + failed;
@@ -852,7 +862,8 @@ async function rankListings(
 					total: rows.length,
 					detail: `Stellen bewertet: ${completed} / ${rows.length}, übersprungen: ${skipped}, fehlgeschlagen: ${failed}`,
 					skipped,
-					failed
+					failed,
+					failureReasons: toFailureReasons(reasons)
 				});
 				await writer.flush();
 			}
@@ -866,7 +877,8 @@ async function rankListings(
 		total: rows.length,
 		detail: `Stellen bewertet: ${completed} / ${rows.length}, übersprungen: ${skipped}, fehlgeschlagen: ${failed}`,
 		skipped,
-		failed
+		failed,
+		failureReasons: toFailureReasons(reasons)
 	});
 	await writer.flush(true);
 }
@@ -886,6 +898,7 @@ async function rankLeads(
 	const skipped = planned.length - work.length;
 	let completed = 0;
 	let failed = 0;
+	const reasons = new Map<string, RunPhaseFailureReason>();
 
 	writer.phase(
 		'rank-leads',
@@ -930,6 +943,7 @@ async function rankLeads(
 			} catch (err) {
 				if (isAbortLike(err)) throw err;
 				failed++;
+				bumpFailure(reasons, err);
 				console.error(`[runner] Bewertung des Betriebs ${row.id} fehlgeschlagen:`, err);
 			} finally {
 				const current = skipped + completed + failed;
@@ -938,7 +952,8 @@ async function rankLeads(
 					total: rows.length,
 					detail: `Betriebe bewertet: ${completed} / ${rows.length}, übersprungen: ${skipped}, fehlgeschlagen: ${failed}`,
 					skipped,
-					failed
+					failed,
+					failureReasons: toFailureReasons(reasons)
 				});
 				await writer.flush();
 			}
@@ -952,7 +967,8 @@ async function rankLeads(
 		total: rows.length,
 		detail: `Betriebe bewertet: ${completed} / ${rows.length}, übersprungen: ${skipped}, fehlgeschlagen: ${failed}`,
 		skipped,
-		failed
+		failed,
+		failureReasons: toFailureReasons(reasons)
 	});
 	await writer.flush(true);
 }
