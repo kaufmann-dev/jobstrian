@@ -1,12 +1,10 @@
-import { sql, eq, and, desc, isNotNull } from 'drizzle-orm';
+import { sql, eq, and, desc, isNotNull, type SQL } from 'drizzle-orm';
 import { db } from '$lib/server/db';
 import { listing, lead, scrapeRun } from '$lib/server/db/schema';
+import { visibleLeadEmail } from '$lib/server/lead-email';
 import type { PageServerLoad } from './$types';
 
-async function count(
-	where: ReturnType<typeof eq> | undefined,
-	table: typeof listing | typeof lead
-) {
+async function count(where: SQL | undefined, table: typeof listing | typeof lead) {
 	const q = db.select({ n: sql<number>`count(*)::int` }).from(table);
 	const [row] = where ? await q.where(where) : await q;
 	return row?.n ?? 0;
@@ -19,7 +17,7 @@ export const load: PageServerLoad = async () => {
 			count(eq(listing.status, 'closed'), listing),
 			count(and(eq(listing.status, 'active'), isNotNull(listing.rankScore)), listing),
 			count(undefined, lead),
-			count(isNotNull(lead.email), lead),
+			count(visibleLeadEmail(), lead),
 			count(eq(lead.hasActivePosting, false), lead)
 		]);
 

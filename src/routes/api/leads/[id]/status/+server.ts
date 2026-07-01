@@ -3,6 +3,7 @@ import { json } from '@sveltejs/kit';
 import { z } from 'zod';
 import { db } from '$lib/server/db';
 import { lead } from '$lib/server/db/schema';
+import { maskLeadEmail } from '$lib/server/lead-email';
 import type { RequestHandler } from './$types';
 
 const bodySchema = z.object({ status: z.enum(['new', 'contacted', 'ignored']) });
@@ -17,5 +18,5 @@ export const PATCH: RequestHandler = async ({ params, request }) => {
 		.where(eq(lead.id, id.data))
 		.returning();
 	if (!updated) return json({ message: 'Betrieb nicht gefunden' }, { status: 404 });
-	return json(updated);
+	return json(maskLeadEmail(updated));
 };

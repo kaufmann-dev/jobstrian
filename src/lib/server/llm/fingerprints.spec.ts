@@ -129,7 +129,6 @@ function leadRow(patch: Partial<Lead> = {}): Lead {
 		emailManual: false,
 		emailSource: 'website',
 		emailQualityStatus: 'accepted',
-		emailQualityHash: null,
 		emailQualityReason: null,
 		emailQualityCheckedAt: null,
 		hasActivePosting: false,

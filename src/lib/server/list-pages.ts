@@ -28,6 +28,7 @@ import {
 } from '$lib/list-pages';
 import { db } from './db';
 import { lead, listing, type Lead, type Listing } from './db/schema';
+import { maskLeadEmail, visibleLeadEmail } from './lead-email';
 
 const listingCursorSchema = z.discriminatedUnion('sort', [
 	z.object({
@@ -340,7 +341,7 @@ export async function getListingPage(
 
 function leadWhere(filters: LeadFilters): SQL | undefined {
 	return and(
-		filters.onlyWithEmail ? isNotNull(lead.email) : undefined,
+		filters.onlyWithEmail ? visibleLeadEmail() : undefined,
 		filters.onlyOpen ? eq(lead.hasActivePosting, false) : undefined,
 		filters.hideIgnored ? ne(lead.status, 'ignored') : undefined,
 		filters.search
@@ -348,7 +349,7 @@ function leadWhere(filters: LeadFilters): SQL | undefined {
 					ilike(lead.name, `%${filters.search}%`),
 					ilike(lead.category, `%${filters.search}%`),
 					ilike(lead.address, `%${filters.search}%`),
-					ilike(lead.email, `%${filters.search}%`)
+					and(visibleLeadEmail(), ilike(lead.email, `%${filters.search}%`))
 				)
 			: undefined
 	);
@@ -440,10 +441,11 @@ export async function getLeadPage(
 		countRows(lead)
 	]);
 	const hasMore = rows.length > LIST_BATCH_SIZE;
-	const items = hasMore ? rows.slice(0, LIST_BATCH_SIZE) : rows;
+	const page = hasMore ? rows.slice(0, LIST_BATCH_SIZE) : rows;
+	const nextCursor = hasMore ? encodeLeadCursor(page.at(-1)!, filters.sort) : null;
 	return {
-		items,
-		nextCursor: hasMore ? encodeLeadCursor(items.at(-1)!, filters.sort) : null,
+		items: page.map(maskLeadEmail),
+		nextCursor,
 		matchingTotal,
 		total
 	};
