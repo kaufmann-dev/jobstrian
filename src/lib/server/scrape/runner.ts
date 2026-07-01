@@ -14,13 +14,8 @@ import {
 import { getSettings } from '../settings';
 import { reconcileLeads, syncLeads } from '../geo/leads';
 import { OverpassUnavailableError } from '../geo/overpass';
-import {
-	describeLlmFailure,
-	errorCauseMessage,
-	getLlmConfig,
-	LlmNotConfiguredError,
-	type LlmConfig
-} from '../llm/client';
+import { getLlmConfig, LlmNotConfiguredError, type LlmConfig } from '../llm/client';
+import { bumpFailure, errorCauseMessage, toFailureReasons } from '../run-failures';
 import {
 	draftContextHash,
 	listingContentHash,
@@ -76,19 +71,6 @@ function throwIfAborted(signal: AbortSignal): void {
 
 function isAbortLike(err: unknown): boolean {
 	return isAbortError(err) || (err instanceof Error && /aborted|abort/i.test(err.message));
-}
-
-/** Tally a per-item failure by its classified cause for the phase breakdown. */
-function bumpFailure(reasons: Map<string, RunPhaseFailureReason>, err: unknown): void {
-	const { code, label } = describeLlmFailure(err);
-	const existing = reasons.get(code);
-	if (existing) existing.count++;
-	else reasons.set(code, { code, label, count: 1 });
-}
-
-/** Snapshot the failure tally as a plain array, most frequent cause first. */
-function toFailureReasons(reasons: Map<string, RunPhaseFailureReason>): RunPhaseFailureReason[] {
-	return [...reasons.values()].sort((a, b) => b.count - a.count).map((reason) => ({ ...reason }));
 }
 
 class ProgressWriter {
@@ -710,6 +692,7 @@ async function reviewAutomaticLeadEmails(
 	let latestAccepted = 0;
 	let latestRejected = 0;
 	let latestFailedBatches = 0;
+	let latestFailureReasons: RunPhaseFailureReason[] = [];
 	const emailQualityDetail = (reviewed: number) =>
 		`E-Mail-Adressen geprüft: ${reviewed} / ${allCandidates.length}, übersprungen: ${skipped}, akzeptiert: ${latestAccepted}, abgelehnt: ${latestRejected}` +
 		(latestFailedBatches > 0 ? `, fehlgeschlagene Batches: ${latestFailedBatches}` : '');
@@ -738,13 +721,15 @@ async function reviewAutomaticLeadEmails(
 			latestAccepted = progress.accepted;
 			latestRejected = progress.rejected;
 			latestFailedBatches = progress.failedBatches;
+			latestFailureReasons = progress.failureReasons;
 			writer.phase('email-quality', {
 				state: 'running',
 				current: skipped + progress.reviewed,
 				total: allCandidates.length,
 				detail: emailQualityDetail(progress.reviewed),
 				skipped,
-				failed: progress.failedBatches
+				failed: progress.failedBatches,
+				failureReasons: progress.failureReasons
 			});
 			await writer.flush();
 		}
@@ -789,7 +774,8 @@ async function reviewAutomaticLeadEmails(
 			total: allCandidates.length,
 			detail: emailQualityDetail(results.length),
 			skipped,
-			failed: latestFailedBatches
+			failed: latestFailedBatches,
+			failureReasons: latestFailureReasons
 		},
 		latestFailedBatches > 0 ? 'E-Mail-Prüfung mit Warnung abgeschlossen' : 'E-Mail-Adressen geprüft'
 	);
