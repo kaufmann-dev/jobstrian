@@ -38,6 +38,14 @@ const handleAuth: Handle = async ({ event, resolve }) => {
 
 	const { pathname } = event.url;
 	const hasUser = await hasAnyUser();
+	// Single-user tool: after setup, the Better Auth sign-up endpoint must not
+	// allow anyone to self-register a second account.
+	if (hasUser && pathname.startsWith('/api/auth/sign-up')) {
+		return new Response(JSON.stringify({ message: 'Die Registrierung ist deaktiviert.' }), {
+			status: 403,
+			headers: { 'content-type': 'application/json' }
+		});
+	}
 	const isAuthApi = pathname.startsWith('/api/auth');
 	const isWebhook = pathname === '/api/webhooks/resend';
 	const isPublic = pathname === '/login' || pathname === '/setup' || isAuthApi || isWebhook;
