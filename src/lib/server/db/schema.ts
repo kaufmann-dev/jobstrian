@@ -162,6 +162,9 @@ export const settings = pgTable('settings', {
 	llmModel: text('llm_model').notNull().default(''),
 	llmRequestsPerMinute: integer('llm_requests_per_minute').notNull().default(300),
 	llmMaxConcurrent: integer('llm_max_concurrent').notNull().default(50),
+	// Set only after a successful live "KI Status prüfen" request; reset when config changes.
+	llmVerified: boolean('llm_verified').notNull().default(false),
+	llmVerifiedAt: timestamp('llm_verified_at'),
 	// Resend-backed automatic application emails.
 	resendApiKey: text('resend_api_key').notNull().default(''),
 	resendDomain: text('resend_domain').notNull().default(''),

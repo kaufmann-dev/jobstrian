@@ -54,6 +54,8 @@ function settings(patch: Partial<Settings> = {}): Settings {
 		llmModel: '',
 		llmRequestsPerMinute: 300,
 		llmMaxConcurrent: 50,
+		llmVerified: false,
+		llmVerifiedAt: null,
 		resendApiKey: '',
 		resendDomain: '',
 		resendDomainId: null,

@@ -102,6 +102,10 @@ Open `http://localhost:5173` and create the first user on the setup screen.
 The setup screen disables itself permanently once that single user exists.
 Afterwards log in at `/login`, enter your address, role keywords, business
 categories and the OpenAI-compatible LLM (base URL including `/v1`, model, API key) in **Settings**.
+Then click **KI Status prüfen**: Jobstrian sends one live request to the endpoint and only
+marks the connection **aktiviert** if it succeeds. AI-powered features (profile import, search
+and criteria generation) and the **Aktualisieren** run on the overview stay disabled until the
+check passes, and the status resets whenever the base URL, model or API key changes.
 For automatic applications, also configure Resend in **Settings**:
 
 1. In the Resend dashboard, create a full-access API key under **API Keys** and
