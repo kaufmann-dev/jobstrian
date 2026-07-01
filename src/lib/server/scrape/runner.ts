@@ -270,7 +270,8 @@ async function markLeadsWithPostings(): Promise<void> {
 export async function runRefresh(
 	runId: number,
 	signal: AbortSignal,
-	progress = createProgress()
+	progress = createProgress(),
+	force = false
 ): Promise<void> {
 	const counts: Counts = { added: 0, closed: 0, ranked: 0, leads: 0 };
 	const writer = new ProgressWriter(runId, counts, progress);
@@ -424,7 +425,7 @@ export async function runRefresh(
 		}
 		await writer.flush(true);
 
-		await rankAll(settings, limiter, counts, writer, signal);
+		await rankAll(settings, limiter, counts, writer, signal, force);
 
 		writer.phase(
 			'finalize',
@@ -573,7 +574,8 @@ async function rankAll(
 	limiter: LlmLimiter,
 	counts: Counts,
 	writer: ProgressWriter,
-	signal: AbortSignal
+	signal: AbortSignal,
+	force = false
 ): Promise<void> {
 	let cfg: LlmConfig;
 	try {
@@ -613,16 +615,17 @@ async function rankAll(
 
 	const rankContext = rankingContextHash(settings, cfg);
 	const draftContext = draftContextHash(settings, cfg);
-	await reviewAutomaticLeadEmails(cfg, limiter, writer, signal);
-	await rankListings(settings, cfg, limiter, rankContext, counts, writer, signal);
-	await rankLeads(settings, cfg, limiter, rankContext, draftContext, writer, signal);
+	await reviewAutomaticLeadEmails(cfg, limiter, writer, signal, force);
+	await rankListings(settings, cfg, limiter, rankContext, counts, writer, signal, force);
+	await rankLeads(settings, cfg, limiter, rankContext, draftContext, writer, signal, force);
 }
 
 async function reviewAutomaticLeadEmails(
 	cfg: LlmConfig,
 	limiter: LlmLimiter,
 	writer: ProgressWriter,
-	signal: AbortSignal
+	signal: AbortSignal,
+	force = false
 ): Promise<void> {
 	const rows = await db
 		.select()
@@ -645,11 +648,13 @@ async function reviewAutomaticLeadEmails(
 	// keeps that verdict until the address itself changes (upsertLead resets the status
 	// to 'unchecked' only when the discovered address differs). This prevents the
 	// LLM's misclassification rate from compounding across repeated refreshes.
-	const candidates = allCandidates.filter((candidate) => {
-		const row = rowsById.get(candidate.id);
-		if (!row) return true;
-		return row.emailQualityStatus === 'unchecked';
-	});
+	const candidates = force
+		? allCandidates
+		: allCandidates.filter((candidate) => {
+				const row = rowsById.get(candidate.id);
+				if (!row) return true;
+				return row.emailQualityStatus === 'unchecked';
+			});
 	const skipped = allCandidates.length - candidates.length;
 
 	if (allCandidates.length === 0) {
@@ -768,12 +773,13 @@ async function rankListings(
 	contextHash: string,
 	counts: Counts,
 	writer: ProgressWriter,
-	signal: AbortSignal
+	signal: AbortSignal,
+	force = false
 ): Promise<void> {
 	const rows = await db.select().from(listing).where(eq(listing.status, 'active'));
 	const work = rows
 		.map((row) => ({ row, contentHash: row.contentHash ?? listingContentHash(row) }))
-		.filter(({ row, contentHash }) => shouldRankListing(row, contextHash, contentHash));
+		.filter(({ row, contentHash }) => force || shouldRankListing(row, contextHash, contentHash));
 	const skipped = rows.length - work.length;
 	let completed = 0;
 	let failed = 0;
@@ -855,10 +861,11 @@ async function rankLeads(
 	rankContext: string,
 	draftContext: string,
 	writer: ProgressWriter,
-	signal: AbortSignal
+	signal: AbortSignal,
+	force = false
 ): Promise<void> {
 	const rows = await db.select().from(lead);
-	const planned = rows.map((row) => planLeadLlmWork(row, rankContext, draftContext));
+	const planned = rows.map((row) => planLeadLlmWork(row, rankContext, draftContext, force));
 	const work = planned.filter((item) => item.rank || item.draft);
 	const skipped = planned.length - work.length;
 	let completed = 0;
@@ -938,8 +945,12 @@ async function rankLeads(
 	await writer.flush(true);
 }
 
-/** Start a refresh in the background. Returns the run id, or null if one is active. */
-export async function startRefresh(): Promise<number | null> {
+/**
+ * Start a refresh in the background. Returns the run id, or null if one is active.
+ * When `force` is set, every AI evaluation (E-Mail-Prüfung, Stellen- und
+ * Betriebsbewertung, Anschreiben) is redone from scratch, ignoring skip caches.
+ */
+export async function startRefresh(force = false): Promise<number | null> {
 	if (activeRun || starting) return null;
 	starting = true;
 	const progress = createProgress();
@@ -951,7 +962,7 @@ export async function startRefresh(): Promise<number | null> {
 			.returning({ id: scrapeRun.id });
 
 		activeRun = { runId: run.id, controller, startedAt: new Date() };
-		runRefresh(run.id, controller.signal, progress).finally(() => {
+		runRefresh(run.id, controller.signal, progress, force).finally(() => {
 			if (activeRun?.runId === run.id) activeRun = null;
 		});
 		return run.id;

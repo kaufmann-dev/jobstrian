@@ -8,7 +8,6 @@
 	import { toast } from 'svelte-sonner';
 	import { leadContactFormSchema } from '$lib/lead-contact';
 	import * as Sheet from '$lib/components/ui/sheet/index.js';
-	import * as Dialog from '$lib/components/ui/dialog/index.js';
 	import * as Alert from '$lib/components/ui/alert/index.js';
 	import { Badge } from '$lib/components/ui/badge/index.js';
 	import { Button } from '$lib/components/ui/button/index.js';
@@ -18,6 +17,7 @@
 	import { Spinner } from '$lib/components/ui/spinner/index.js';
 	import PageHeader from '$lib/components/page-header.svelte';
 	import RunStatusCard, { type RunStatusCardPhase } from '$lib/components/run-status-card.svelte';
+	import ConfirmDialog from '$lib/components/confirm-dialog.svelte';
 	import ServerDataTable from '$lib/components/server-data-table.svelte';
 	import TableFilterCheckbox from '$lib/components/table-filter-checkbox.svelte';
 	import RankFactors from '$lib/components/rank-factors.svelte';
@@ -667,28 +667,23 @@
 	/>
 </div>
 
-<Dialog.Root bind:open={emailConfirmOpen}>
-	<Dialog.Content class="sm:max-w-lg">
-		<Dialog.Header>
-			<Dialog.Title>Bewerbungen automatisch senden?</Dialog.Title>
-			<Dialog.Description>
-				{data.applicationEmail.eligibleCount} neue Betriebe werden eingeplant. Der Versand läuft nur Montag
-				bis Freitag von 09:00 bis 18:00 Uhr, mit 30 bis 90 Sekunden Abstand und einem täglichen Sendelimit.
-			</Dialog.Description>
-		</Dialog.Header>
-		<div class="rounded-lg border p-3 text-sm text-muted-foreground">
-			Jeder Betrieb wird höchstens einmal angeschrieben. Wiederholtes Drücken startet keine zweite
-			E-Mail für denselben Betrieb.
-		</div>
-		<Dialog.Footer>
-			<Button variant="outline" onclick={() => (emailConfirmOpen = false)}>Abbrechen</Button>
-			<Button disabled={emailStarting} onclick={startApplicationEmailRun}>
-				{#if emailStarting}<Spinner />{:else}<Send />{/if}
-				Starten
-			</Button>
-		</Dialog.Footer>
-	</Dialog.Content>
-</Dialog.Root>
+<ConfirmDialog
+	bind:open={emailConfirmOpen}
+	title="Bewerbungen automatisch senden?"
+	description={sendDescription}
+	info={sendInfo}
+	actions={[
+		{ label: 'Starten', icon: Send, loading: emailStarting, onclick: startApplicationEmailRun }
+	]}
+/>
+{#snippet sendDescription()}
+	{data.applicationEmail.eligibleCount} neue Betriebe werden eingeplant. Der Versand läuft nur Montag
+	bis Freitag von 09:00 bis 18:00 Uhr, mit 30 bis 90 Sekunden Abstand und einem täglichen Sendelimit.
+{/snippet}
+{#snippet sendInfo()}
+	Jeder Betrieb wird höchstens einmal angeschrieben. Wiederholtes Drücken startet keine zweite
+	E-Mail für denselben Betrieb.
+{/snippet}
 
 <Sheet.Root open={selected !== null} onOpenChange={(open) => !open && closeDetails()}>
 	<Sheet.Content class="w-full overflow-y-auto sm:max-w-xl">

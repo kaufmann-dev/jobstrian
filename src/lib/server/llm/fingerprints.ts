@@ -141,12 +141,17 @@ export function shouldDraftLead(
 	return !hasDraft || row.draftContentHash !== contentHash || row.draftContextHash !== contextHash;
 }
 
-export function planLeadLlmWork(row: Lead, rankContext: string, draftContext: string) {
+export function planLeadLlmWork(
+	row: Lead,
+	rankContext: string,
+	draftContext: string,
+	force = false
+) {
 	const contentHash = row.contentHash ?? leadContentHash(row);
 	return {
 		row,
 		contentHash,
-		rank: !row.hasActivePosting && shouldRankLead(row, rankContext, contentHash),
-		draft: shouldDraftLead(row, draftContext, contentHash)
+		rank: !row.hasActivePosting && (force || shouldRankLead(row, rankContext, contentHash)),
+		draft: force || shouldDraftLead(row, draftContext, contentHash)
 	};
 }

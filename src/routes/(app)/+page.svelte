@@ -9,7 +9,9 @@
 	import * as Alert from '$lib/components/ui/alert/index.js';
 	import PageHeader from '$lib/components/page-header.svelte';
 	import RunStatusCard, { type RunStatusCardPhase } from '$lib/components/run-status-card.svelte';
+	import ConfirmDialog from '$lib/components/confirm-dialog.svelte';
 	import RefreshCw from '@lucide/svelte/icons/refresh-cw';
+	import RotateCcw from '@lucide/svelte/icons/rotate-ccw';
 	import X from '@lucide/svelte/icons/x';
 	import TriangleAlert from '@lucide/svelte/icons/triangle-alert';
 	import Briefcase from '@lucide/svelte/icons/briefcase';
@@ -27,6 +29,7 @@
 	let polledRun = $state.raw<ScrapeRun | null>(null);
 	let starting = $state(false);
 	let canceling = $state(false);
+	let updateConfirmOpen = $state(false);
 	let polling = false;
 	let stopped = false;
 
@@ -166,10 +169,14 @@
 		}
 	}
 
-	async function update() {
+	async function update(full: boolean) {
 		starting = true;
 		try {
-			const res = await fetch('/api/run/start', { method: 'POST' });
+			const res = await fetch('/api/run/start', {
+				method: 'POST',
+				headers: { 'content-type': 'application/json' },
+				body: JSON.stringify({ full })
+			});
 			const body = await readStartResponse(res);
 			if (res.status === 409) {
 				toast.info(startFailureToast(res, body));
@@ -230,7 +237,7 @@
 		description="Deine automatisierte Jobsuche und Arbeitgeber-Recherche in Österreich."
 	>
 		{#snippet actions()}
-			<Button onclick={update} disabled={isRunning} size="lg">
+			<Button onclick={() => (updateConfirmOpen = true)} disabled={isRunning} size="lg">
 				{#if isRunning}
 					<Spinner class="size-4" />
 				{:else}
@@ -359,3 +366,44 @@
 		{/each}
 	</div>
 </div>
+
+<ConfirmDialog
+	bind:open={updateConfirmOpen}
+	title="Aktualisieren?"
+	description={updateDescription}
+	info={updateInfo}
+	actions={[
+		{
+			label: 'Komplett neu',
+			variant: 'outline',
+			icon: RotateCcw,
+			onclick: () => {
+				updateConfirmOpen = false;
+				update(true);
+			}
+		},
+		{
+			label: 'Aktualisieren',
+			icon: RefreshCw,
+			onclick: () => {
+				updateConfirmOpen = false;
+				update(false);
+			}
+		}
+	]}
+/>
+{#snippet updateDescription()}
+	Neue Stellen und Betriebe werden gesucht und bewertet. Wähle, wie mit bereits Bewertetem
+	umgegangen wird.
+{/snippet}
+{#snippet updateInfo()}
+	<p>
+		<span class="font-medium text-foreground">Aktualisieren:</span> Bereits Bewertetes bleibt
+		erhalten; nur Neues und bei geänderter Konfiguration Betroffenes wird neu bewertet.
+	</p>
+	<p class="mt-2">
+		<span class="font-medium text-foreground">Komplett neu:</span> Alle KI-Bewertungen (Stellen,
+		Betriebe, E-Mail-Prüfung, Anschreiben) werden verworfen und neu erstellt — das kostet mehr
+		KI-Zeit.
+	</p>
+{/snippet}
