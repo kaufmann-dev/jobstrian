@@ -145,8 +145,8 @@ describe('reviewLeadEmailCandidates', () => {
 		);
 
 		expect(progress).toEqual([
-			{ reviewed: 1, total: 2, accepted: 0, rejected: 1, failedBatches: 0 },
-			{ reviewed: 2, total: 2, accepted: 1, rejected: 1, failedBatches: 0 }
+			{ reviewed: 1, total: 2, accepted: 0, rejected: 1, failedBatches: 0, failureReasons: [] },
+			{ reviewed: 2, total: 2, accepted: 1, rejected: 1, failedBatches: 0, failureReasons: [] }
 		]);
 	});
 });

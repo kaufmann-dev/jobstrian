@@ -1,6 +1,8 @@
 import { createHash } from 'node:crypto';
 import { chatJson, type LlmConfig } from './client';
 import type { LlmLimiter } from './limiter';
+import type { RunPhaseFailureReason } from '../db/schema';
+import { bumpFailure, toFailureReasons } from '../run-failures';
 
 export const EMAIL_QUALITY_PROMPT_VERSION = 'lead-email-quality-v1';
 export const EMAIL_QUALITY_BATCH_SIZE = 25;
@@ -29,6 +31,7 @@ export interface LeadEmailQualityReviewProgress {
 	accepted: number;
 	rejected: number;
 	failedBatches: number;
+	failureReasons: RunPhaseFailureReason[];
 }
 
 export type LeadEmailQualityProgressCallback = (
@@ -257,6 +260,7 @@ export async function reviewLeadEmailCandidates(
 	const results = new Map<number, LeadEmailQualityResult>();
 	const llmWork: LeadEmailQualityCandidate[] = [];
 	let failedBatches = 0;
+	const reasons = new Map<string, RunPhaseFailureReason>();
 
 	const emitProgress = async () => {
 		if (!onProgress) return;
@@ -271,7 +275,8 @@ export async function reviewLeadEmailCandidates(
 			total: candidates.length,
 			accepted,
 			rejected,
-			failedBatches
+			failedBatches,
+			failureReasons: toFailureReasons(reasons)
 		});
 	};
 
@@ -298,6 +303,7 @@ export async function reviewLeadEmailCandidates(
 		} catch (err) {
 			if (signal?.aborted) throw err;
 			failedBatches++;
+			bumpFailure(reasons, err);
 			console.error('[llm] E-Mail-Qualitaetspruefung fehlgeschlagen:', err);
 			for (const candidate of batch) {
 				results.set(candidate.id, fallbackAccepted(candidate));
