@@ -477,7 +477,15 @@ async function sendQueuedRow(
 		.from(lead)
 		.where(eq(lead.id, row.leadId))
 		.limit(1);
+	// Re-check suppression at send time: a bounce/complaint webhook may have
+	// suppressed the address (possibly via another lead) after queueing.
+	const [suppressed] = await db
+		.select({ email: applicationEmailSuppression.email })
+		.from(applicationEmailSuppression)
+		.where(sql`lower(${applicationEmailSuppression.email}) = lower(${row.recipientEmail})`)
+		.limit(1);
 	if (
+		suppressed ||
 		!currentLead?.email ||
 		currentLead.email.toLowerCase() !== row.recipientEmail.toLowerCase() ||
 		(!currentLead.emailManual && currentLead.emailQualityStatus !== 'accepted')
