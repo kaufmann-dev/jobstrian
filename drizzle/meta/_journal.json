@@ -148,6 +148,13 @@
       "when": 1782848847666,
       "tag": "0020_far_maximus",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1782918212963,
+      "tag": "0021_panoramic_bastion",
+      "breakpoints": true
     }
   ]
 }

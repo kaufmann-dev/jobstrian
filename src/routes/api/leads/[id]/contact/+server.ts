@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { leadContactSchema } from '$lib/lead-contact';
 import { db } from '$lib/server/db';
 import { lead } from '$lib/server/db/schema';
+import { maskLeadEmail } from '$lib/server/lead-email';
 import { ensureLeadDraft } from '$lib/server/application-email/drafts';
 import type { RequestHandler } from './$types';
 
@@ -33,7 +34,7 @@ export const PATCH: RequestHandler = async ({ params, request }) => {
 	if (!updated) return json({ message: 'Betrieb nicht gefunden' }, { status: 404 });
 	if (body.data.email !== undefined && updated.email) {
 		const result = await ensureLeadDraft(updated.id);
-		return json({ ...result.lead, draftWarning: result.warning });
+		return json({ ...maskLeadEmail(result.lead), draftWarning: result.warning });
 	}
-	return json(updated);
+	return json(maskLeadEmail(updated));
 };

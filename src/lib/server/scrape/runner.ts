@@ -27,11 +27,7 @@ import {
 import { isAbortError, LlmLimiter } from '../llm/limiter';
 import { rankListing, rankLead } from '../llm/rank';
 import { draftColdEmail } from '../llm/draft-email';
-import {
-	leadEmailQualityHash,
-	reviewLeadEmailCandidates,
-	type LeadEmailQualityCandidate
-} from '../llm/email-quality';
+import { reviewLeadEmailCandidates, type LeadEmailQualityCandidate } from '../llm/email-quality';
 import { mapLimit } from '../util/concurrency';
 import { createRunProgress } from '../../run-progress';
 import { closeBrowser } from './browser';
@@ -645,14 +641,14 @@ async function reviewAutomaticLeadEmails(
 				emailSource: row.emailSource as 'osm' | 'website'
 			})
 		);
+	// Review each automatic address at most once. Once it is accepted or rejected it
+	// keeps that verdict until the address itself changes (upsertLead resets the status
+	// to 'unchecked' only when the discovered address differs). This prevents the
+	// LLM's misclassification rate from compounding across repeated refreshes.
 	const candidates = allCandidates.filter((candidate) => {
-		const qualityHash = leadEmailQualityHash(candidate);
 		const row = rowsById.get(candidate.id);
 		if (!row) return true;
-		return (
-			row.emailQualityHash !== qualityHash ||
-			(row.emailQualityStatus !== 'accepted' && row.emailQualityStatus !== 'rejected')
-		);
+		return row.emailQualityStatus === 'unchecked';
 	});
 	const skipped = allCandidates.length - candidates.length;
 
@@ -737,34 +733,17 @@ async function reviewAutomaticLeadEmails(
 	for (const result of results) {
 		const row = rowsById.get(result.id);
 		if (!row?.email) continue;
-		if (result.status === 'rejected') {
-			await db
-				.update(lead)
-				.set({
-					email: null,
-					emailSource: null,
-					emailQualityStatus: 'rejected',
-					emailQualityHash: result.hash,
-					emailQualityReason: result.reason,
-					emailQualityCheckedAt: reviewedAt,
-					contentHash: null,
-					draftSubject: null,
-					draftBody: null,
-					draftContentHash: null,
-					draftContextHash: null
-				})
-				.where(and(eq(lead.id, result.id), eq(lead.email, row.email), eq(lead.emailManual, false)));
-		} else {
-			await db
-				.update(lead)
-				.set({
-					emailQualityStatus: 'accepted',
-					emailQualityHash: result.hash,
-					emailQualityReason: result.reason,
-					emailQualityCheckedAt: reviewedAt
-				})
-				.where(and(eq(lead.id, result.id), eq(lead.email, row.email), eq(lead.emailManual, false)));
-		}
+		// Record the verdict without destroying the address. A rejected address stays in
+		// the row (hidden from the user, excluded from sending) so the next run sees it
+		// unchanged and does not re-discover or re-review it.
+		await db
+			.update(lead)
+			.set({
+				emailQualityStatus: result.status,
+				emailQualityReason: result.reason,
+				emailQualityCheckedAt: reviewedAt
+			})
+			.where(and(eq(lead.id, result.id), eq(lead.email, row.email), eq(lead.emailManual, false)));
 	}
 	writer.phase(
 		'email-quality',

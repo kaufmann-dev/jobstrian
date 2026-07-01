@@ -1,10 +1,8 @@
-import { createHash } from 'node:crypto';
 import { chatJson, type LlmConfig } from './client';
 import type { LlmLimiter } from './limiter';
 import type { RunPhaseFailureReason } from '../db/schema';
 import { bumpFailure, toFailureReasons } from '../run-failures';
 
-export const EMAIL_QUALITY_PROMPT_VERSION = 'lead-email-quality-v1';
 export const EMAIL_QUALITY_BATCH_SIZE = 25;
 
 export type LeadEmailQualityStatus = 'accepted' | 'rejected';
@@ -22,7 +20,6 @@ export interface LeadEmailQualityResult {
 	id: number;
 	status: LeadEmailQualityStatus;
 	reason: string;
-	hash: string;
 }
 
 export interface LeadEmailQualityReviewProgress {
@@ -94,14 +91,6 @@ const RANDOM_LOCAL_RE =
 	/^(?:[a-f0-9]{24,}|[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})$/i;
 const TECHNICAL_DOMAIN_RE = /(^|\.)wixpress\.com$|(^|\.)sentry\.io$|(^|\.)sentry-next\./i;
 
-function canonical(value: unknown): string {
-	return JSON.stringify(value, (_key, current) => (current === undefined ? null : current));
-}
-
-function hash(value: unknown): string {
-	return createHash('sha256').update(canonical(value)).digest('hex');
-}
-
 function splitEmail(email: string): { local: string; domain: string } | null {
 	const normalized = email.trim().toLowerCase();
 	const at = normalized.lastIndexOf('@');
@@ -127,17 +116,6 @@ function protectedAcceptLocalPart(email: string): boolean {
 		PROTECTED_ACCEPT_LOCAL_PARTS.has(normalized) ||
 		PROTECTED_ACCEPT_LOCAL_PARTS.has(firstSegment)
 	);
-}
-
-export function leadEmailQualityHash(candidate: LeadEmailQualityCandidate): string {
-	return hash({
-		promptVersion: EMAIL_QUALITY_PROMPT_VERSION,
-		name: candidate.name,
-		category: candidate.category,
-		website: candidate.website,
-		email: candidate.email,
-		emailSource: candidate.emailSource
-	});
 }
 
 export function deterministicLeadEmailReview(
@@ -174,8 +152,7 @@ function fallbackAccepted(candidate: LeadEmailQualityCandidate): LeadEmailQualit
 	return {
 		id: candidate.id,
 		status: 'accepted',
-		reason: 'plausible Geschaeftsadresse',
-		hash: leadEmailQualityHash(candidate)
+		reason: 'plausible Geschaeftsadresse'
 	};
 }
 
@@ -185,8 +162,7 @@ function deterministicResult(candidate: LeadEmailQualityCandidate): LeadEmailQua
 	return {
 		id: candidate.id,
 		status: decision.status,
-		reason: decision.reason,
-		hash: leadEmailQualityHash(candidate)
+		reason: decision.reason
 	};
 }
 
@@ -244,8 +220,7 @@ function parseLlmResults(
 				status === 'rejected'
 					? 'LLM bewertet Adresse als ungeeignet'
 					: 'plausible Geschaeftsadresse'
-			),
-			hash: leadEmailQualityHash(candidate)
+			)
 		};
 	});
 }

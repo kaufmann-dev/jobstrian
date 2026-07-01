@@ -85,7 +85,6 @@ function lead(patch: Partial<Lead> = {}): Lead {
 		emailManual: false,
 		emailSource: null,
 		emailQualityStatus: 'unchecked',
-		emailQualityHash: null,
 		emailQualityReason: null,
 		emailQualityCheckedAt: null,
 		hasActivePosting: false,

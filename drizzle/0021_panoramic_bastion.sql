@@ -1,0 +1,1 @@
+ALTER TABLE "lead" DROP COLUMN IF EXISTS "email_quality_hash";

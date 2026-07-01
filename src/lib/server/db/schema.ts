@@ -288,7 +288,6 @@ export const lead = pgTable(
 		})
 			.notNull()
 			.default('unchecked'),
-		emailQualityHash: text('email_quality_hash'),
 		emailQualityReason: text('email_quality_reason'),
 		emailQualityCheckedAt: timestamp('email_quality_checked_at'),
 		hasActivePosting: boolean('has_active_posting').notNull().default(false),

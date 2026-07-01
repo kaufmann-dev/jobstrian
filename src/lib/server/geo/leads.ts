@@ -6,7 +6,7 @@ import { fetchText } from '../util/http';
 import { haversineMeters } from '../util/distance';
 import { mapLimit } from '../util/concurrency';
 import { leadContentHash } from '../llm/fingerprints';
-import { deterministicLeadEmailReview, leadEmailQualityHash } from '../llm/email-quality';
+import { deterministicLeadEmailReview } from '../llm/email-quality';
 import { findNearbyBusinesses, type OverpassPlace } from './overpass';
 
 const EMAIL_RE = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g;
@@ -378,24 +378,12 @@ async function upsertLead(
 ): Promise<boolean> {
 	const nextEmail = email ?? null;
 	const nextEmailSource = emailSource;
-	const nextEmailQualityHash =
-		email && emailSource
-			? leadEmailQualityHash({
-					id: 0,
-					name: place.name,
-					category: place.category,
-					website: place.website ?? null,
-					email,
-					emailSource
-				})
-			: null;
-	// Keep only typed, column-referencing terms in SQL. Interpolating `nextEmail`
-	// before a bare `is not null` would emit an untyped bound parameter, which
-	// Postgres refuses to prepare ("could not determine data type of parameter").
-	const shouldUseNewAutomaticEmail =
-		nextEmail !== null
-			? sql`not (${lead.emailQualityStatus} = 'rejected' and ${lead.emailQualityHash} = ${nextEmailQualityHash}) and (${lead.email} is null or ${lead.emailQualityStatus} = 'rejected')`
-			: sql`false`;
+	// For automatic (non-manual) leads, adopt a freshly discovered address whenever one
+	// is present. Only a genuinely different address resets the quality review — an
+	// unchanged address keeps its existing verdict so a rejected address is not
+	// re-reviewed every run. Cast the bound parameter to text so Postgres can determine
+	// its type and prepare the statement (see the email-null typing fix in the upsert).
+	const isNewAutomaticEmail = sql`${lead.emailManual} = false and ${nextEmail}::text is not null and ${nextEmail}::text is distinct from ${lead.email}`;
 	const result = await db
 		.insert(lead)
 		.values({
@@ -415,7 +403,6 @@ async function upsertLead(
 			emailManual: false,
 			emailSource,
 			emailQualityStatus: 'unchecked',
-			emailQualityHash: null,
 			emailQualityReason: null,
 			emailQualityCheckedAt: null,
 			contentHash: leadContentHash({
@@ -439,12 +426,11 @@ async function upsertLead(
 				matchedOsmTags: place.matchedOsmTags,
 				website: sql`case when ${lead.websiteManual} then ${lead.website} else ${place.website ?? null} end`,
 				phone: sql`case when ${lead.phoneManual} then ${lead.phone} else ${place.phone ?? null} end`,
-				email: sql`case when ${lead.emailManual} then ${lead.email} when ${shouldUseNewAutomaticEmail} then ${nextEmail} else ${lead.email} end`,
-				emailSource: sql`case when ${lead.emailManual} then ${lead.emailSource} when ${shouldUseNewAutomaticEmail} then ${nextEmailSource} else ${lead.emailSource} end`,
-				emailQualityStatus: sql`case when ${lead.emailManual} then ${lead.emailQualityStatus} when ${shouldUseNewAutomaticEmail} then 'unchecked' else ${lead.emailQualityStatus} end`,
-				emailQualityHash: sql`case when ${lead.emailManual} then ${lead.emailQualityHash} when ${shouldUseNewAutomaticEmail} then null else ${lead.emailQualityHash} end`,
-				emailQualityReason: sql`case when ${lead.emailManual} then ${lead.emailQualityReason} when ${shouldUseNewAutomaticEmail} then null else ${lead.emailQualityReason} end`,
-				emailQualityCheckedAt: sql`case when ${lead.emailManual} then ${lead.emailQualityCheckedAt} when ${shouldUseNewAutomaticEmail} then null else ${lead.emailQualityCheckedAt} end`,
+				email: sql`case when ${lead.emailManual} then ${lead.email} when ${nextEmail}::text is not null then ${nextEmail} else ${lead.email} end`,
+				emailSource: sql`case when ${lead.emailManual} then ${lead.emailSource} when ${nextEmail}::text is not null then ${nextEmailSource} else ${lead.emailSource} end`,
+				emailQualityStatus: sql`case when ${isNewAutomaticEmail} then 'unchecked' else ${lead.emailQualityStatus} end`,
+				emailQualityReason: sql`case when ${isNewAutomaticEmail} then null else ${lead.emailQualityReason} end`,
+				emailQualityCheckedAt: sql`case when ${isNewAutomaticEmail} then null else ${lead.emailQualityCheckedAt} end`,
 				// Recompute from the persisted row in the LLM phase so manual overrides
 				// and newly discovered contact data are reflected correctly.
 				contentHash: null,
