@@ -7,6 +7,7 @@ import {
 	applicationEmailDomainConfig,
 	saveApplicationEmailSettings
 } from '$lib/server/application-email/config';
+import { llmConfigStatus } from '$lib/server/llm/verify';
 import { apiKeySchema, resendSettingsSchema, settingsSchema } from './schema';
 import type { Settings } from '$lib/server/db/schema';
 import type { Actions, PageServerLoad } from './$types';
@@ -63,8 +64,7 @@ export const load: PageServerLoad = async () => {
 	const form = await settingsForm(s);
 	return {
 		form,
-		hasApiKey: Boolean(s.llmApiKey),
-		hasLlmConfig: Boolean(s.llmBaseUrl && s.llmModel),
+		llmStatus: llmConfigStatus(s),
 		homeLocationVerified: Boolean(
 			s.homeLocationProvider &&
 			s.homeLocationId &&
@@ -90,11 +90,15 @@ export const actions: Actions = {
 
 		const current = await getSettings();
 		const updated = keyForm.data.llmApiKey
-			? await updateSettings({ llmApiKey: keyForm.data.llmApiKey })
+			? await updateSettings({
+					llmApiKey: keyForm.data.llmApiKey,
+					llmVerified: false,
+					llmVerifiedAt: null
+				})
 			: current;
 		return {
 			form: await settingsForm(updated),
-			hasApiKey: Boolean(updated.llmApiKey),
+			llmStatus: llmConfigStatus(updated),
 			saved: 'apiKey' as const
 		};
 	},

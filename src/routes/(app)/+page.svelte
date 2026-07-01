@@ -237,7 +237,11 @@
 		description="Deine automatisierte Jobsuche und Arbeitgeber-Recherche in Österreich."
 	>
 		{#snippet actions()}
-			<Button onclick={() => (updateConfirmOpen = true)} disabled={isRunning} size="lg">
+			<Button
+				onclick={() => (updateConfirmOpen = true)}
+				disabled={isRunning || !configured}
+				size="lg"
+			>
 				{#if isRunning}
 					<Spinner class="size-4" />
 				{:else}
@@ -251,10 +255,11 @@
 	{#if !configured}
 		<Alert.Root>
 			<TriangleAlert class="size-4" />
-			<Alert.Title>LLM noch nicht konfiguriert</Alert.Title>
+			<Alert.Title>KI-Anbindung noch nicht geprüft</Alert.Title>
 			<Alert.Description>
-				Hinterlege in den <a class="underline" href={resolve('/settings')}>Einstellungen</a> eine OpenAI-kompatible
-				API, damit Stellen automatisch bewertet werden.
+				Hinterlege in den <a class="underline" href={resolve('/settings')}>Einstellungen</a> eine
+				OpenAI-kompatible API und führe „KI Status prüfen“ aus, damit Stellen automatisch bewertet
+				werden können.
 			</Alert.Description>
 		</Alert.Root>
 	{/if}

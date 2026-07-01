@@ -188,6 +188,12 @@ export function toSettingsDbPatch(input: SettingsPatch, current?: Settings): Par
 		});
 	}
 	if (input.homeLocation) Object.assign(patch, locationPatch(input.homeLocation));
+	const baseUrlChanged = patch.llmBaseUrl !== undefined && patch.llmBaseUrl !== current?.llmBaseUrl;
+	const modelChanged = patch.llmModel !== undefined && patch.llmModel !== current?.llmModel;
+	if (baseUrlChanged || modelChanged) {
+		patch.llmVerified = false;
+		patch.llmVerifiedAt = null;
+	}
 	return patch;
 }
 

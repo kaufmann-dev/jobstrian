@@ -52,7 +52,8 @@
 	} from '$lib/ranking-criteria';
 
 	let { data } = $props();
-	let hasApiKey = $state(untrack(() => data.hasApiKey));
+	let llmStatus = $state.raw(untrack(() => data.llmStatus));
+	let llmVerifyBusy = $state(false);
 	let emailDomain = $state.raw(untrack(() => data.applicationEmailDomain));
 	let saveStatus = $state<SaveStatus>('idle');
 	let autosaveDirty = $state(false);
@@ -88,6 +89,14 @@
 			multipleSubmits: 'abort',
 			onChange: ({ paths }) => {
 				const fields = new Set(paths.map((path) => path.split(/[.[\]]/, 1)[0]));
+				if (fields.has('llmBaseUrl') || fields.has('llmModel')) {
+					llmStatus = {
+						...llmStatus,
+						verified: false,
+						verifiedAt: null,
+						hasConfig: Boolean($formData.llmBaseUrl && $formData.llmModel)
+					};
+				}
 				for (const field of fields) {
 					if (
 						!field ||
@@ -111,7 +120,9 @@
 				const saved = resultData && 'saved' in resultData ? resultData.saved : undefined;
 				if (saved === 'apiKey') {
 					toast.success('API-Key gespeichert');
-					hasApiKey = Boolean(resultData && 'hasApiKey' in resultData && resultData.hasApiKey);
+					if (resultData && 'llmStatus' in resultData && resultData.llmStatus) {
+						llmStatus = resultData.llmStatus;
+					}
 					const input = formElement.elements.namedItem('llmApiKey');
 					if (input instanceof HTMLInputElement) input.value = '';
 				} else if (saved === 'resendSettings') {
@@ -195,9 +206,9 @@
 	const hasUnsavedChanges = $derived(
 		autosaveDirty || saveStatus === 'saving' || saveStatus === 'error'
 	);
-	const canImport = $derived(Boolean(data.cv && data.hasLlmConfig && !hasUnsavedChanges));
-	const canGenerateSearchConfig = $derived(Boolean(data.hasLlmConfig && !hasUnsavedChanges));
-	const canGenerateRankingCriteria = $derived(Boolean(data.hasLlmConfig && !hasUnsavedChanges));
+	const canImport = $derived(Boolean(data.cv && llmStatus.verified && !hasUnsavedChanges));
+	const canGenerateSearchConfig = $derived(Boolean(llmStatus.verified && !hasUnsavedChanges));
+	const canGenerateRankingCriteria = $derived(Boolean(llmStatus.verified && !hasUnsavedChanges));
 
 	onNavigate(() => autosave.flush());
 
@@ -246,6 +257,25 @@
 	async function copy(text: string, what: string): Promise<void> {
 		await navigator.clipboard.writeText(text);
 		toast.success(`${what} kopiert`);
+	}
+
+	async function verifyLlm() {
+		llmVerifyBusy = true;
+		try {
+			const response = await fetch('/api/llm/verify', { method: 'POST' });
+			const body = (await response.json().catch(() => ({}))) as {
+				status?: typeof llmStatus;
+				message?: string;
+			};
+			if (!response.ok) throw new Error(body.message ?? 'KI-Verbindung fehlgeschlagen');
+			if (body.status) llmStatus = body.status;
+			await invalidate('app:settings-status');
+			toast.success('KI-Anbindung aktiviert');
+		} catch (error) {
+			toast.error(error instanceof Error ? error.message : 'KI-Verbindung fehlgeschlagen');
+		} finally {
+			llmVerifyBusy = false;
+		}
 	}
 
 	async function syncEmailDomain() {
@@ -650,9 +680,9 @@
 					class="sr-only"
 					onchange={onCvSelected}
 				/>
-				{#if data.cv && !data.hasLlmConfig}
+				{#if data.cv && !llmStatus.verified}
 					<p class="text-sm text-muted-foreground">
-						Für den Profilimport müssen Base URL und Modell gespeichert sein.
+						Für den Profilimport muss die KI-Anbindung geprüft und aktiviert sein.
 					</p>
 				{/if}
 			</div>
@@ -687,9 +717,9 @@
 					businessRadiusMeters: fieldErrors($errors.businessRadiusMeters)
 				}}
 			/>
-			{#if !data.hasLlmConfig}
+			{#if !llmStatus.verified}
 				<p class="text-sm text-muted-foreground">
-					Für die KI-Suchkonfiguration müssen Base URL und Modell gespeichert sein.
+					Für die KI-Suchkonfiguration muss die KI-Anbindung geprüft und aktiviert sein.
 				</p>
 			{/if}
 		</Card.Content>
@@ -732,10 +762,17 @@
 
 	<Card.Root>
 		<Card.Header>
-			<Card.Title>KI-Anbindung (OpenAI-kompatibel)</Card.Title>
-			<Card.Description>
-				Endpoint zum Bewerten, für den Profilimport und für Bewerbungsentwürfe.
-			</Card.Description>
+			<div class="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+				<div>
+					<Card.Title>KI-Anbindung (OpenAI-kompatibel)</Card.Title>
+					<Card.Description>
+						Endpoint zum Bewerten, für den Profilimport und für Bewerbungsentwürfe.
+					</Card.Description>
+				</div>
+				<Badge variant={llmStatus.verified ? 'default' : 'secondary'} class="w-fit">
+					{#if llmStatus.verified}<Check class="size-3" /> aktiviert{:else}nicht aktiviert{/if}
+				</Badge>
+			</div>
 		</Card.Header>
 		<Card.Content class="space-y-4">
 			<Form.Field {form} name="llmBaseUrl">
@@ -800,14 +837,21 @@
 							{...props}
 							type="password"
 							bind:value={$formData.llmApiKey}
-							placeholder={hasApiKey ? '•••••••• (gespeichert, leer lassen zum Behalten)' : 'sk-…'}
+							placeholder={llmStatus.hasApiKey
+								? '•••••••• (gespeichert, leer lassen zum Behalten)'
+								: 'sk-…'}
 						/>
 					{/snippet}
 				</Form.Control>
 				<Form.FieldErrors />
 			</Form.Field>
+			{#if llmStatus.verifiedAt}
+				<p class="text-sm text-muted-foreground">
+					Zuletzt geprüft am {new Date(llmStatus.verifiedAt).toLocaleString('de-AT')}
+				</p>
+			{/if}
 		</Card.Content>
-		<Card.Footer class="border-t">
+		<Card.Footer class="flex flex-col gap-2 border-t sm:flex-row">
 			<Button
 				type="submit"
 				formaction="?/saveApiKey"
@@ -816,6 +860,16 @@
 			>
 				{#if $submitting}<Spinner />{:else}<Save />{/if}
 				API-Key speichern
+			</Button>
+			<Button
+				type="button"
+				variant="outline"
+				class="w-full sm:w-auto"
+				disabled={llmVerifyBusy || !llmStatus.hasConfig}
+				onclick={verifyLlm}
+			>
+				{#if llmVerifyBusy}<Spinner />{:else}<RefreshCw />{/if}
+				KI Status prüfen
 			</Button>
 		</Card.Footer>
 	</Card.Root>
@@ -1050,9 +1104,9 @@
 					leadRankingCriteria: fieldErrors($errors.leadRankingCriteria)
 				}}
 			/>
-			{#if !data.hasLlmConfig}
+			{#if !llmStatus.verified}
 				<p class="text-sm text-muted-foreground">
-					Für KI-generierte Bewertungskriterien müssen Base URL und Modell gespeichert sein.
+					Für KI-generierte Bewertungskriterien muss die KI-Anbindung geprüft und aktiviert sein.
 				</p>
 			{/if}
 		</Card.Content>

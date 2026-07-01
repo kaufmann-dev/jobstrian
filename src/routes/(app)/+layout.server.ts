@@ -7,7 +7,7 @@ export const load: LayoutServerLoad = async ({ locals, depends }) => {
 	const settings = await getSettings();
 	return {
 		user: locals.user,
-		configured: Boolean(settings.llmBaseUrl && settings.llmModel),
+		configured: settings.llmVerified,
 		hasHome: hasSavedHomeLocation(settings),
 		hasSearchConfig: settings.jobSearchKeywords.length > 0 && settings.businessOsmTags.length > 0
 	};
