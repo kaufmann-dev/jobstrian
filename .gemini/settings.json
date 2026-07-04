@@ -4,7 +4,7 @@
 			"httpUrl": "https://mcp.svelte.dev/mcp"
 		},
 		"shadcn-svelte": {
-			"httpUrl": "https://shadcn-svelte.mastra.cloud/api/mcp/shadcn/mcp"
+			"httpUrl": "https://shadcn-svelte-mcp.svelte-apps.workers.dev/api/mcp/shadcn/mcp"
 		}
 	}
 }

@@ -6,7 +6,7 @@
 		},
 		"shadcn-svelte": {
 			"type": "http",
-			"url": "https://shadcn-svelte.mastra.cloud/api/mcp/shadcn/mcp"
+			"url": "https://shadcn-svelte-mcp.svelte-apps.workers.dev/api/mcp/shadcn/mcp"
 		}
 	}
 }
