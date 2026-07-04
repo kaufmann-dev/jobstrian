@@ -3,7 +3,7 @@ url = "https://mcp.svelte.dev/mcp"
 enabled = true
 
 [mcp_servers.shadcn-svelte]
-url = "https://shadcn-svelte.mastra.cloud/api/mcp/shadcn/mcp"
+url = "https://shadcn-svelte-mcp.svelte-apps.workers.dev/api/mcp/shadcn/mcp"
 enabled = true
 
 [mcp_servers.playwright]
