@@ -41,12 +41,13 @@ describe('leadContactSchema', () => {
 
 describe('leadContactFormSchema', () => {
 	it('normalizes scheme-less websites and keeps empty input valid', () => {
-		expect(leadContactFormSchema.parse({ phone: '', email: '', website: 'www.gasthaus-huber.at' }))
-			.toEqual({
-				phone: '',
-				email: '',
-				website: 'https://www.gasthaus-huber.at/'
-			});
+		expect(
+			leadContactFormSchema.parse({ phone: '', email: '', website: 'www.gasthaus-huber.at' })
+		).toEqual({
+			phone: '',
+			email: '',
+			website: 'https://www.gasthaus-huber.at/'
+		});
 		expect(leadContactFormSchema.parse({ phone: '', email: '', website: '' })).toEqual({
 			phone: '',
 			email: '',

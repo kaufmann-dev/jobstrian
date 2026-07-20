@@ -29,26 +29,22 @@ const bytea = customType<{ data: Buffer; default: false }>({
 });
 
 // ---------------------------------------------------------------------------
-// Better Auth core tables (email/password). Keep aligned with the Better Auth
-// Drizzle schema; generated shape, do not hand-extend without the CLI.
+// Better Auth core tables (OIDC with local server-side sessions). Keep aligned
+// with the Better Auth Drizzle schema and the auth configuration.
 // ---------------------------------------------------------------------------
 
-export const user = pgTable(
-	'user',
-	{
-		id: text('id').primaryKey(),
-		name: text('name').notNull(),
-		email: text('email').notNull().unique(),
-		emailVerified: boolean('email_verified').default(false).notNull(),
-		image: text('image'),
-		createdAt: timestamp('created_at').defaultNow().notNull(),
-		updatedAt: timestamp('updated_at')
-			.defaultNow()
-			.$onUpdate(() => new Date())
-			.notNull()
-	},
-	() => [uniqueIndex('user_singleton_idx').on(sql`(true)`)]
-);
+export const user = pgTable('user', {
+	id: text('id').primaryKey(),
+	name: text('name').notNull(),
+	email: text('email').notNull().unique(),
+	emailVerified: boolean('email_verified').default(false).notNull(),
+	image: text('image'),
+	createdAt: timestamp('created_at').defaultNow().notNull(),
+	updatedAt: timestamp('updated_at')
+		.defaultNow()
+		.$onUpdate(() => new Date())
+		.notNull()
+});
 
 export const session = pgTable(
 	'session',
@@ -62,6 +58,8 @@ export const session = pgTable(
 			.notNull(),
 		ipAddress: text('ip_address'),
 		userAgent: text('user_agent'),
+		lastActiveAt: timestamp('last_active_at').defaultNow().notNull(),
+		idTokenHint: text('id_token_hint'),
 		userId: text('user_id')
 			.notNull()
 			.references(() => user.id, { onDelete: 'cascade' })
@@ -90,7 +88,10 @@ export const account = pgTable(
 			.$onUpdate(() => new Date())
 			.notNull()
 	},
-	(table) => [index('account_user_id_idx').on(table.userId)]
+	(table) => [
+		index('account_user_id_idx').on(table.userId),
+		uniqueIndex('account_provider_account_unique').on(table.providerId, table.accountId)
+	]
 );
 
 export const verification = pgTable(

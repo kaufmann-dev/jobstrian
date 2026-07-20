@@ -3,10 +3,6 @@ import type { RequestHandler } from './$types';
 
 export const GET: RequestHandler = ({ request }) => auth.handler(request);
 
-export const POST: RequestHandler = ({ request }) => {
-	if (new URL(request.url).pathname === '/api/auth/sign-up/email') {
-		return new Response('Nicht gefunden', { status: 404 });
-	}
-
-	return auth.handler(request);
-};
+// hooks.server.ts admits only the OIDC GET callback. Keep POST fail-closed if
+// this catch-all route is ever resolved without that hook.
+export const POST: RequestHandler = () => new Response('Nicht gefunden', { status: 404 });
