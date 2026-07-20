@@ -38,7 +38,9 @@ describe('describeFailure', () => {
 		expect(describeFailure(new SyntaxError('LLM hat keinen Inhalt zurückgegeben.')).code).toBe(
 			'invalid-response'
 		);
-		expect(describeFailure(new Error('Unbekannte Kriterium-ID: foo')).code).toBe('invalid-response');
+		expect(describeFailure(new Error('Unbekannte Kriterium-ID: foo')).code).toBe(
+			'invalid-response'
+		);
 	});
 
 	it('falls back to the real message for unknown errors', () => {
@@ -49,7 +51,9 @@ describe('describeFailure', () => {
 describe('errorCauseMessage', () => {
 	it('leads with the wrapped cause when Drizzle hides the real error', () => {
 		const err = new Error('Failed query: insert …');
-		(err as { cause?: unknown }).cause = new Error('could not determine data type of parameter $26');
+		(err as { cause?: unknown }).cause = new Error(
+			'could not determine data type of parameter $26'
+		);
 		expect(errorCauseMessage(err)).toBe(
 			'could not determine data type of parameter $26 — Failed query: insert …'
 		);

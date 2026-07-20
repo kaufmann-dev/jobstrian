@@ -1,7 +1,10 @@
 import { sql, type SQL } from 'drizzle-orm';
 import { lead, type Lead } from './db/schema';
 
-type LeadEmailVisibility = Pick<Lead, 'email' | 'emailManual' | 'emailQualityStatus' | 'emailSource'>;
+type LeadEmailVisibility = Pick<
+	Lead,
+	'email' | 'emailManual' | 'emailQualityStatus' | 'emailSource'
+>;
 
 /**
  * Auto-discovered addresses the LLM marked as `rejected` are kept in the database so

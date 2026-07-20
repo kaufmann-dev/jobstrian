@@ -257,9 +257,8 @@
 			<TriangleAlert class="size-4" />
 			<Alert.Title>KI-Anbindung noch nicht geprüft</Alert.Title>
 			<Alert.Description>
-				Hinterlege in den <a class="underline" href={resolve('/settings')}>Einstellungen</a> eine
-				OpenAI-kompatible API und führe „KI Status prüfen“ aus, damit Stellen automatisch bewertet
-				werden können.
+				Hinterlege in den <a class="underline" href={resolve('/settings')}>Einstellungen</a> eine OpenAI-kompatible
+				API und führe „KI Status prüfen“ aus, damit Stellen automatisch bewertet werden können.
 			</Alert.Description>
 		</Alert.Root>
 	{/if}
@@ -403,12 +402,11 @@
 {/snippet}
 {#snippet updateInfo()}
 	<p>
-		<span class="font-medium text-foreground">Aktualisieren:</span> Bereits Bewertetes bleibt
-		erhalten; nur Neues und bei geänderter Konfiguration Betroffenes wird neu bewertet.
+		<span class="font-medium text-foreground">Aktualisieren:</span> Bereits Bewertetes bleibt erhalten;
+		nur Neues und bei geänderter Konfiguration Betroffenes wird neu bewertet.
 	</p>
 	<p class="mt-2">
-		<span class="font-medium text-foreground">Komplett neu:</span> Alle KI-Bewertungen (Stellen,
-		Betriebe, E-Mail-Prüfung, Anschreiben) werden verworfen und neu erstellt — das kostet mehr
-		KI-Zeit.
+		<span class="font-medium text-foreground">Komplett neu:</span> Alle KI-Bewertungen (Stellen, Betriebe,
+		E-Mail-Prüfung, Anschreiben) werden verworfen und neu erstellt — das kostet mehr KI-Zeit.
 	</p>
 {/snippet}

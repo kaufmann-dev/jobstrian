@@ -1,18 +1,4 @@
-import {
-	and,
-	asc,
-	desc,
-	eq,
-	gt,
-	ilike,
-	isNotNull,
-	isNull,
-	lt,
-	ne,
-	or,
-	sql,
-	type SQL
-} from 'drizzle-orm';
+import { and, asc, desc, eq, gt, ilike, isNull, lt, ne, or, sql, type SQL } from 'drizzle-orm';
 import { z } from 'zod';
 import {
 	DEFAULT_LEAD_FILTERS,

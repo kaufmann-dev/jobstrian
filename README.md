@@ -43,7 +43,7 @@ OpenAI-compatible LLM.
 - **Update button**: one run scrapes, deduplicates, closes vanished listings,
   synchronizes businesses and rates new or changed entries. Structured progress
   is shown live with per-phase counts, LLM queue metrics and cancellation.
-- Login-protected (Better Auth), German UI, light / dark mode.
+- OIDC-protected (Better Auth), German UI, light / dark mode.
 
 ## Tech Stack
 
@@ -74,6 +74,9 @@ POSTGRES_DB="jobstrian"
 DATABASE_URL="postgres://postgres:postgres@localhost:5432/jobstrian"
 ORIGIN="http://localhost:5173"
 BETTER_AUTH_SECRET="…"                   # openssl rand -hex 32
+OIDC_ISSUER="https://identity.example.com/realms/admins"
+OIDC_CLIENT_ID="jobstrian"
+OIDC_CLIENT_SECRET="…"
 BODY_SIZE_LIMIT="10M"                    # allows CV uploads up to the app's 10 MB limit
 GEOAPIFY_API_KEY="…"                     # Geoapify Autocomplete API
 ```
@@ -89,18 +92,18 @@ podman run --name postgres-sveltekit --env-file .env \
   --volume postgres-sveltekit-data:/var/lib/postgresql/data \
   --detach postgres:18-alpine
 
-pnpm drizzle-kit migrate
+pnpm db:migrate
 ```
 
-### 4. Start & first login
+### 4. Start & sign in
 
 ```bash
 pnpm dev
 ```
 
-Open `http://localhost:5173` and create the first user on the setup screen.
-The setup screen disables itself permanently once that single user exists.
-Afterwards log in at `/login`, enter your address, role keywords, business
+Open `http://localhost:5173/login` and sign in through the configured OIDC provider.
+Provider access policy determines which administrators may use Jobstrian; the app does not maintain
+an identity or claim allowlist. After signing in, enter your address, role keywords, business
 categories and the OpenAI-compatible LLM (base URL including `/v1`, model, API key) in **Settings**.
 Then click **KI Status prüfen**: Jobstrian sends one live request to the endpoint and only
 marks the connection **aktiviert** if it succeeds. AI-powered features (profile import, search
@@ -131,6 +134,27 @@ with a tunnel and use that public tunnel URL as the webhook endpoint.
 
 Upload a PDF CV and trigger the AI profile import manually in **Settings**. Then
 click **Update** on the dashboard.
+
+## Authentication Setup
+
+Jobstrian uses OIDC Authorization Code flow with PKCE (S256), then creates a server-side Better Auth
+session in PostgreSQL. Provider access policy is the sole admission control; provider access and
+refresh tokens are not stored, and logout ends both the local session and provider-wide SSO.
+Local sessions use a 24-hour sliding idle timeout and a seven-day absolute lifetime; only explicit
+pointer, keyboard, or click activity in the authenticated UI refreshes the idle timestamp.
+
+- Public Client: Off
+- Application logout endpoint: `${ORIGIN}/logout`
+- Registered callback URL: `${ORIGIN}/api/auth/oauth2/callback/oidc`
+- Registered post-logout redirect URL: `${ORIGIN}/login`
+- Required authentication variables: `ORIGIN`, `BETTER_AUTH_SECRET`, `OIDC_ISSUER`,
+  `OIDC_CLIENT_ID`, and `OIDC_CLIENT_SECRET`; configure them in `.env` locally and in the deployment
+  environment as documented below. `OIDC_ISSUER` must exactly match the issuer in the provider's
+  discovery document.
+
+Production app, issuer, and discovered provider URLs must use HTTPS; plain HTTP is accepted only
+for loopback development. The database migration removes legacy credential identities and their
+auth sessions while preserving Jobstrian settings, CVs, listings, leads, and other app-owned data.
 
 ## Development
 
@@ -168,6 +192,9 @@ post-deployment migration command is needed.
 | `DATABASE_URL`       | PostgreSQL connection string.                                          |
 | `BETTER_AUTH_SECRET` | Auth secret — generate with `openssl rand -hex 32`.                    |
 | `ORIGIN`             | Public URL of the deployed app (e.g. `https://jobstrian.example.com`). |
+| `OIDC_ISSUER`        | Exact OIDC issuer URL from the provider discovery document.            |
+| `OIDC_CLIENT_ID`     | Confidential OIDC client identifier registered for Jobstrian.          |
+| `OIDC_CLIENT_SECRET` | Confidential OIDC client secret.                                       |
 | `BODY_SIZE_LIMIT`    | Request body limit for CV uploads. Use `10M` or higher.                |
 | `GEOAPIFY_API_KEY`   | Server-side Geoapify Autocomplete API key for Austrian suggestions.    |
 

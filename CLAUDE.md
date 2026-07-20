@@ -190,8 +190,9 @@ Avoid these legacy Svelte features in new or refactored code:
 - **Authentication**: Check current Better Auth documentation before implementing providers, plugins, adapters, session handling, or account flows.
   - _Server_: `export const auth = betterAuth({ ... });`
   - _Hook_: `return svelteKitHandler({ event, resolve, auth, building });`
-  - _Client_: `export const authClient = createAuthClient();`
-  - _Cookies_: `plugins: [sveltekitCookies(getRequestEvent)]`
+  - _OIDC_: use the generic OAuth integration with Authorization Code + PKCE S256; provider policy is the only administrator admission control.
+  - _Sessions_: keep local HttpOnly sessions, never persist access or refresh tokens, and retain the ID token only as the session-bound logout hint.
+  - _Cookies_: keep `sveltekitCookies(getRequestEvent)` last in the plugin list.
 - **Forms**: Always use Superforms with Zod. Follow the chain: `zod schema -> superforms -> formsnap -> shadcn-svelte form components`. Use `Form.Field`, `Form.Control`, and shadcn error components rather than ad hoc markup.
 - **Email**: Use `better-svelte-email` for templates and Resend for delivery. Render components in server-only code, and send both HTML and plain text.
   ```ts
@@ -210,8 +211,8 @@ For Coolify and Nixpacks:
 - If `pnpm-workspace.yaml` exists in a single-package app, keep a non-empty `packages` list with `.` included.
 - Use `engines.node` and `nixpacks.toml` to pin compatible Node behavior when dependencies require a minimum patch version.
 - Read deployment environment variables from `process.env`. Load `.env` only after checking that the file exists.
-- Validate seed script environment variables before calling Better Auth APIs.
-- Document and enforce minimum seeded account password lengths.
+- Validate required OIDC and Better Auth environment variables before serving requests.
+- Register the documented callback and post-logout URLs in the identity provider.
 - Let Nixpacks handle the install phase unless a project-specific reason requires otherwise.
 - Prefer explicit deploy or runtime migration and seed steps when Coolify supports them.
 - Keep build-time migration and seed scripts idempotent when they must run during image builds.

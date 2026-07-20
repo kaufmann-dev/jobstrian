@@ -1,8 +1,6 @@
 <script lang="ts">
 	import { page } from '$app/state';
-	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
-	import { authClient } from '$lib/auth-client';
 	import { Button } from '$lib/components/ui/button/index.js';
 	import { toggleMode } from 'mode-watcher';
 	import Briefcase from '@lucide/svelte/icons/briefcase';
@@ -14,6 +12,8 @@
 	import LogOut from '@lucide/svelte/icons/log-out';
 
 	let { children } = $props();
+	const sessionTouchInterval = 5 * 60 * 1000;
+	let lastSessionTouch = 0;
 
 	const navItems = [
 		{ href: '/', label: 'Übersicht', icon: LayoutDashboard },
@@ -26,11 +26,22 @@
 		return href === '/' ? page.url.pathname === '/' : page.url.pathname.startsWith(href);
 	}
 
-	async function logout() {
-		await authClient.signOut();
-		await goto(resolve('/login'));
+	function touchSession(event: Event) {
+		if (!event.isTrusted) return;
+		const now = Date.now();
+		if (now - lastSessionTouch < sessionTouchInterval) return;
+		lastSessionTouch = now;
+
+		void fetch(resolve('/auth/session/touch'), {
+			method: 'POST',
+			headers: { 'x-jobstrian-user-interaction': '1' },
+			credentials: 'same-origin',
+			keepalive: true
+		}).catch(() => undefined);
 	}
 </script>
+
+<svelte:window onpointerdown={touchSession} onkeydown={touchSession} onclick={touchSession} />
 
 <div class="flex min-h-svh flex-col">
 	<header
@@ -69,9 +80,11 @@
 					<Sun class="size-4 dark:hidden" />
 					<Moon class="hidden size-4 dark:block" />
 				</Button>
-				<Button variant="ghost" size="icon" onclick={logout} aria-label="Abmelden">
-					<LogOut class="size-4" />
-				</Button>
+				<form method="POST" action={resolve('/logout')}>
+					<Button type="submit" variant="ghost" size="icon" aria-label="Abmelden">
+						<LogOut class="size-4" />
+					</Button>
+				</form>
 			</div>
 		</div>
 	</header>
