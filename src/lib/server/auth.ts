@@ -110,14 +110,12 @@ export const auth = betterAuth({
 		additionalFields: {
 			lastActiveAt: {
 				type: 'date',
-				fieldName: 'last_active_at',
 				required: false,
 				input: false,
 				returned: false
 			},
 			idTokenHint: {
 				type: 'string',
-				fieldName: 'id_token_hint',
 				required: false,
 				input: false,
 				returned: false
