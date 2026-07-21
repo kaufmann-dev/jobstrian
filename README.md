@@ -137,20 +137,12 @@ click **Update** on the dashboard.
 
 ## Authentication Setup
 
-Jobstrian uses OIDC Authorization Code flow with PKCE (S256), then creates a server-side Better Auth
-session in PostgreSQL. Provider access policy is the sole admission control; provider access and
-refresh tokens are not stored, and logout ends both the local session and provider-wide SSO.
-Local sessions use a 24-hour sliding idle timeout and a seven-day absolute lifetime; only explicit
-pointer, keyboard, or click activity in the authenticated UI refreshes the idle timestamp.
+Jobstrian uses Better Auth with the OIDC authorization code flow plus PKCE (S256), keeps sessions on the server, and clears the local session and provider SSO session on logout.
 
 - Public Client: Off
-- Application logout endpoint: `${ORIGIN}/logout`
-- Registered callback URL: `${ORIGIN}/api/auth/oauth2/callback/oidc`
-- Registered post-logout redirect URL: `${ORIGIN}/login`
-- Required authentication variables: `ORIGIN`, `BETTER_AUTH_SECRET`, `OIDC_ISSUER`,
-  `OIDC_CLIENT_ID`, and `OIDC_CLIENT_SECRET`; configure them in `.env` locally and in the deployment
-  environment as documented below. `OIDC_ISSUER` must exactly match the issuer in the provider's
-  discovery document.
+- Callback URL(s): `${ORIGIN}/api/auth/oauth2/callback/oidc`
+- Logout Callback URL(s): `${ORIGIN}/login`
+- Required authentication variables: `ORIGIN`, `BETTER_AUTH_SECRET`, `OIDC_ISSUER`, `OIDC_CLIENT_ID`, `OIDC_CLIENT_SECRET` (see **Environment Variables → Required**).
 
 Production app, issuer, and discovered provider URLs must use HTTPS; plain HTTP is accepted only
 for loopback development. The database migration removes legacy credential identities and their
