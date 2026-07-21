@@ -140,8 +140,8 @@ click **Update** on the dashboard.
 Jobstrian uses Better Auth with the OIDC authorization code flow plus PKCE (S256), keeps sessions on the server, and clears the local session and provider SSO session on logout.
 
 - Public Client: Off
-- Callback URL(s): `${ORIGIN}/api/auth/oauth2/callback/oidc`
-- Logout Callback URL(s): `${ORIGIN}/login`
+- Callback URL: `${ORIGIN}/api/auth/oauth2/callback/oidc`
+- Logout Callback URL: `${ORIGIN}/login`
 - Required authentication variables: `ORIGIN`, `BETTER_AUTH_SECRET`, `OIDC_ISSUER`, `OIDC_CLIENT_ID`, `OIDC_CLIENT_SECRET` (see **Environment Variables → Required**).
 
 Production app, issuer, and discovered provider URLs must use HTTPS; plain HTTP is accepted only
