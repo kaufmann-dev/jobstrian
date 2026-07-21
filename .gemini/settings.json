@@ -2,9 +2,6 @@
 	"mcpServers": {
 		"svelte": {
 			"httpUrl": "https://mcp.svelte.dev/mcp"
-		},
-		"shadcn-svelte": {
-			"httpUrl": "https://shadcn-svelte-mcp.svelte-apps.workers.dev/api/mcp/shadcn/mcp"
 		}
 	}
 }
