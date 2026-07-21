@@ -88,7 +88,7 @@ export async function exchangeOidcCode({
 		redirectURI,
 		options: { clientId: oidcClientId, clientSecret: oidcClientSecret },
 		tokenEndpoint: discovery.tokenEndpoint,
-		authentication: 'basic'
+		authentication: 'post'
 	});
 	if (!tokens.idToken) throw new Error('OIDC token response did not include an ID token.');
 

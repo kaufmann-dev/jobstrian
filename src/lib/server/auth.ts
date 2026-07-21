@@ -63,7 +63,7 @@ const oidcProviderConfig: GenericOAuthConfig = {
 	issuer: oidcIssuer,
 	clientId: oidcClientId,
 	clientSecret: oidcClientSecret,
-	authentication: 'basic',
+	authentication: 'post',
 	responseType: 'code',
 	responseMode: 'query',
 	pkce: true,
