@@ -67,22 +67,32 @@ pnpm exec playwright install chromium   # for browser-backed adapters
 
 ### 2. Environment variables (`.env`)
 
+Application runtime variables (required for local dev and deployment):
+
 ```bash
-POSTGRES_USER="postgres"
-POSTGRES_PASSWORD="postgres"
-POSTGRES_DB="jobstrian"
 DATABASE_URL="postgres://postgres:postgres@localhost:5432/jobstrian"
 ORIGIN="http://localhost:5173"
 BETTER_AUTH_SECRET="…"                   # openssl rand -hex 32
 OIDC_ISSUER="https://identity.example.com/realms/admins"
 OIDC_CLIENT_ID="jobstrian"
 OIDC_CLIENT_SECRET="…"
-BODY_SIZE_LIMIT="10M"                    # allows CV uploads up to the app's 10 MB limit
 GEOAPIFY_API_KEY="…"                     # Geoapify Autocomplete API
+```
+
+If you use the local Podman command in the next step, add PostgreSQL container variables too (used by the
+postgres image only):
+
+```bash
+POSTGRES_USER="postgres"
+POSTGRES_PASSWORD="postgres"
+POSTGRES_DB="jobstrian"
 ```
 
 Create the key in Geoapify and select **Autocomplete API**. The server uses it
 for Austrian address and city suggestions.
+
+`BODY_SIZE_LIMIT` is no longer used by the app at runtime. CV uploads are currently
+hard limited to **10 MB** in `src/routes/api/cv/+server.ts`.
 
 ### 3. Database (Podman)
 
@@ -187,8 +197,9 @@ post-deployment migration command is needed.
 | `OIDC_ISSUER`        | Exact OIDC issuer URL from the provider discovery document.            |
 | `OIDC_CLIENT_ID`     | Confidential OIDC client identifier registered for Jobstrian.          |
 | `OIDC_CLIENT_SECRET` | Confidential OIDC client secret.                                       |
-| `BODY_SIZE_LIMIT`    | Request body limit for CV uploads. Use `10M` or higher.                |
 | `GEOAPIFY_API_KEY`   | Server-side Geoapify Autocomplete API key for Austrian suggestions.    |
+
+CV uploads are hard capped to **10 MB** by backend validation.
 
 ## Notes
 
