@@ -38,4 +38,21 @@
 			</Button>
 		</Card.Footer>
 	</form>
+	<nav
+		aria-label="Rechtliche Informationen"
+		class="flex justify-center gap-4 border-t px-5 pt-5 text-xs text-muted-foreground"
+	>
+		<a
+			href="https://legal.kaufmann.dev/imprint?site=jobstrian.kaufmann.dev"
+			class="inline-flex min-h-6 items-center underline-offset-4 hover:text-foreground hover:underline focus-visible:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none"
+		>
+			Imprint
+		</a>
+		<a
+			href="https://legal.kaufmann.dev/privacy?site=jobstrian.kaufmann.dev"
+			class="inline-flex min-h-6 items-center underline-offset-4 hover:text-foreground hover:underline focus-visible:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none"
+		>
+			Privacy
+		</a>
+	</nav>
 </AuthShell>
