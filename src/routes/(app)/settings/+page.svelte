@@ -109,22 +109,34 @@
 					autosave.enqueueField(field, $formData[field as keyof typeof $formData]);
 				}
 			},
-			onSubmit: ({ submitter, validators }) => {
+			onSubmit: async ({ submitter, validators, cancel }) => {
 				const action = submitter?.getAttribute('formaction');
 				if (action === '?/saveApiKey' || action === '?/saveResendSettings') {
 					validators(false);
+					if (!(await flushSettings())) cancel();
 				}
+			},
+			onUpdate: ({ form: updatedForm }) => {
+				// These actions save only part of the settings; keep edits made during the request.
+				updatedForm.data = { ...$formData };
 			},
 			onResult: ({ result, formElement }) => {
 				const resultData = result.type === 'success' ? result.data : undefined;
 				const saved = resultData && 'saved' in resultData ? resultData.saved : undefined;
 				if (saved === 'apiKey') {
 					toast.success('API-Key gespeichert');
-					if (resultData && 'llmStatus' in resultData && resultData.llmStatus) {
+					if (
+						resultData &&
+						'llmStatus' in resultData &&
+						resultData.llmStatus &&
+						resultData.form.data.llmBaseUrl === $formData.llmBaseUrl &&
+						resultData.form.data.llmModel === $formData.llmModel
+					) {
 						llmStatus = resultData.llmStatus;
 					}
 					const input = formElement.elements.namedItem('llmApiKey');
 					if (input instanceof HTMLInputElement) input.value = '';
+					$formData.llmApiKey = '';
 				} else if (saved === 'resendSettings') {
 					toast.success('E-Mail-Einstellungen gespeichert');
 					if (
@@ -212,6 +224,13 @@
 
 	onNavigate(() => autosave.flush());
 
+	async function flushSettings(): Promise<boolean> {
+		await autosave.flush();
+		if (autosave.isSaved()) return true;
+		toast.error('Änderungen konnten nicht gespeichert werden. Bitte erneut versuchen.');
+		return false;
+	}
+
 	function affectsSettingsStatus(request: SettingsPatchRequest): boolean {
 		if (request.homeLocation) return true;
 		return Object.keys(request.patch).some((field) =>
@@ -262,12 +281,15 @@
 	async function verifyLlm() {
 		llmVerifyBusy = true;
 		try {
+			if (!(await flushSettings())) return;
+			const { llmBaseUrl, llmModel } = $formData;
 			const response = await fetch('/api/llm/verify', { method: 'POST' });
 			const body = (await response.json().catch(() => ({}))) as {
 				status?: typeof llmStatus;
 				message?: string;
 			};
 			if (!response.ok) throw new Error(body.message ?? 'KI-Verbindung fehlgeschlagen');
+			if (llmBaseUrl !== $formData.llmBaseUrl || llmModel !== $formData.llmModel) return;
 			if (body.status) llmStatus = body.status;
 			await invalidate('app:settings-status');
 			toast.success('KI-Anbindung aktiviert');
@@ -856,7 +878,7 @@
 				type="submit"
 				formaction="?/saveApiKey"
 				class="w-full sm:w-auto"
-				disabled={$submitting}
+				disabled={$submitting || llmVerifyBusy}
 			>
 				{#if $submitting}<Spinner />{:else}<Save />{/if}
 				API-Key speichern
@@ -865,7 +887,7 @@
 				type="button"
 				variant="outline"
 				class="w-full sm:w-auto"
-				disabled={llmVerifyBusy || !llmStatus.hasConfig}
+				disabled={llmVerifyBusy || $submitting || !llmStatus.hasConfig}
 				onclick={verifyLlm}
 			>
 				{#if llmVerifyBusy}<Spinner />{:else}<RefreshCw />{/if}
