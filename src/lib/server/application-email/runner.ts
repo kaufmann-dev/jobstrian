@@ -44,6 +44,7 @@ import ApplicationEmailTemplate from './application-email-template.svelte';
 
 const PROGRESS_FLUSH_INTERVAL_MS = 1000;
 const MAX_ATTEMPTS = 3;
+const SETTINGS_POLL_INTERVAL_MS = 30_000;
 
 type Counts = { queued: number; sent: number; failed: number; skipped: number };
 type ActiveRun = { runId: number; controller: AbortController; startedAt: Date };
@@ -129,7 +130,10 @@ function isAbortLike(err: unknown): boolean {
 function sleep(ms: number, signal: AbortSignal): Promise<void> {
 	if (ms <= 0) return Promise.resolve();
 	return new Promise((resolve, reject) => {
-		const timeout = setTimeout(resolve, ms);
+		const timeout = setTimeout(() => {
+			signal.removeEventListener('abort', abort);
+			resolve();
+		}, ms);
 		const abort = () => {
 			clearTimeout(timeout);
 			reject(abortReason(signal));
@@ -143,7 +147,7 @@ class ProgressWriter {
 	private lastFlush = 0;
 
 	constructor(
-		private readonly runId: number,
+		readonly runId: number,
 		readonly counts: Counts,
 		readonly progress: ApplicationEmailProgress
 	) {}
@@ -306,12 +310,13 @@ async function sentTodayCount(from: Date): Promise<number> {
 	return row?.value ?? 0;
 }
 
-async function queueRun(runId: number, rows: Lead[], dailyLimit: number): Promise<number> {
+async function queueRun(runId: number, rows: Lead[], settings: Settings): Promise<number> {
 	if (!rows.length) return 0;
 	const from = new Date();
 	const scheduled = scheduleApplicationEmails(rows.length, {
 		from,
-		dailyLimit,
+		dailyLimit: settings.applicationEmailDailyLimit,
+		sendOnWeekends: settings.applicationEmailSendOnWeekends,
 		alreadySentToday: await sentTodayCount(from)
 	});
 	await db
@@ -339,7 +344,7 @@ async function queueRun(runId: number, rows: Lead[], dailyLimit: number): Promis
 export function repaceScheduledAt<T extends { id: number; scheduledAt: Date }>(
 	rows: T[],
 	from = new Date(),
-	options: { dailyLimit?: number; alreadySentToday?: number } = {}
+	options: { dailyLimit?: number; alreadySentToday?: number; sendOnWeekends?: boolean } = {}
 ): Map<number, Date> {
 	const ordered = [...rows].sort(
 		(a, b) => a.scheduledAt.getTime() - b.scheduledAt.getTime() || a.id - b.id
@@ -348,17 +353,17 @@ export function repaceScheduledAt<T extends { id: number; scheduledAt: Date }>(
 	return new Map(ordered.map((row, index) => [row.id, scheduled[index]]));
 }
 
-async function repaceQueuedRows(runId: number): Promise<void> {
+async function repaceQueuedRows(runId: number, settings: Settings): Promise<void> {
 	const rows = await db
 		.select({ id: applicationEmail.id, scheduledAt: applicationEmail.scheduledAt })
 		.from(applicationEmail)
 		.where(and(eq(applicationEmail.runId, runId), eq(applicationEmail.status, 'queued')))
 		.orderBy(asc(applicationEmail.scheduledAt), asc(applicationEmail.id));
 	if (!rows.length) return;
-	const settings = await getSettings();
 	const from = new Date();
 	const repaced = repaceScheduledAt(rows, from, {
 		dailyLimit: settings.applicationEmailDailyLimit,
+		sendOnWeekends: settings.applicationEmailSendOnWeekends,
 		alreadySentToday: await sentTodayCount(from)
 	});
 	for (const [id, scheduledAt] of repaced) {
@@ -468,6 +473,12 @@ async function sendQueuedRow(
 	writer: ProgressWriter
 ): Promise<'sent' | 'failed' | 'requeued' | 'skipped'> {
 	const settings = await getSettings();
+	const now = new Date();
+	const nextWindow = nextApplicationEmailWindowStart(now, settings.applicationEmailSendOnWeekends);
+	if (nextWindow.getTime() > now.getTime()) {
+		await repaceQueuedRows(writer.runId, settings);
+		return 'requeued';
+	}
 	const [currentLead] = await db
 		.select({
 			email: lead.email,
@@ -517,7 +528,8 @@ async function sendQueuedRow(
 					status: 'queued',
 					attempts,
 					scheduledAt: nextApplicationEmailWindowStart(
-						new Date(Date.now() + attempts * 5 * 60_000)
+						new Date(Date.now() + attempts * 5 * 60_000),
+						settings.applicationEmailSendOnWeekends
 					),
 					error: message
 				})
@@ -536,6 +548,7 @@ async function sendQueuedRow(
 async function runApplicationEmailWorker(
 	runId: number,
 	signal: AbortSignal,
+	scheduledSettings: Settings,
 	progress = createProgress()
 ): Promise<void> {
 	const counts = await refreshCounts(runId);
@@ -559,6 +572,14 @@ async function runApplicationEmailWorker(
 				.limit(1);
 			if (!run || run.status === 'canceling') throw abortReason(signal);
 
+			const settings = await getSettings();
+			if (
+				settings.applicationEmailSendOnWeekends !== scheduledSettings.applicationEmailSendOnWeekends
+			) {
+				await repaceQueuedRows(runId, settings);
+				scheduledSettings = settings;
+			}
+
 			const [next] = await queuedRows(runId);
 			if (!next) break;
 			const total = counts.queued + counts.sent + counts.failed + counts.skipped;
@@ -576,7 +597,11 @@ async function runApplicationEmailWorker(
 			);
 			writer.nextSendAt(next.scheduledAt);
 			await writer.flush(true);
-			await sleep(next.scheduledAt.getTime() - Date.now(), signal);
+			const waitMs = next.scheduledAt.getTime() - Date.now();
+			if (waitMs > 0) {
+				await sleep(Math.min(waitMs, SETTINGS_POLL_INTERVAL_MS), signal);
+				continue;
+			}
 			const result = await sendQueuedRow(next, writer);
 			if (result !== 'requeued') counts.queued = Math.max(0, counts.queued - 1);
 			writer.nextSendAt(null);
@@ -669,7 +694,7 @@ export async function startApplicationEmailRun(): Promise<number | null> {
 			.values({ status: 'running', phase: 'Bewerbungsversand startet', progress: createProgress() })
 			.returning();
 		const rows = await eligibleLeads();
-		const queued = await queueRun(run.id, rows, settings.applicationEmailDailyLimit);
+		const queued = await queueRun(run.id, rows, settings);
 		const counts: Counts = { queued, sent: 0, failed: 0, skipped: rows.length - queued };
 		const progress = createProgress(
 			queued > 0 ? 'Bewerbungen werden vorbereitet' : 'Keine E-Mails offen'
@@ -704,7 +729,7 @@ export async function startApplicationEmailRun(): Promise<number | null> {
 
 		const controller = new AbortController();
 		activeRun = { runId: run.id, controller, startedAt: new Date() };
-		void runApplicationEmailWorker(run.id, controller.signal, progress);
+		void runApplicationEmailWorker(run.id, controller.signal, settings, progress);
 		return run.id;
 	} finally {
 		starting = false;
@@ -766,8 +791,14 @@ export async function recoverInterruptedApplicationEmailRun(
 				.update(applicationEmail)
 				.set({ status: 'queued' })
 				.where(and(eq(applicationEmail.runId, runId), eq(applicationEmail.status, 'sending')));
-			await repaceQueuedRows(runId);
-			void runApplicationEmailWorker(runId, controller.signal, progressOrDefault(run.progress));
+			const settings = await getSettings();
+			await repaceQueuedRows(runId, settings);
+			void runApplicationEmailWorker(
+				runId,
+				controller.signal,
+				settings,
+				progressOrDefault(run.progress)
+			);
 		} catch (err) {
 			if (activeRun?.runId === runId) activeRun = null;
 			throw err;

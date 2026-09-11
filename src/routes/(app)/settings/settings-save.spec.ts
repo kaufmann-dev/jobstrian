@@ -3,7 +3,11 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const { geoSuggestions } = vi.hoisted(() => ({ geoSuggestions: vi.fn() }));
 vi.mock('$lib/server/geo/geoapify', () => ({ geoSuggestions }));
 
-import { toSettingsDbPatch, verifyTypedHomeLocation } from '$lib/server/settings-patch';
+import {
+	settingsPatchSchema,
+	toSettingsDbPatch,
+	verifyTypedHomeLocation
+} from '$lib/server/settings-patch';
 import type { Settings } from '$lib/server/db/schema';
 import { DEFAULT_LISTING_RANKING_CRITERIA } from '$lib/ranking-criteria';
 
@@ -58,6 +62,18 @@ describe('settings patch persistence', () => {
 			homeLat: 48.2,
 			homeLon: 16.3
 		});
+	});
+
+	it.each([true, false])('validates and stores weekend sending as %s', (value) => {
+		const input = { patch: { applicationEmailSendOnWeekends: value } };
+		expect(settingsPatchSchema.safeParse(input).success).toBe(true);
+		expect(toSettingsDbPatch(input, current)).toEqual({ applicationEmailSendOnWeekends: value });
+	});
+
+	it('rejects non-boolean weekend settings', () => {
+		expect(() =>
+			toSettingsDbPatch({ patch: { applicationEmailSendOnWeekends: 'false' } })
+		).toThrow();
 	});
 
 	it('does not overwrite unrelated fields', () => {

@@ -889,6 +889,21 @@
 			</div>
 		</Card.Header>
 		<Card.Content class="space-y-5">
+			<Form.Field {form} name="applicationEmailSendOnWeekends">
+				<Form.Control>
+					{#snippet children({ props })}
+						<div class="flex items-center justify-between gap-4">
+							<Form.Label>Auch am Wochenende senden</Form.Label>
+							<Switch {...props} bind:checked={$formData.applicationEmailSendOnWeekends} />
+						</div>
+					{/snippet}
+				</Form.Control>
+				<Form.Description>
+					Deaktiviert: Versand Montag bis Freitag. Aktiviert: Versand täglich. Jeweils von 09:00 bis
+					18:00 Uhr (Wien) unter Beachtung des täglichen Sendelimits.
+				</Form.Description>
+				<Form.FieldErrors />
+			</Form.Field>
 			<Form.Field {form} name="applicationEmailDailyLimit">
 				<Form.Control>
 					{#snippet children({ props })}

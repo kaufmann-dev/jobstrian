@@ -169,6 +169,13 @@
       "when": 1784577002127,
       "tag": "0023_outgoing_albert_cleary",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1789151537877,
+      "tag": "0024_add_application_email_weekend_setting",
+      "breakpoints": true
     }
   ]
 }

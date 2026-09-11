@@ -38,8 +38,11 @@ OpenAI-compatible LLM.
   AI-extracted preview.
 - **Automatic application e-mails**: after Resend DNS verification in
   **Settings**, the Betriebe page can queue one CV-backed application e-mail per
-  eligible business. Sending is paced on weekdays between 09:00 and 18:00 with
-  short randomized gaps and a configurable daily send limit.
+  eligible business. Sending is paced between 09:00 and 18:00 (Europe/Vienna) with
+  short randomized gaps and a configurable daily send limit. By default, sending
+  runs Monday through Friday; **Auch am Wochenende senden** in **E-Mail-Versand**
+  includes Saturdays and Sundays. Changes also reschedule queued e-mails within
+  30 seconds. Public holidays do not affect the schedule.
 - **Update button**: one run scrapes, deduplicates, closes vanished listings,
   synchronizes businesses and rates new or changed entries. Structured progress
   is shown live with per-phase counts, LLM queue metrics and cancellation.
