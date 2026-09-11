@@ -677,8 +677,9 @@
 	]}
 />
 {#snippet sendDescription()}
-	{data.applicationEmail.eligibleCount} neue Betriebe werden eingeplant. Der Versand läuft nur Montag
-	bis Freitag von 09:00 bis 18:00 Uhr, mit 30 bis 90 Sekunden Abstand und einem täglichen Sendelimit.
+	{data.applicationEmail.eligibleCount} neue Betriebe werden eingeplant. Der Versand läuft an den in den
+	Einstellungen festgelegten Tagen von 09:00 bis 18:00 Uhr, mit 30 bis 90 Sekunden Abstand und einem täglichen
+	Sendelimit.
 {/snippet}
 {#snippet sendInfo()}
 	Jeder Betrieb wird höchstens einmal angeschrieben. Wiederholtes Drücken startet keine zweite

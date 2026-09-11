@@ -69,6 +69,7 @@ function settings(patch: Partial<Settings> = {}): Settings {
 		resendWebhookSecret: '',
 		applicationEmailEnabled: false,
 		applicationEmailDailyLimit: 90,
+		applicationEmailSendOnWeekends: false,
 		updatedAt: new Date(),
 		...patch
 	};

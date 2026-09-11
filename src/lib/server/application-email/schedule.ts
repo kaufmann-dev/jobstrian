@@ -73,34 +73,37 @@ function addLocalDays(parts: Pick<ZonedParts, 'year' | 'month' | 'day'>, days: n
 	};
 }
 
-function isBusinessDay(weekday: string): boolean {
-	return weekday !== 'Sat' && weekday !== 'Sun';
+function isSendDay(weekday: string, sendOnWeekends: boolean): boolean {
+	return sendOnWeekends || (weekday !== 'Sat' && weekday !== 'Sun');
 }
 
-function isInsideBusinessWindow(parts: ZonedParts): boolean {
+function isInsideSendWindow(parts: ZonedParts, sendOnWeekends: boolean): boolean {
 	return (
-		isBusinessDay(parts.weekday) &&
+		isSendDay(parts.weekday, sendOnWeekends) &&
 		parts.hour >= BUSINESS_START_HOUR &&
 		parts.hour < BUSINESS_END_HOUR
 	);
 }
 
-function nextBusinessDay(parts: Pick<ZonedParts, 'year' | 'month' | 'day'>): Date {
+function nextSendDay(
+	parts: Pick<ZonedParts, 'year' | 'month' | 'day'>,
+	sendOnWeekends: boolean
+): Date {
 	let cursor = addLocalDays(parts, 1);
 	for (;;) {
 		const candidate = dateInVienna(cursor.year, cursor.month, cursor.day, BUSINESS_START_HOUR);
-		if (isBusinessDay(zonedParts(candidate).weekday)) return candidate;
+		if (isSendDay(zonedParts(candidate).weekday, sendOnWeekends)) return candidate;
 		cursor = addLocalDays(cursor, 1);
 	}
 }
 
-export function nextApplicationEmailWindowStart(after = new Date()): Date {
+export function nextApplicationEmailWindowStart(after = new Date(), sendOnWeekends = false): Date {
 	const parts = zonedParts(after);
-	if (isInsideBusinessWindow(parts)) return after;
-	if (isBusinessDay(parts.weekday) && parts.hour < BUSINESS_START_HOUR) {
+	if (isInsideSendWindow(parts, sendOnWeekends)) return after;
+	if (isSendDay(parts.weekday, sendOnWeekends) && parts.hour < BUSINESS_START_HOUR) {
 		return dateInVienna(parts.year, parts.month, parts.day, BUSINESS_START_HOUR);
 	}
-	return nextBusinessDay(parts);
+	return nextSendDay(parts, sendOnWeekends);
 }
 
 function secondsBetween(min: number, max: number, random: () => number): number {
@@ -126,15 +129,17 @@ export function scheduleApplicationEmails(
 		from?: Date;
 		random?: () => number;
 		dailyLimit?: number;
+		sendOnWeekends?: boolean;
 		alreadySentToday?: number;
 	} = {}
 ): Date[] {
+	const sendOnWeekends = options.sendOnWeekends ?? false;
 	const random = options.random ?? Math.random;
 	const dailyLimit =
 		options.dailyLimit && options.dailyLimit > 0 ? options.dailyLimit : Number.POSITIVE_INFINITY;
 	const from = options.from ?? new Date();
 	const dates: Date[] = [];
-	let cursor = nextApplicationEmailWindowStart(from);
+	let cursor = nextApplicationEmailWindowStart(from, sendOnWeekends);
 	let currentDay = viennaDayKey(zonedParts(cursor));
 	// Today's already-sent count only applies when sending actually resumes today;
 	// an after-hours or weekend start begins on a fresh day with a full budget.
@@ -142,14 +147,14 @@ export function scheduleApplicationEmails(
 		currentDay === viennaDayKey(zonedParts(from)) ? (options.alreadySentToday ?? 0) : 0;
 
 	for (let i = 0; i < count; i++) {
-		cursor = nextApplicationEmailWindowStart(cursor);
+		cursor = nextApplicationEmailWindowStart(cursor, sendOnWeekends);
 		const day = viennaDayKey(zonedParts(cursor));
 		if (day !== currentDay) {
 			currentDay = day;
 			sentToday = 0;
 		}
 		if (sentToday >= dailyLimit) {
-			cursor = nextBusinessDay(zonedParts(cursor));
+			cursor = nextSendDay(zonedParts(cursor), sendOnWeekends);
 			currentDay = viennaDayKey(zonedParts(cursor));
 			sentToday = 0;
 		}
@@ -162,6 +167,6 @@ export function scheduleApplicationEmails(
 	return dates;
 }
 
-export function isApplicationEmailSendWindow(date = new Date()): boolean {
-	return isInsideBusinessWindow(zonedParts(date));
+export function isApplicationEmailSendWindow(date = new Date(), sendOnWeekends = false): boolean {
+	return isInsideSendWindow(zonedParts(date), sendOnWeekends);
 }

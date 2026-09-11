@@ -1,0 +1,1 @@
+ALTER TABLE "settings" ADD COLUMN "application_email_send_on_weekends" boolean DEFAULT false NOT NULL;

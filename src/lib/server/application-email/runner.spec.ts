@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Settings } from '../db/schema';
 
 type RunRow = {
@@ -129,6 +129,12 @@ const fake = vi.hoisted(() => {
 			return;
 		}
 		if (name !== 'application_email') return;
+
+		if (patch.scheduledAt && !patch.status) {
+			const row = state.emails.find((email) => email.status === 'queued');
+			if (row) Object.assign(row, patch);
+			return;
+		}
 
 		if (patch.status === 'queued') {
 			for (const row of state.emails) {
@@ -271,6 +277,7 @@ vi.mock('./application-email-template.svelte', () => ({ default: {} }));
 import { getCvData } from '../cv';
 import { getSettings } from '../settings';
 import {
+	cancelApplicationEmailRun,
 	recoverInterruptedApplicationEmailRun,
 	repaceScheduledAt,
 	sendTestApplicationEmail
@@ -286,6 +293,7 @@ function defaultSettings(patch: Partial<Settings> = {}): Settings {
 		resendReplyTo: 'reply@example.com',
 		applicationEmailEnabled: true,
 		applicationEmailDailyLimit: 90,
+		applicationEmailSendOnWeekends: false,
 		fullName: 'Applicant',
 		email: 'reply@example.com',
 		...patch
@@ -301,10 +309,14 @@ function defaultCv(): Awaited<ReturnType<typeof getCvData>> {
 }
 
 beforeEach(() => {
+	vi.useFakeTimers({ toFake: ['Date'] });
+	vi.setSystemTime(new Date('2026-06-29T09:00:00.000Z'));
 	fake.reset();
 	vi.mocked(getSettings).mockResolvedValue(defaultSettings());
 	vi.mocked(getCvData).mockResolvedValue(defaultCv());
 });
+
+afterEach(() => vi.useRealTimers());
 
 function seedRun(status: RunRow['status']): RunRow {
 	return {
@@ -456,6 +468,50 @@ describe('interrupted application e-mail recovery', () => {
 		for (let i = 1; i < times.length; i++) {
 			expect(times[i].getTime() - times[i - 1].getTime()).toBeGreaterThanOrEqual(30_000);
 		}
+	});
+
+	it('reschedules a waiting weekday-only queue when weekend sending is enabled', async () => {
+		vi.useFakeTimers();
+		vi.setSystemTime(new Date('2026-06-27T09:00:00.000Z'));
+		fake.state.runs.push(seedRun('running'));
+		fake.state.emails.push(seedEmail('queued'));
+		fake.state.leads.push(seedLead(110));
+
+		await recoverInterruptedApplicationEmailRun(1);
+		await vi.advanceTimersByTimeAsync(0);
+		expect(fake.state.emails[0].scheduledAt.toISOString()).toBe('2026-06-29T07:00:00.000Z');
+		expect(fake.state.sendCalls).toHaveLength(0);
+
+		vi.mocked(getSettings).mockResolvedValue(
+			defaultSettings({ applicationEmailSendOnWeekends: true })
+		);
+		await vi.advanceTimersByTimeAsync(30_000);
+		expect(fake.state.emails[0].status).toBe('sent');
+		expect(fake.state.runs[0].status).toBe('done');
+		expect(fake.state.sendCalls).toHaveLength(1);
+	});
+
+	it('postpones queued weekend sends when weekend sending is disabled', async () => {
+		vi.useFakeTimers();
+		vi.setSystemTime(new Date('2026-06-27T06:59:45.000Z'));
+		vi.mocked(getSettings).mockResolvedValue(
+			defaultSettings({ applicationEmailSendOnWeekends: true })
+		);
+		fake.state.runs.push(seedRun('running'));
+		fake.state.emails.push(seedEmail('queued'));
+		fake.state.leads.push(seedLead(110));
+
+		await recoverInterruptedApplicationEmailRun(1);
+		await vi.advanceTimersByTimeAsync(0);
+		expect(fake.state.emails[0].scheduledAt.toISOString()).toBe('2026-06-27T07:00:00.000Z');
+		vi.mocked(getSettings).mockResolvedValue(defaultSettings());
+		await vi.advanceTimersByTimeAsync(30_000);
+		expect(fake.state.emails[0].scheduledAt.toISOString()).toBe('2026-06-29T07:00:00.000Z');
+		expect(fake.state.sendCalls).toHaveLength(0);
+
+		await cancelApplicationEmailRun(1);
+		await vi.advanceTimersByTimeAsync(0);
+		expect(fake.state.runs[0].status).toBe('canceled');
 	});
 
 	it('finishes a stale canceling run without resuming pending sends', async () => {

@@ -55,7 +55,8 @@ export const settingsSchema = z.object({
 	resendFromName: z.string().trim().max(200).default(''),
 	resendReplyTo: z.union([z.email(), z.literal('')]).default(''),
 	resendWebhookSecret: z.string().trim().max(500).default(''),
-	applicationEmailDailyLimit: z.number().int().min(1).max(1000).default(90)
+	applicationEmailDailyLimit: z.number().int().min(1).max(1000).default(90),
+	applicationEmailSendOnWeekends: z.boolean().default(false)
 });
 
 export const apiKeySchema = settingsSchema.pick({ llmApiKey: true });

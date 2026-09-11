@@ -51,7 +51,8 @@ function settingsFormData(s: Settings) {
 		resendFromName: s.resendFromName || s.fullName,
 		resendReplyTo: s.resendReplyTo || s.email,
 		resendWebhookSecret: '',
-		applicationEmailDailyLimit: s.applicationEmailDailyLimit
+		applicationEmailDailyLimit: s.applicationEmailDailyLimit,
+		applicationEmailSendOnWeekends: s.applicationEmailSendOnWeekends
 	};
 }
 
