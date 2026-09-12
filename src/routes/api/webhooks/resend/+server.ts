@@ -11,7 +11,6 @@ import { getSettings } from '$lib/server/settings';
 import type { RequestHandler } from './$types';
 
 type ResendWebhookPayload = {
-	id?: string;
 	type?: string;
 	data?: {
 		email_id?: string;
@@ -35,12 +34,13 @@ export const POST: RequestHandler = async ({ request }) => {
 	}
 
 	const payload = await request.text();
+	const eventId = request.headers.get('svix-id') ?? '';
 	let event: ResendWebhookPayload;
 	try {
 		event = (await new Resend(settings.resendApiKey).webhooks.verify({
 			payload,
 			headers: {
-				id: request.headers.get('svix-id') ?? '',
+				id: eventId,
 				timestamp: request.headers.get('svix-timestamp') ?? '',
 				signature: request.headers.get('svix-signature') ?? ''
 			},
@@ -50,13 +50,13 @@ export const POST: RequestHandler = async ({ request }) => {
 		return json({ message: 'Webhook-Signatur ist ungültig.' }, { status: 400 });
 	}
 
-	if (!event.id || !event.type) {
+	if (!eventId || !event.type) {
 		return json({ message: 'Webhook-Daten sind ungültig.' }, { status: 400 });
 	}
 
 	await db
 		.insert(resendWebhookEvent)
-		.values({ id: event.id, type: event.type, payload: event as Record<string, unknown> })
+		.values({ id: eventId, type: event.type, payload: event as Record<string, unknown> })
 		.onConflictDoNothing();
 
 	if (event.type === 'email.bounced' || event.type === 'email.complained') {
