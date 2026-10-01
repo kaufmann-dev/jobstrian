@@ -1,9 +1,13 @@
+[phases.install]
+cmds = ["npx --yes pnpm@11.18.0 install --frozen-lockfile"]
+
 [phases.playwright]
 dependsOn = ["install"]
-cmds = ["pnpm exec playwright install --with-deps chromium"]
+cmds = ["npx --yes pnpm@11.18.0 exec playwright install --with-deps chromium"]
 
 [phases.build]
 dependsOn = ["...", "playwright"]
+cmds = ["npx --yes pnpm@11.18.0 run build"]
 
 [start]
 cmd = "BODY_SIZE_LIMIT=${BODY_SIZE_LIMIT:-10M} node build"
