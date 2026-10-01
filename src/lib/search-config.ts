@@ -139,10 +139,7 @@ export type OsmBusinessTagSuggestion = OsmBusinessTag & {
 	raw: string;
 };
 export type SearchConfigField =
-	| 'jobSearchKeywords'
-	| 'jobSearchLocations'
-	| 'businessOsmTags'
-	| 'businessRadiusMeters';
+	'jobSearchKeywords' | 'jobSearchLocations' | 'businessOsmTags' | 'businessRadiusMeters';
 export type SearchConfig = {
 	jobSearchKeywords: string[];
 	jobSearchLocations: string[];

@@ -97,8 +97,7 @@
 	]);
 
 	type StartRunResponse =
-		| { started: true; runId: number }
-		| { started: false; reason: string; message?: string };
+		{ started: true; runId: number } | { started: false; reason: string; message?: string };
 
 	type RunStatusResponse = { run: ScrapeRun | null };
 	type PhaseRow = RunStatusCardPhase & { id: RunPhaseId };

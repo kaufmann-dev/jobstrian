@@ -8,3 +8,9 @@ bun.lockb
 # Miscellaneous
 /static/
 /drizzle/
+
+# Generated Paraglide project files
+project.inlang/
+
+# Local agent/tool metadata
+.agents/
