@@ -1,5 +1,5 @@
 <script lang="ts" module>
-	import { cn, type WithElementRef } from '$lib/utils.js';
+	import { cn, type WithElementRef } from '#lib/utils.js';
 	import type { HTMLAnchorAttributes, HTMLButtonAttributes } from 'svelte/elements';
 	import { type VariantProps, tv } from 'tailwind-variants';
 
@@ -47,7 +47,7 @@
 </script>
 
 <script lang="ts">
-	import { resolve } from '$app/paths';
+	import { resolveHref } from '#lib/paths.js';
 
 	let {
 		class: className,
@@ -87,7 +87,7 @@
 			{@attach attachRef}
 			data-slot="button"
 			class={cn(buttonVariants({ variant, size }), className)}
-			href={resolve(href as '/')}
+			href={resolveHref(href)}
 			{...restProps}
 		>
 			{@render children?.()}

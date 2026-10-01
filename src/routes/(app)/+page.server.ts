@@ -1,7 +1,7 @@
 import { sql, eq, and, desc, isNotNull, type SQL } from 'drizzle-orm';
-import { db } from '$lib/server/db';
-import { listing, lead, scrapeRun } from '$lib/server/db/schema';
-import { visibleLeadEmail } from '$lib/server/lead-email';
+import { db } from '#lib/server/db/index.js';
+import { listing, lead, scrapeRun } from '#lib/server/db/schema.js';
+import { visibleLeadEmail } from '#lib/server/lead-email.js';
 import type { PageServerLoad } from './$types';
 
 async function count(where: SQL | undefined, table: typeof listing | typeof lead) {

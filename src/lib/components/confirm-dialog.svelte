@@ -1,7 +1,7 @@
 <script lang="ts" module>
 	import type { Component, Snippet } from 'svelte';
 	import type { LucideProps } from '@lucide/svelte';
-	import type { ButtonVariant } from '$lib/components/ui/button/index.js';
+	import type { ButtonVariant } from '#lib/components/ui/button/index.js';
 
 	export type ConfirmDialogAction = {
 		label: string;
@@ -14,9 +14,9 @@
 </script>
 
 <script lang="ts">
-	import * as Dialog from '$lib/components/ui/dialog/index.js';
-	import { Button } from '$lib/components/ui/button/index.js';
-	import { Spinner } from '$lib/components/ui/spinner/index.js';
+	import * as Dialog from '#lib/components/ui/dialog/index.js';
+	import { Button } from '#lib/components/ui/button/index.js';
+	import { Spinner } from '#lib/components/ui/spinner/index.js';
 
 	type Props = {
 		open: boolean;

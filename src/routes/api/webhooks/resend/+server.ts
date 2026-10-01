@@ -1,13 +1,12 @@
 import { Resend } from 'resend';
-import { json } from '@sveltejs/kit';
 import { eq } from 'drizzle-orm';
-import { db } from '$lib/server/db';
+import { db } from '#lib/server/db/index.js';
 import {
 	applicationEmail,
 	applicationEmailSuppression,
 	resendWebhookEvent
-} from '$lib/server/db/schema';
-import { getSettings } from '$lib/server/settings';
+} from '#lib/server/db/schema.js';
+import { getSettings } from '#lib/server/settings.js';
 import type { RequestHandler } from './$types';
 
 type ResendWebhookPayload = {
@@ -30,7 +29,7 @@ function firstRecipient(value: unknown): string | null {
 export const POST: RequestHandler = async ({ request }) => {
 	const settings = await getSettings();
 	if (!settings.resendWebhookSecret) {
-		return json({ message: 'Webhook-Secret ist nicht konfiguriert.' }, { status: 400 });
+		return Response.json({ message: 'Webhook-Secret ist nicht konfiguriert.' }, { status: 400 });
 	}
 
 	const payload = await request.text();
@@ -47,11 +46,11 @@ export const POST: RequestHandler = async ({ request }) => {
 			webhookSecret: settings.resendWebhookSecret
 		})) as ResendWebhookPayload;
 	} catch {
-		return json({ message: 'Webhook-Signatur ist ungültig.' }, { status: 400 });
+		return Response.json({ message: 'Webhook-Signatur ist ungültig.' }, { status: 400 });
 	}
 
 	if (!eventId || !event.type) {
-		return json({ message: 'Webhook-Daten sind ungültig.' }, { status: 400 });
+		return Response.json({ message: 'Webhook-Daten sind ungültig.' }, { status: 400 });
 	}
 
 	await db
@@ -89,5 +88,5 @@ export const POST: RequestHandler = async ({ request }) => {
 		}
 	}
 
-	return json({ received: true });
+	return Response.json({ received: true });
 };

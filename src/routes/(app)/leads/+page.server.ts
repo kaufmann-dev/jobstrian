@@ -1,7 +1,7 @@
-import { DEFAULT_LEAD_FILTERS } from '$lib/list-pages';
-import { getLeadPage } from '$lib/server/list-pages';
-import { getCvMeta } from '$lib/server/cv';
-import { getApplicationEmailSummary } from '$lib/server/application-email/runner';
+import { DEFAULT_LEAD_FILTERS } from '#lib/list-pages.js';
+import { getLeadPage } from '#lib/server/list-pages.js';
+import { getCvMeta } from '#lib/server/cv.js';
+import { getApplicationEmailSummary } from '#lib/server/application-email/runner.js';
 import type { PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async () => {

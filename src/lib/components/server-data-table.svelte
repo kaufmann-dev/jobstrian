@@ -1,12 +1,11 @@
-<script lang="ts" generics="TData">
-	import { getCoreRowModel, type ColumnDef } from '@tanstack/table-core';
+<script lang="ts" generics="TData extends RowData">
+	import { createTable, FlexRender, type RowData } from '@tanstack/svelte-table';
 	import type { Snippet } from 'svelte';
-	import { Button } from '$lib/components/ui/button/index.js';
-	import { Input } from '$lib/components/ui/input/index.js';
-	import { Spinner } from '$lib/components/ui/spinner/index.js';
-	import * as Table from '$lib/components/ui/table/index.js';
-	import { createSvelteTable } from '$lib/components/ui/data-table/data-table.svelte.js';
-	import FlexRender from '$lib/components/ui/data-table/flex-render.svelte';
+	import { Button } from '#lib/components/ui/button/index.js';
+	import { Input } from '#lib/components/ui/input/index.js';
+	import { Spinner } from '#lib/components/ui/spinner/index.js';
+	import * as Table from '#lib/components/ui/table/index.js';
+	import { serverTableFeatures, type ServerColumnDef } from './server-data-table.js';
 	import ArrowDown from '@lucide/svelte/icons/arrow-down';
 	import ArrowUp from '@lucide/svelte/icons/arrow-up';
 	import ChevronsUpDown from '@lucide/svelte/icons/chevrons-up-down';
@@ -19,7 +18,7 @@
 
 	interface Props {
 		controller: ServerListController<TData>;
-		columns: ColumnDef<TData>[];
+		columns: ServerColumnDef<TData>[];
 		emptyText: string;
 		itemLabel: string;
 		searchPlaceholder: string;
@@ -45,17 +44,17 @@
 	let sort = $derived(defaultSort);
 	let debounce: ReturnType<typeof setTimeout> | undefined;
 
-	const table = createSvelteTable({
+	const table = createTable({
+		features: serverTableFeatures,
 		get data() {
 			return controller.items;
 		},
 		get columns() {
 			return columns;
-		},
-		getCoreRowModel: getCoreRowModel()
+		}
 	});
 
-	function meta(column: ColumnDef<TData>): ColumnMeta {
+	function meta(column: ServerColumnDef<TData>): ColumnMeta {
 		return (column.meta ?? {}) as ColumnMeta;
 	}
 
@@ -153,10 +152,7 @@
 										class="-ml-2 inline-flex h-8 items-center gap-1 rounded-md px-2 hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
 										onclick={() => toggleSort(columnMeta.sort!)}
 									>
-										<FlexRender
-											content={header.column.columnDef.header}
-											context={header.getContext()}
-										/>
+										<FlexRender {header} />
 										{#if direction === 'ascending'}
 											<ArrowUp class="size-3.5" />
 										{:else if direction === 'descending'}
@@ -166,10 +162,7 @@
 										{/if}
 									</button>
 								{:else}
-									<FlexRender
-										content={header.column.columnDef.header}
-										context={header.getContext()}
-									/>
+									<FlexRender {header} />
 								{/if}
 							</Table.Head>
 						{/each}
@@ -182,9 +175,9 @@
 						class={['h-11', onRowClick && 'cursor-pointer']}
 						onclick={onRowClick ? () => onRowClick(row.original) : undefined}
 					>
-						{#each row.getVisibleCells() as cell (cell.id)}
+						{#each row.getAllCells() as cell (cell.id)}
 							<Table.Cell class={meta(cell.column.columnDef).class}>
-								<FlexRender content={cell.column.columnDef.cell} context={cell.getContext()} />
+								<FlexRender {cell} />
 							</Table.Cell>
 						{/each}
 					</Table.Row>

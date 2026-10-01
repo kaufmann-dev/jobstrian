@@ -109,7 +109,7 @@ it('shows an error after committing invalid address text', async () => {
 	await input.fill('532535');
 	(await input.element()).blur();
 
-	await expect.element(page.getByText('Adresse ungültig.')).toBeVisible();
+	await expect.element(page.getByText('Adresse ungültig.', { exact: false })).toBeVisible();
 });
 
 it('passes verified suggestion metadata when an address suggestion is selected', async () => {

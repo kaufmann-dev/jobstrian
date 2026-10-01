@@ -1,19 +1,19 @@
-import { type Handle, redirect } from '@sveltejs/kit';
-import { sequence } from '@sveltejs/kit/hooks';
-import { building } from '$app/environment';
+import { redirect } from '@sveltejs/kit';
+import { sequence, type Handle } from '@sveltejs/kit/hooks';
+import { building } from '$app/env';
 import { svelteKitHandler } from 'better-auth/svelte-kit';
-import { getTextDirection } from '$lib/paraglide/runtime';
-import { isOidcCallbackRequest } from '$lib/oidc-policy';
-import { paraglideMiddleware } from '$lib/paraglide/server';
-import { isSessionExpired, shouldTouchSession } from '$lib/session-policy';
-import { auth, authBaseURL, prepareOidcProvider } from '$lib/server/auth';
+import { getTextDirection } from '#lib/paraglide/runtime.js';
+import { isAuthApiRequest, safeReturnTo } from '#lib/oidc-policy.js';
+import { paraglideMiddleware } from '#lib/paraglide/server.js';
+import { isSessionExpired, shouldTouchSession } from '#lib/session-policy.js';
+import { auth, authBaseURL } from '#lib/server/auth.js';
 import {
 	clearSessionCookies,
 	deleteStoredSession,
 	getStoredSession,
 	touchStoredSession
-} from '$lib/server/auth-session';
-import { runMigrations } from '$lib/server/db/migrate';
+} from '#lib/server/auth-session.js';
+import { runMigrations } from '#lib/server/db/migrate.js';
 
 /** Apply pending database migrations once, before the server handles requests. */
 export async function init() {
@@ -26,16 +26,17 @@ export async function init() {
 }
 
 const handleParaglide: Handle = ({ event, resolve }) =>
-	paraglideMiddleware(event.request, ({ request, locale }) => {
-		event.request = request;
-
-		return resolve(event, {
-			transformPageChunk: ({ html }) =>
-				html
-					.replace('%paraglide.lang%', locale)
-					.replace('%paraglide.dir%', getTextDirection(locale))
-		});
-	});
+	paraglideMiddleware(event.request, ({ request, locale }) =>
+		resolve(
+			{ ...event, request },
+			{
+				transformPageChunk: ({ html }) =>
+					html
+						.replace('%paraglide.lang%', locale)
+						.replace('%paraglide.dir%', getTextDirection(locale))
+			}
+		)
+	);
 
 /** Populate locals with the current session/user and guard protected routes. */
 const handleAuth: Handle = async ({ event, resolve }) => {
@@ -43,10 +44,9 @@ const handleAuth: Handle = async ({ event, resolve }) => {
 	const isAuthApi = pathname.startsWith('/api/auth');
 	const isWebhook = pathname === '/api/webhooks/resend';
 	if (isAuthApi) {
-		if (!isOidcCallbackRequest(event.request.method, pathname)) {
+		if (!isAuthApiRequest(event.request.method, pathname)) {
 			return new Response('Nicht gefunden', { status: 404 });
 		}
-		await prepareOidcProvider();
 		return svelteKitHandler({ event, resolve, auth, building });
 	}
 	if (isWebhook) return resolve(event);
@@ -74,10 +74,11 @@ const handleAuth: Handle = async ({ event, resolve }) => {
 
 	const isPublic = pathname === '/login';
 	if (!event.locals.user && !isPublic) {
-		redirect(302, '/login');
+		const returnTo = `${pathname}${event.url.search}`;
+		redirect(302, returnTo === '/' ? '/login' : `/login?returnTo=${encodeURIComponent(returnTo)}`);
 	}
 	if (event.locals.user && pathname === '/login') {
-		redirect(302, '/');
+		redirect(302, safeReturnTo(event.url.searchParams.get('returnTo')));
 	}
 
 	return resolve(event);

@@ -1,5 +1,5 @@
-import { getSettings } from '$lib/server/settings';
-import { hasSavedHomeLocation } from '$lib/server/settings-status';
+import { getSettings } from '#lib/server/settings.js';
+import { hasSavedHomeLocation } from '#lib/server/settings-status.js';
 import type { LayoutServerLoad } from './$types';
 
 export const load: LayoutServerLoad = async ({ locals, depends }) => {

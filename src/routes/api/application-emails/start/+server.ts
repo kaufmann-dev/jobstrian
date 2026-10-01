@@ -1,5 +1,4 @@
-import { json } from '@sveltejs/kit';
-import { startApplicationEmailRun } from '$lib/server/application-email/runner';
+import { startApplicationEmailRun } from '#lib/server/application-email/runner.js';
 import type { RequestHandler } from './$types';
 
 function startFailureMessage(err: unknown): string {
@@ -12,7 +11,7 @@ export const POST: RequestHandler = async () => {
 	try {
 		const runId = await startApplicationEmailRun();
 		if (runId === null) {
-			return json(
+			return Response.json(
 				{
 					started: false,
 					reason: 'already-running',
@@ -21,10 +20,10 @@ export const POST: RequestHandler = async () => {
 				{ status: 409 }
 			);
 		}
-		return json({ started: true, runId });
+		return Response.json({ started: true, runId });
 	} catch (err) {
 		console.error('[api/application-emails/start] Start fehlgeschlagen:', err);
-		return json(
+		return Response.json(
 			{
 				started: false,
 				reason: 'start-failed',

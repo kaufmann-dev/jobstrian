@@ -8,7 +8,7 @@ import { mapLimit } from '../util/concurrency';
 import { leadContentHash } from '../llm/fingerprints';
 import { deterministicLeadEmailReview } from '../llm/email-quality';
 import { findNearbyBusinesses, type OverpassPlace } from './overpass';
-import { normalizeWebsiteUrl } from '$lib/website';
+import { normalizeWebsiteUrl } from '#lib/website.js';
 
 const EMAIL_RE = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g;
 const BAD_EMAIL_SUFFIX = /\.(png|jpg|jpeg|gif|webp|svg|css|js)$/i;

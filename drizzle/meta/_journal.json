@@ -176,6 +176,13 @@
       "when": 1789151537877,
       "tag": "0024_add_application_email_weekend_setting",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1790882552542,
+      "tag": "0025_drop_session_id_token_hint",
+      "breakpoints": true
     }
   ]
 }

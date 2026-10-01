@@ -1,5 +1,5 @@
-import { env } from '$env/dynamic/private';
-import type { GeoSuggestion, GeoSuggestionKind } from '$lib/geo';
+import { GEOAPIFY_API_KEY } from '$app/env/private';
+import type { GeoSuggestion, GeoSuggestionKind } from '#lib/geo.js';
 
 const ENDPOINT = 'https://api.geoapify.com/v1/geocode/autocomplete';
 const TIMEOUT_MS = 5_000;
@@ -193,7 +193,7 @@ async function fetchSuggestions(
 export async function geoSuggestions(
 	query: string,
 	kind: GeoSuggestionKind,
-	apiKey = env.GEOAPIFY_API_KEY
+	apiKey = GEOAPIFY_API_KEY
 ): Promise<GeoSuggestion[]> {
 	const trimmed = query.trim();
 	const trimmedApiKey = apiKey?.trim();

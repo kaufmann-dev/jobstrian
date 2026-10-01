@@ -1,6 +1,6 @@
 <script lang="ts">
-	import { Progress } from '$lib/components/ui/progress/index.js';
-	import type { RankFactor } from '$lib/ranking-criteria';
+	import { Progress } from '#lib/components/ui/progress/index.js';
+	import type { RankFactor } from '#lib/ranking-criteria.js';
 
 	let { factors }: { factors: RankFactor[] } = $props();
 </script>

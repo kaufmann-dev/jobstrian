@@ -1,5 +1,4 @@
-import { json } from '@sveltejs/kit';
-import { applyProfilePatch, isCvProfileError } from '$lib/server/cv-profile';
+import { applyProfilePatch, isCvProfileError } from '#lib/server/cv-profile.js';
 import type { RequestHandler } from './$types';
 
 export const PATCH: RequestHandler = async ({ request }) => {
@@ -7,17 +6,20 @@ export const PATCH: RequestHandler = async ({ request }) => {
 	try {
 		body = await request.json();
 	} catch {
-		return json({ message: 'Ungültige JSON-Daten.' }, { status: 400 });
+		return Response.json({ message: 'Ungültige JSON-Daten.' }, { status: 400 });
 	}
 
 	try {
 		await applyProfilePatch(body);
-		return json({ ok: true });
+		return Response.json({ ok: true });
 	} catch (error) {
 		if (isCvProfileError(error)) {
-			return json({ message: error.message }, { status: error.status });
+			return Response.json({ message: error.message }, { status: error.status });
 		}
 		console.error('Lebenslauf-Profilaktualisierung fehlgeschlagen', error);
-		return json({ message: 'Das Profil konnte nicht aktualisiert werden.' }, { status: 500 });
+		return Response.json(
+			{ message: 'Das Profil konnte nicht aktualisiert werden.' },
+			{ status: 500 }
+		);
 	}
 };

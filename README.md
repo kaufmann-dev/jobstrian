@@ -150,10 +150,10 @@ click **Update** on the dashboard.
 
 ## Authentication Setup
 
-Jobstrian uses Better Auth with the OIDC authorization code flow plus PKCE (S256), keeps sessions on the server, and clears the local session and provider SSO session on logout.
+Jobstrian shows its own login screen, then starts Better Auth's generic OIDC flow (authorization code + PKCE S256, `client_secret_post`) and returns to the originally requested page. Server-side sessions last seven days without extension; logout ends the local session and the provider SSO session via RP-initiated logout.
 
 - Public Client: Off
-- Callback URL: `/api/auth/oauth2/callback/oidc`
+- Callback URL: `/api/auth/callback/oidc`
 - Logout Callback URL: `/login`
 - Required authentication variables: `ORIGIN`, `BETTER_AUTH_SECRET`, `OIDC_ISSUER`, `OIDC_CLIENT_ID`, `OIDC_CLIENT_SECRET` (see **Environment Variables → Required**).
 
@@ -192,15 +192,15 @@ post-deployment migration command is needed.
 
 #### Required
 
-| Variable             | Purpose                                                                |
-| -------------------- | ---------------------------------------------------------------------- |
-| `DATABASE_URL`       | PostgreSQL connection string.                                          |
-| `BETTER_AUTH_SECRET` | Auth secret — generate with `openssl rand -hex 32`.                    |
-| `ORIGIN`             | Public URL of the deployed app (e.g. `https://jobstrian.example.com`). |
-| `OIDC_ISSUER`        | Exact OIDC issuer URL from the provider discovery document.            |
-| `OIDC_CLIENT_ID`     | Confidential OIDC client identifier registered for Jobstrian.          |
-| `OIDC_CLIENT_SECRET` | Confidential OIDC client secret.                                       |
-| `GEOAPIFY_API_KEY`   | Server-side Geoapify Autocomplete API key for Austrian suggestions.    |
+| Variable             | Purpose                                                                                           |
+| -------------------- | ------------------------------------------------------------------------------------------------- |
+| `DATABASE_URL`       | PostgreSQL connection string.                                                                     |
+| `BETTER_AUTH_SECRET` | Auth secret — generate with `openssl rand -hex 32`.                                               |
+| `ORIGIN`             | Public URL of the deployed app (e.g. `https://jobstrian.example.com`); also needed at build time. |
+| `OIDC_ISSUER`        | Exact OIDC issuer URL from the provider discovery document.                                       |
+| `OIDC_CLIENT_ID`     | Confidential OIDC client identifier registered for Jobstrian.                                     |
+| `OIDC_CLIENT_SECRET` | Confidential OIDC client secret.                                                                  |
+| `GEOAPIFY_API_KEY`   | Server-side Geoapify Autocomplete API key for Austrian suggestions.                               |
 
 CV uploads are hard capped to **10 MB** by backend validation.
 

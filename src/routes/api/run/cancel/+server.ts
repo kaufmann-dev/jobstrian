@@ -1,4 +1,3 @@
-import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 
 export const POST: RequestHandler = async ({ request }) => {
@@ -10,9 +9,9 @@ export const POST: RequestHandler = async ({ request }) => {
 		// Missing JSON is treated as an idempotent no-op.
 	}
 
-	if (runId == null) return json({ canceled: false, active: false });
+	if (runId == null) return Response.json({ canceled: false, active: false });
 
-	const { cancelRefresh } = await import('$lib/server/scrape/runner');
+	const { cancelRefresh } = await import('#lib/server/scrape/runner.js');
 	const result = await cancelRefresh(runId);
-	return json({ canceled: true, active: result.active });
+	return Response.json({ canceled: true, active: result.active });
 };

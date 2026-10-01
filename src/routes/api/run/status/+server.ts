@@ -1,8 +1,7 @@
-import { json } from '@sveltejs/kit';
 import { desc } from 'drizzle-orm';
-import { db } from '$lib/server/db';
-import { scrapeRun } from '$lib/server/db/schema';
-import { hasActiveRun, markInterruptedRun } from '$lib/server/scrape/runner';
+import { db } from '#lib/server/db/index.js';
+import { scrapeRun } from '#lib/server/db/schema.js';
+import { hasActiveRun, markInterruptedRun } from '#lib/server/scrape/runner.js';
 import type { RequestHandler } from './$types';
 
 export const GET: RequestHandler = async () => {
@@ -15,5 +14,5 @@ export const GET: RequestHandler = async () => {
 		await markInterruptedRun(latest.id);
 		[latest] = await db.select().from(scrapeRun).orderBy(desc(scrapeRun.id)).limit(1);
 	}
-	return json({ run: latest ?? null });
+	return Response.json({ run: latest ?? null });
 };

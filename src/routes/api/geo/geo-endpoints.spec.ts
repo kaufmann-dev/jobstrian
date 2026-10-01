@@ -1,8 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const { geoSuggestions } = vi.hoisted(() => ({ geoSuggestions: vi.fn() }));
-vi.mock('$lib/server/geo/geoapify', async (importOriginal) => ({
-	...(await importOriginal<typeof import('$lib/server/geo/geoapify')>()),
+vi.mock('#lib/server/geo/geoapify.js', async (importOriginal) => ({
+	...(await importOriginal<typeof import('#lib/server/geo/geoapify.js')>()),
 	geoSuggestions
 }));
 

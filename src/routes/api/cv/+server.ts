@@ -1,6 +1,6 @@
-import { error, json } from '@sveltejs/kit';
-import { getCvData, saveCv, deleteCv } from '$lib/server/cv';
-import { isAllowedCvFile } from '$lib/server/cv-validation';
+import { error } from '@sveltejs/kit';
+import { getCvData, saveCv, deleteCv } from '#lib/server/cv.js';
+import { isAllowedCvFile } from '#lib/server/cv-validation.js';
 import type { RequestHandler } from './$types';
 
 const MAX_BYTES = 10 * 1024 * 1024; // 10 MB
@@ -37,10 +37,10 @@ export const POST: RequestHandler = async ({ request }) => {
 
 	const buffer = Buffer.from(await file.arrayBuffer());
 	await saveCv(sanitize(file.name), 'application/pdf', buffer);
-	return json({ ok: true, filename: sanitize(file.name), size: buffer.length });
+	return Response.json({ ok: true, filename: sanitize(file.name), size: buffer.length });
 };
 
 export const DELETE: RequestHandler = async () => {
 	await deleteCv();
-	return json({ ok: true });
+	return Response.json({ ok: true });
 };

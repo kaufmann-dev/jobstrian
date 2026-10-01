@@ -1,41 +1,34 @@
 import { describe, expect, it } from 'vitest';
 import {
-	OIDC_CALLBACK_ROUTE,
-	isOidcCallbackContext,
-	isOidcCallbackRequest,
+	isAuthApiRequest,
 	oidcDiscoveryUrl,
-	parseOidcDiscovery,
+	safeReturnTo,
 	validateApplicationOrigin,
 	validateOidcIssuer,
-	validatedOidcSubject,
 	withoutProviderTokens
-} from './oidc-policy';
+} from './oidc-policy.js';
 
 const issuer = 'https://identity.example.com/realms/admins';
 
 describe('OIDC discovery policy', () => {
-	it('recognizes only the configured provider callback context', () => {
-		expect(
-			isOidcCallbackContext({
-				path: OIDC_CALLBACK_ROUTE,
-				params: { providerId: 'oidc' }
-			})
-		).toBe(true);
-		expect(
-			isOidcCallbackContext({
-				path: OIDC_CALLBACK_ROUTE,
-				params: { providerId: 'other' }
-			})
-		).toBe(false);
-		expect(
-			isOidcCallbackContext({
-				path: '/api/auth/oauth2/callback/oidc',
-				params: { providerId: 'oidc' }
-			})
-		).toBe(false);
-		expect(isOidcCallbackRequest('GET', '/api/auth/oauth2/callback/oidc')).toBe(true);
-		expect(isOidcCallbackRequest('POST', '/api/auth/oauth2/callback/oidc')).toBe(false);
-		expect(isOidcCallbackRequest('GET', '/api/auth/get-session')).toBe(false);
+	it('exposes only the OIDC sign-in, callback, and sign-out auth endpoints', () => {
+		expect(isAuthApiRequest('POST', '/api/auth/sign-in/social')).toBe(true);
+		expect(isAuthApiRequest('GET', '/api/auth/callback/oidc')).toBe(true);
+		expect(isAuthApiRequest('POST', '/api/auth/sign-out')).toBe(true);
+		expect(isAuthApiRequest('POST', '/api/auth/callback/oidc')).toBe(false);
+		expect(isAuthApiRequest('GET', '/api/auth/callback/other')).toBe(false);
+		expect(isAuthApiRequest('POST', '/api/auth/sign-up/email')).toBe(false);
+		expect(isAuthApiRequest('GET', '/api/auth/get-session')).toBe(false);
+	});
+
+	it('keeps only same-origin return destinations outside the auth flow', () => {
+		expect(safeReturnTo('/jobs?page=2#top')).toBe('/jobs?page=2#top');
+		expect(safeReturnTo(null)).toBe('/');
+		expect(safeReturnTo('https://evil.example.com/')).toBe('/');
+		expect(safeReturnTo('//evil.example.com/')).toBe('/');
+		expect(safeReturnTo('/\\evil.example.com/')).toBe('/');
+		expect(safeReturnTo('/login?returnTo=/jobs')).toBe('/');
+		expect(safeReturnTo('/api/auth/sign-out')).toBe('/');
 	});
 
 	it('builds the discovery URL from issuers with or without a trailing slash', () => {
@@ -73,91 +66,7 @@ describe('OIDC discovery policy', () => {
 		);
 	});
 
-	it('accepts a complete discovery document with the exact configured issuer', () => {
-		expect(
-			parseOidcDiscovery(
-				{
-					issuer,
-					authorization_endpoint: `${issuer}/authorize`,
-					token_endpoint: `${issuer}/token`,
-					userinfo_endpoint: `${issuer}/userinfo`,
-					jwks_uri: `${issuer}/jwks`,
-					end_session_endpoint: `${issuer}/logout`
-				},
-				issuer
-			)
-		).toEqual({
-			issuer,
-			authorizationEndpoint: `${issuer}/authorize`,
-			tokenEndpoint: `${issuer}/token`,
-			userInfoEndpoint: `${issuer}/userinfo`,
-			jwksUri: `${issuer}/jwks`,
-			endSessionEndpoint: `${issuer}/logout`
-		});
-	});
-
-	it('rejects issuer substitution and discovery without RP logout', () => {
-		expect(() =>
-			parseOidcDiscovery(
-				{
-					issuer: 'https://attacker.example.com',
-					authorization_endpoint: `${issuer}/authorize`,
-					token_endpoint: `${issuer}/token`,
-					userinfo_endpoint: `${issuer}/userinfo`,
-					jwks_uri: `${issuer}/jwks`,
-					end_session_endpoint: `${issuer}/logout`
-				},
-				issuer
-			)
-		).toThrow('does not match');
-
-		expect(() =>
-			parseOidcDiscovery(
-				{
-					issuer,
-					authorization_endpoint: `${issuer}/authorize`,
-					token_endpoint: `${issuer}/token`,
-					userinfo_endpoint: `${issuer}/userinfo`,
-					jwks_uri: `${issuer}/jwks`
-				},
-				issuer
-			)
-		).toThrow('end_session_endpoint');
-
-		expect(() =>
-			parseOidcDiscovery(
-				{
-					issuer,
-					authorization_endpoint: 'http://identity.example.com/authorize',
-					token_endpoint: `${issuer}/token`,
-					userinfo_endpoint: `${issuer}/userinfo`,
-					jwks_uri: `${issuer}/jwks`,
-					end_session_endpoint: `${issuer}/logout`
-				},
-				issuer
-			)
-		).toThrow('HTTPS');
-	});
-
-	it('requires a complete nonce-bound ID token claim set', () => {
-		const claims = {
-			sub: 'subject-1',
-			iat: 1_700_000_000,
-			exp: 1_700_000_600,
-			nonce: 'expected',
-			aud: ['jobstrian', 'another-audience'],
-			azp: 'jobstrian'
-		};
-		expect(validatedOidcSubject(claims, 'expected', 'jobstrian')).toBe('subject-1');
-		expect(() =>
-			validatedOidcSubject({ ...claims, nonce: 'other' }, 'expected', 'jobstrian')
-		).toThrow('claims are invalid');
-		expect(() =>
-			validatedOidcSubject({ ...claims, azp: 'another-client' }, 'expected', 'jobstrian')
-		).toThrow('authorized party');
-	});
-
-	it('removes every provider token while preserving account identity', () => {
+	it('removes provider access tokens but keeps the ID token for RP-initiated logout', () => {
 		expect(
 			withoutProviderTokens({
 				providerId: 'oidc',
@@ -175,7 +84,7 @@ describe('OIDC discovery policy', () => {
 			accountId: 'subject-1',
 			accessToken: null,
 			refreshToken: null,
-			idToken: null,
+			idToken: 'id-token',
 			accessTokenExpiresAt: null,
 			refreshTokenExpiresAt: null,
 			scope: null

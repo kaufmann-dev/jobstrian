@@ -1,4 +1,4 @@
-import type { CursorPage } from '$lib/list-pages';
+import type { CursorPage } from '#lib/list-pages.js';
 import { SvelteURLSearchParams } from 'svelte/reactivity';
 
 export class ServerListController<T> {

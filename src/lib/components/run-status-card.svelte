@@ -1,6 +1,6 @@
 <script lang="ts" module>
 	import type { Snippet } from 'svelte';
-	import type { BadgeVariant } from '$lib/components/ui/badge/index.js';
+	import type { BadgeVariant } from '#lib/components/ui/badge/index.js';
 
 	export type RunStatusCardPhaseState =
 		'pending' | 'running' | 'done' | 'warning' | 'skipped' | 'error' | 'canceled';
@@ -41,11 +41,11 @@
 
 <script lang="ts">
 	import { slide } from 'svelte/transition';
-	import * as Card from '$lib/components/ui/card/index.js';
-	import * as Collapsible from '$lib/components/ui/collapsible/index.js';
-	import { Badge } from '$lib/components/ui/badge/index.js';
-	import { Progress } from '$lib/components/ui/progress/index.js';
-	import { Spinner } from '$lib/components/ui/spinner/index.js';
+	import * as Card from '#lib/components/ui/card/index.js';
+	import * as Collapsible from '#lib/components/ui/collapsible/index.js';
+	import { Badge } from '#lib/components/ui/badge/index.js';
+	import { Progress } from '#lib/components/ui/progress/index.js';
+	import { Spinner } from '#lib/components/ui/spinner/index.js';
 	import Check from '@lucide/svelte/icons/check';
 	import ChevronDown from '@lucide/svelte/icons/chevron-down';
 	import CircleX from '@lucide/svelte/icons/circle-x';

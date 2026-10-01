@@ -1,11 +1,10 @@
-import { json } from '@sveltejs/kit';
 import { desc } from 'drizzle-orm';
-import { db } from '$lib/server/db';
-import { applicationEmailRun } from '$lib/server/db/schema';
+import { db } from '#lib/server/db/index.js';
+import { applicationEmailRun } from '#lib/server/db/schema.js';
 import {
 	hasActiveApplicationEmailRun,
 	recoverInterruptedApplicationEmailRun
-} from '$lib/server/application-email/runner';
+} from '#lib/server/application-email/runner.js';
 import type { RequestHandler } from './$types';
 
 export const GET: RequestHandler = async () => {
@@ -26,5 +25,5 @@ export const GET: RequestHandler = async () => {
 			.orderBy(desc(applicationEmailRun.id))
 			.limit(1);
 	}
-	return json({ run: latest ?? null });
+	return Response.json({ run: latest ?? null });
 };

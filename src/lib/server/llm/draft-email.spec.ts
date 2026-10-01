@@ -3,7 +3,7 @@ import type { Lead, Settings } from '../db/schema';
 import {
 	DEFAULT_LEAD_RANKING_CRITERIA,
 	DEFAULT_LISTING_RANKING_CRITERIA
-} from '$lib/ranking-criteria';
+} from '#lib/ranking-criteria.js';
 import type { LlmLimiter } from './limiter';
 import { DRAFT_PROMPT_VERSION, buildColdEmailPrompt, draftColdEmail } from './draft-email';
 

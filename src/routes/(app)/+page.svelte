@@ -3,13 +3,13 @@
 	import { invalidateAll } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import { toast } from 'svelte-sonner';
-	import * as Card from '$lib/components/ui/card/index.js';
-	import { Button } from '$lib/components/ui/button/index.js';
-	import { Spinner } from '$lib/components/ui/spinner/index.js';
-	import * as Alert from '$lib/components/ui/alert/index.js';
-	import PageHeader from '$lib/components/page-header.svelte';
-	import RunStatusCard, { type RunStatusCardPhase } from '$lib/components/run-status-card.svelte';
-	import ConfirmDialog from '$lib/components/confirm-dialog.svelte';
+	import * as Card from '#lib/components/ui/card/index.js';
+	import { Button } from '#lib/components/ui/button/index.js';
+	import { Spinner } from '#lib/components/ui/spinner/index.js';
+	import * as Alert from '#lib/components/ui/alert/index.js';
+	import PageHeader from '#lib/components/page-header.svelte';
+	import RunStatusCard, { type RunStatusCardPhase } from '#lib/components/run-status-card.svelte';
+	import ConfirmDialog from '#lib/components/confirm-dialog.svelte';
 	import RefreshCw from '@lucide/svelte/icons/refresh-cw';
 	import RotateCcw from '@lucide/svelte/icons/rotate-ccw';
 	import X from '@lucide/svelte/icons/x';
@@ -20,8 +20,8 @@
 	import MapPin from '@lucide/svelte/icons/map-pin';
 	import Mail from '@lucide/svelte/icons/mail';
 	import DoorOpen from '@lucide/svelte/icons/door-open';
-	import { normalizeRunProgress, RUN_PHASE_LABELS } from '$lib/run-progress';
-	import type { RunPhaseId, RunProgress, ScrapeRun } from '$lib/server/db/schema';
+	import { normalizeRunProgress, RUN_PHASE_LABELS } from '#lib/run-progress.js';
+	import type { RunPhaseId, RunProgress, ScrapeRun } from '#lib/server/db/schema.js';
 
 	let { data } = $props();
 
@@ -84,8 +84,20 @@
 		{
 			title: 'Betriebe',
 			cards: [
-				{ label: 'In der Nähe', value: stats.totalLeads, href: '/leads', icon: MapPin },
-				{ label: 'Mit E-Mail', value: stats.leadsWithEmail, href: '/leads', icon: Mail },
+				{
+					label: 'In der Nähe',
+					value: stats.totalLeads,
+					href: '/leads',
+					icon: MapPin
+				},
+
+				{
+					label: 'Mit E-Mail',
+					value: stats.leadsWithEmail,
+					href: '/leads',
+					icon: Mail
+				},
+
 				{
 					label: 'Ohne Ausschreibung',
 					value: stats.openLeads,
@@ -155,8 +167,10 @@
 				const body = (await res.json()) as RunStatusResponse;
 				polledRun = body.run;
 				finalRun = polledRun;
+
 				if (!polledRun || (polledRun.status !== 'running' && polledRun.status !== 'canceling'))
 					break;
+
 				await new Promise((r) => setTimeout(r, 1000));
 			}
 		} finally {
@@ -256,8 +270,10 @@
 			<TriangleAlert class="size-4" />
 			<Alert.Title>KI-Anbindung noch nicht geprüft</Alert.Title>
 			<Alert.Description>
-				Hinterlege in den <a class="underline" href={resolve('/settings')}>Einstellungen</a> eine OpenAI-kompatible
-				API und führe „KI Status prüfen“ aus, damit Stellen automatisch bewertet werden können.
+				Hinterlege in den
+				<a class="underline" href={resolve('settings')}>Einstellungen</a>
+				eine OpenAI-kompatible API und führe „KI Status prüfen“ aus, damit Stellen automatisch bewertet
+				werden können.
 			</Alert.Description>
 		</Alert.Root>
 	{/if}
@@ -266,8 +282,9 @@
 			<TriangleAlert class="size-4" />
 			<Alert.Title>Adresse nicht bestätigt</Alert.Title>
 			<Alert.Description>
-				Wähle deine Adresse in den <a class="underline" href={resolve('/settings')}>Einstellungen</a
-				> aus den Vorschlägen aus, um Job-Suchorte abzuleiten und nahe potenzielle Arbeitgeber zu finden.
+				Wähle deine Adresse in den
+				<a class="underline" href={resolve('settings')}>Einstellungen</a>
+				aus den Vorschlägen aus, um Job-Suchorte abzuleiten und nahe potenzielle Arbeitgeber zu finden.
 			</Alert.Description>
 		</Alert.Root>
 	{/if}
@@ -276,7 +293,8 @@
 			<TriangleAlert class="size-4" />
 			<Alert.Title>Suchkonfiguration fehlt</Alert.Title>
 			<Alert.Description>
-				Hinterlege in den <a class="underline" href={resolve('/settings')}>Einstellungen</a>
+				Hinterlege in den
+				<a class="underline" href={resolve('settings')}>Einstellungen</a>
 				Stellen-Keywords und Betriebskategorien, damit passende Stellen und nahe potenzielle Arbeitgeber
 				gefunden werden.
 			</Alert.Description>
@@ -340,7 +358,7 @@
 				<div class="grid grid-cols-1 gap-3 sm:grid-cols-3">
 					{#each group.cards as card (card.label)}
 						<a
-							href={resolve(card.href as '/jobs' | '/leads')}
+							href={resolve(card.href.slice(1) as 'jobs' | 'leads')}
 							class="rounded-xl outline-none focus-visible:ring-2 focus-visible:ring-ring"
 						>
 							<Card.Root

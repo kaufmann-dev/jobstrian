@@ -1,4 +1,9 @@
-import type { RunPhaseId, RunPhaseProgress, RunProgress, ScrapeRun } from '$lib/server/db/schema';
+import type {
+	RunPhaseId,
+	RunPhaseProgress,
+	RunProgress,
+	ScrapeRun
+} from '#lib/server/db/schema.js';
 
 export const RUN_PHASE_IDS = [
 	'setup',

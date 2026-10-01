@@ -1,14 +1,13 @@
 export const OIDC_PROVIDER_ID = 'oidc';
-export const OIDC_CALLBACK_PATH = `/api/auth/oauth2/callback/${OIDC_PROVIDER_ID}`;
-export const OIDC_CALLBACK_ROUTE = '/oauth2/callback/:providerId';
-export const OIDC_NONCE_COOKIE_NAME = 'jobstrian.oidc_nonce';
-export const OIDC_NONCE_MAX_AGE_SECONDS = 10 * 60;
+export const OIDC_CALLBACK_PATH = `/api/auth/callback/${OIDC_PROVIDER_ID}`;
 export const OIDC_SCOPES = ['openid', 'profile', 'email'] as const;
 
-interface AuthEndpointContext {
-	path?: string;
-	params?: Record<string, string | undefined>;
-}
+/** Better Auth endpoints the app exposes: OIDC sign-in start, provider callback, and sign-out. */
+const AUTH_API_ROUTES = new Set([
+	'POST /api/auth/sign-in/social',
+	`GET ${OIDC_CALLBACK_PATH}`,
+	'POST /api/auth/sign-out'
+]);
 
 function isLoopbackHostname(hostname: string): boolean {
 	const normalized = hostname.toLowerCase().replace(/\.$/, '');
@@ -67,90 +66,29 @@ export function validateOidcIssuer(value: string): string {
 	return value;
 }
 
-export function isOidcCallbackContext(
-	context: AuthEndpointContext | null
-): context is AuthEndpointContext {
-	return context?.path === OIDC_CALLBACK_ROUTE && context.params?.providerId === OIDC_PROVIDER_ID;
-}
-
-export function isOidcCallbackRequest(method: string, pathname: string): boolean {
-	return method === 'GET' && pathname === OIDC_CALLBACK_PATH;
-}
-
-export interface OidcDiscovery {
-	issuer: string;
-	authorizationEndpoint: string;
-	tokenEndpoint: string;
-	userInfoEndpoint: string;
-	jwksUri: string;
-	endSessionEndpoint: string;
+export function isAuthApiRequest(method: string, pathname: string): boolean {
+	return AUTH_API_ROUTES.has(`${method} ${pathname}`);
 }
 
 export function oidcDiscoveryUrl(issuer: string): string {
 	return `${issuer.replace(/\/$/, '')}/.well-known/openid-configuration`;
 }
 
-function requiredString(record: Record<string, unknown>, key: string): string {
-	const value = record[key];
-	if (typeof value !== 'string' || value.length === 0) {
-		throw new Error(`OIDC discovery is missing ${key}.`);
+/** Same-origin app path to resume after login; anything else falls back to the start page. */
+export function safeReturnTo(value: string | null | undefined): string {
+	if (!value || !value.startsWith('/') || value.startsWith('//') || value.includes('\\')) {
+		return '/';
 	}
-
-	secureHttpUrl(value, `OIDC discovery ${key}`);
-	return value;
+	const url = new URL(value, 'http://return-to.invalid');
+	if (url.origin !== 'http://return-to.invalid') return '/';
+	if (url.pathname === '/login' || url.pathname.startsWith('/api/auth')) return '/';
+	return `${url.pathname}${url.search}${url.hash}`;
 }
 
-export function parseOidcDiscovery(value: unknown, expectedIssuer: string): OidcDiscovery {
-	if (!value || typeof value !== 'object' || Array.isArray(value)) {
-		throw new Error('OIDC discovery returned an invalid document.');
-	}
-
-	const record = value as Record<string, unknown>;
-	const issuer = requiredString(record, 'issuer');
-	if (issuer !== expectedIssuer) {
-		throw new Error('OIDC discovery issuer does not match OIDC_ISSUER.');
-	}
-
-	return {
-		issuer,
-		authorizationEndpoint: requiredString(record, 'authorization_endpoint'),
-		tokenEndpoint: requiredString(record, 'token_endpoint'),
-		userInfoEndpoint: requiredString(record, 'userinfo_endpoint'),
-		jwksUri: requiredString(record, 'jwks_uri'),
-		endSessionEndpoint: requiredString(record, 'end_session_endpoint')
-	};
-}
-
-interface OidcIdTokenClaims {
-	sub?: unknown;
-	iat?: unknown;
-	exp?: unknown;
-	nonce?: unknown;
-	aud?: unknown;
-	azp?: unknown;
-}
-
-export function validatedOidcSubject(
-	payload: OidcIdTokenClaims,
-	expectedNonce: string,
-	clientId: string
-): string {
-	if (
-		typeof payload.sub !== 'string' ||
-		payload.sub.length === 0 ||
-		typeof payload.iat !== 'number' ||
-		typeof payload.exp !== 'number' ||
-		payload.nonce !== expectedNonce
-	) {
-		throw new Error('OIDC ID token claims are invalid.');
-	}
-	if (Array.isArray(payload.aud) && payload.aud.length > 1 && payload.azp !== clientId) {
-		throw new Error('OIDC ID token authorized party is invalid.');
-	}
-
-	return payload.sub;
-}
-
+/**
+ * Strip provider access and refresh tokens before persisting an account. The ID token is kept
+ * because Better Auth sends it as `id_token_hint` during RP-initiated logout.
+ */
 export function withoutProviderTokens<T extends Record<string, unknown>>(account: T) {
 	const sanitized: Record<string, unknown> = { ...account };
 	delete sanitized.raw;
@@ -159,7 +97,6 @@ export function withoutProviderTokens<T extends Record<string, unknown>>(account
 		...sanitized,
 		accessToken: null,
 		refreshToken: null,
-		idToken: null,
 		accessTokenExpiresAt: null,
 		refreshTokenExpiresAt: null,
 		scope: null

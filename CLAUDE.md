@@ -149,7 +149,7 @@ Use modern Svelte replacements over legacy features:
 - Use keyed `{#each}` blocks with stable object identifiers. Never use the index as a key. Avoid destructuring if mutating the item.
 - Use CSS custom properties for parent-to-child styling boundaries.
 - Use `createContext` for typed context instead of unscoped shared module state when state must be per request or per tree.
-- Enable `experimental.async` in `svelte.config.js` to use `await` expressions and `hydratable` (requires Svelte >= 5.36).
+- Enable `compilerOptions.experimental.async` in the `sveltekit()` plugin options in `vite.config.ts` to use `await` expressions and `hydratable` (requires Svelte >= 5.36).
 
 ### Legacy Features to Avoid in New Code
 
@@ -167,10 +167,11 @@ Avoid these legacy Svelte features in new or refactored code:
 
 - **shadcn-svelte**: All components are already pre-installed in `src/lib/components/ui/`. **Never run the CLI to install components, and never delete unused shadcn components during codebase cleanup.**
   - Never import components from a package named `shadcn-svelte`.
-  - Import them only from local `$lib/components/ui/...` paths.
+  - Import them only from local `#lib/components/ui/...` paths (SvelteKit 3 subpath imports, with explicit `.js`/`.svelte` extensions).
   - Use local component source as the final source of truth once a component has been copied into the project.
   - Customize with Tailwind classes using `class` and the local `cn()` helper.
-- Available shadcn-svelte components: `accordion alert alert-dialog aspect-ratio avatar badge breadcrumb button calendar card carousel chart checkbox collapsible combobox command context-menu data-table date-picker dialog drawer dropdown-menu form hover-card input input-otp label menubar navigation-menu pagination popover progress radio-group range-calendar resizable scroll-area select separator sheet sidebar skeleton slider sonner switch table tabs textarea toggle toggle-group tooltip`
+- Available shadcn-svelte components: `accordion alert alert-dialog aspect-ratio avatar badge breadcrumb button calendar card carousel chart checkbox collapsible combobox command context-menu date-picker dialog drawer dropdown-menu form hover-card input input-otp label menubar navigation-menu pagination popover progress radio-group range-calendar resizable scroll-area select separator sheet sidebar skeleton slider sonner switch table tabs textarea toggle toggle-group tooltip`
+- **Data tables**: Build them with `@tanstack/svelte-table` v9 and the local `table` component (see `server-data-table.svelte`).
 - **Icons**: Always use `@lucide/svelte` (e.g., `<Search class="size-4" />`).
 - **Theming**: Use `setMode("light" | "dark" | "system")` or `toggleMode` from `mode-watcher` for controls. Add `ModeWatcher` once in the root layout:
 
@@ -189,8 +190,8 @@ Avoid these legacy Svelte features in new or refactored code:
 - **Authentication**: Check current Better Auth documentation before implementing providers, plugins, adapters, session handling, or account flows.
   - _Server_: `export const auth = betterAuth({ ... });`
   - _Hook_: `return svelteKitHandler({ event, resolve, auth, building });`
-  - _OIDC_: use the generic OAuth integration with Authorization Code + PKCE S256; provider policy is the only administrator admission control.
-  - _Sessions_: keep local HttpOnly sessions, never persist access or refresh tokens, and retain the ID token only as the session-bound logout hint.
+  - _OIDC_: use the `genericOAuth` plugin with `discoveryUrl` (PKCE and `client_secret_post` are defaults); start sign-in from the login screen with `authClient.signIn.social(...)` and sign out with `authClient.signOut({ callbackURL: '/login' })`. Provider policy is the only administrator admission control.
+  - _Sessions_: keep local HttpOnly sessions, never persist access or refresh tokens, and retain the account ID token only as the RP-initiated logout hint.
   - _Cookies_: keep `sveltekitCookies(getRequestEvent)` last in the plugin list.
 - **Forms**: Always use Superforms with Zod. Follow the chain: `zod schema -> superforms -> formsnap -> shadcn-svelte form components`. Use `Form.Field`, `Form.Control`, and shadcn error components rather than ad hoc markup.
 - **Email**: Use `better-svelte-email` for templates and Resend for delivery. Render components in server-only code, and send both HTML and plain text.

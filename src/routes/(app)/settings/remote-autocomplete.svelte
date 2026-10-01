@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { Combobox } from 'bits-ui';
-	import type { GeoSuggestion, GeoSuggestionKind } from '$lib/geo';
-	import { Input } from '$lib/components/ui/input/index.js';
+	import type { GeoSuggestion, GeoSuggestionKind } from '#lib/geo.js';
+	import { Input } from '#lib/components/ui/input/index.js';
 
 	let {
 		kind,

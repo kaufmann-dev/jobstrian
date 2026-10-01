@@ -5,8 +5,8 @@
 	import { untrack } from 'svelte';
 	import { fromAction } from 'svelte/attachments';
 	import { toast } from 'svelte-sonner';
-	import type { ProfileField, ProfilePreview } from '$lib/profile';
-	import type { GeoSuggestion } from '$lib/geo';
+	import type { ProfileField, ProfilePreview } from '#lib/profile.js';
+	import type { GeoSuggestion } from '#lib/geo.js';
 	import { settingsSchema } from './schema';
 	import {
 		SettingsAutosaveQueue,
@@ -17,17 +17,17 @@
 	import ProfileEditor from './profile-editor.svelte';
 	import RankingCriteriaEditor from './ranking-criteria-editor.svelte';
 	import SearchConfigEditor from './search-config-editor.svelte';
-	import PageHeader from '$lib/components/page-header.svelte';
-	import * as Form from '$lib/components/ui/form/index.js';
-	import * as Card from '$lib/components/ui/card/index.js';
-	import * as Dialog from '$lib/components/ui/dialog/index.js';
-	import * as Table from '$lib/components/ui/table/index.js';
-	import { Input } from '$lib/components/ui/input/index.js';
-	import { Textarea } from '$lib/components/ui/textarea/index.js';
-	import { Switch } from '$lib/components/ui/switch/index.js';
-	import { Button } from '$lib/components/ui/button/index.js';
-	import { Badge } from '$lib/components/ui/badge/index.js';
-	import { Spinner } from '$lib/components/ui/spinner/index.js';
+	import PageHeader from '#lib/components/page-header.svelte';
+	import * as Form from '#lib/components/ui/form/index.js';
+	import * as Card from '#lib/components/ui/card/index.js';
+	import * as Dialog from '#lib/components/ui/dialog/index.js';
+	import * as Table from '#lib/components/ui/table/index.js';
+	import { Input } from '#lib/components/ui/input/index.js';
+	import { Textarea } from '#lib/components/ui/textarea/index.js';
+	import { Switch } from '#lib/components/ui/switch/index.js';
+	import { Button } from '#lib/components/ui/button/index.js';
+	import { Badge } from '#lib/components/ui/badge/index.js';
+	import { Spinner } from '#lib/components/ui/spinner/index.js';
 	import Save from '@lucide/svelte/icons/save';
 	import FileText from '@lucide/svelte/icons/file-text';
 	import Download from '@lucide/svelte/icons/download';
@@ -43,13 +43,13 @@
 		SearchConfig,
 		SearchConfigField,
 		SearchConfigPreview
-	} from '$lib/search-config';
+	} from '#lib/search-config.js';
 	import {
 		DEFAULT_LEAD_RANKING_CRITERIA,
 		DEFAULT_LISTING_RANKING_CRITERIA,
 		type GeneratedRankingCriteriaField,
 		type RankingCriteriaAiPreview
-	} from '$lib/ranking-criteria';
+	} from '#lib/ranking-criteria.js';
 
 	let { data } = $props();
 	let llmStatus = $state.raw(untrack(() => data.llmStatus));
@@ -222,7 +222,11 @@
 	const canGenerateSearchConfig = $derived(Boolean(llmStatus.verified && !hasUnsavedChanges));
 	const canGenerateRankingCriteria = $derived(Boolean(llmStatus.verified && !hasUnsavedChanges));
 
-	onNavigate(() => autosave.flush());
+	onNavigate(({ shallow }) => {
+		if (shallow) return;
+
+		return autosave.flush();
+	});
 
 	async function flushSettings(): Promise<boolean> {
 		await autosave.flush();
@@ -288,6 +292,7 @@
 				status?: typeof llmStatus;
 				message?: string;
 			};
+
 			if (!response.ok) throw new Error(body.message ?? 'KI-Verbindung fehlgeschlagen');
 			if (llmBaseUrl !== $formData.llmBaseUrl || llmModel !== $formData.llmModel) return;
 			if (body.status) llmStatus = body.status;
@@ -308,6 +313,7 @@
 				config?: typeof emailDomain;
 				message?: string;
 			};
+
 			if (!response.ok)
 				throw new Error(body.message ?? 'DNS-Einträge konnten nicht geladen werden');
 			if (body.config) emailDomain = body.config;
@@ -329,6 +335,7 @@
 				recipient?: string;
 				message?: string;
 			};
+
 			if (!response.ok) throw new Error(body.message ?? 'Test-E-Mail konnte nicht gesendet werden');
 			toast.success(
 				body.recipient ? `Test-E-Mail an ${body.recipient} gesendet` : 'Test-E-Mail gesendet'
@@ -532,7 +539,9 @@
 					await responseMessage(response, 'Bewertungskriterien konnten nicht erzeugt werden')
 				);
 			}
+
 			const body = (await response.json()) as { rankingCriteria: RankingCriteriaAiPreview };
+
 			rankingCriteriaPreviewFields = Object.keys(
 				body.rankingCriteria
 			) as GeneratedRankingCriteriaField[];
@@ -1045,7 +1054,7 @@
 							<Table.Head>Name</Table.Head>
 							<Table.Head>Wert</Table.Head>
 							<Table.Head>Status</Table.Head>
-							<Table.Head class="w-10"></Table.Head>
+							<Table.Head class="w-10" />
 						</Table.Row>
 					</Table.Header>
 					<Table.Body>
@@ -1173,8 +1182,14 @@
 		<ProfileEditor bind:profile={preview} fields={previewFields} bind:selected={selectedFields} />
 		<Dialog.Footer>
 			<Button variant="outline" onclick={() => (previewOpen = false)}>Abbrechen</Button>
+
 			<Button disabled={applyBusy || selectedFields.length === 0} onclick={applyPreview}>
-				{#if applyBusy}<Spinner />{:else}<Save />{/if}
+				{#if applyBusy}
+					<Spinner />
+				{:else}
+					<Save />
+				{/if}
+
 				Auswahl übernehmen
 			</Button>
 		</Dialog.Footer>
@@ -1207,6 +1222,7 @@
 		</div>
 		<Dialog.Footer>
 			<Button variant="outline" onclick={() => (searchIntentOpen = false)}>Abbrechen</Button>
+
 			<Button
 				disabled={searchPreviewBusy || !searchIntent.trim() || !canGenerateSearchConfig}
 				onclick={createSearchPreview}
@@ -1233,6 +1249,7 @@
 		/>
 		<Dialog.Footer>
 			<Button variant="outline" onclick={() => (searchPreviewOpen = false)}>Abbrechen</Button>
+
 			<Button
 				disabled={searchApplyBusy || selectedSearchFields.length === 0}
 				onclick={applySearchPreview}
@@ -1269,9 +1286,10 @@
 			</p>
 		</div>
 		<Dialog.Footer>
-			<Button variant="outline" onclick={() => (rankingCriteriaIntentOpen = false)}>
-				Abbrechen
-			</Button>
+			<Button variant="outline" onclick={() => (rankingCriteriaIntentOpen = false)}
+				>Abbrechen</Button
+			>
+
 			<Button
 				disabled={rankingCriteriaPreviewBusy ||
 					!rankingCriteriaIntent.trim() ||
@@ -1299,9 +1317,10 @@
 			bind:selected={selectedRankingCriteriaFields}
 		/>
 		<Dialog.Footer>
-			<Button variant="outline" onclick={() => (rankingCriteriaPreviewOpen = false)}>
-				Abbrechen
-			</Button>
+			<Button variant="outline" onclick={() => (rankingCriteriaPreviewOpen = false)}
+				>Abbrechen</Button
+			>
+
 			<Button
 				disabled={rankingCriteriaApplyBusy || selectedRankingCriteriaFields.length === 0}
 				onclick={applyRankingCriteriaPreview}

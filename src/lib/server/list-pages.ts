@@ -11,7 +11,7 @@ import {
 	type LeadSort,
 	type ListingFilters,
 	type ListingSort
-} from '$lib/list-pages';
+} from '#lib/list-pages.js';
 import { db } from './db';
 import { lead, listing, type Lead, type Listing } from './db/schema';
 import { maskLeadEmail, visibleLeadEmail } from './lead-email';

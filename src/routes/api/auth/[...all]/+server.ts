@@ -1,8 +1,6 @@
-import { auth } from '$lib/server/auth';
+import { auth } from '#lib/server/auth.js';
 import type { RequestHandler } from './$types';
 
+// hooks.server.ts admits only the OIDC sign-in, callback, and sign-out endpoints.
 export const GET: RequestHandler = ({ request }) => auth.handler(request);
-
-// hooks.server.ts admits only the OIDC GET callback. Keep POST fail-closed if
-// this catch-all route is ever resolved without that hook.
-export const POST: RequestHandler = () => new Response('Nicht gefunden', { status: 404 });
+export const POST: RequestHandler = ({ request }) => auth.handler(request);

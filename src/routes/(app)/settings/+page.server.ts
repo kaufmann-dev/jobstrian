@@ -1,15 +1,15 @@
 import { superValidate } from 'sveltekit-superforms/server';
 import { zod4 } from 'sveltekit-superforms/adapters';
 import { fail } from '@sveltejs/kit';
-import { getSettings, updateSettings } from '$lib/server/settings';
-import { getCvMeta } from '$lib/server/cv';
+import { getSettings, updateSettings } from '#lib/server/settings.js';
+import { getCvMeta } from '#lib/server/cv.js';
 import {
 	applicationEmailDomainConfig,
 	saveApplicationEmailSettings
-} from '$lib/server/application-email/config';
-import { llmConfigStatus } from '$lib/server/llm/verify';
+} from '#lib/server/application-email/config.js';
+import { llmConfigStatus } from '#lib/server/llm/verify.js';
 import { apiKeySchema, resendSettingsSchema, settingsSchema } from './schema';
-import type { Settings } from '$lib/server/db/schema';
+import type { Settings } from '#lib/server/db/schema.js';
 import type { Actions, PageServerLoad } from './$types';
 
 function settingsFormData(s: Settings) {

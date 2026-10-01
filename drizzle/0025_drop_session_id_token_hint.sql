@@ -1,0 +1,1 @@
+ALTER TABLE "session" DROP COLUMN "id_token_hint";

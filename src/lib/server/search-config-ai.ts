@@ -12,7 +12,7 @@ import {
 	type OsmBusinessTagKey,
 	type SearchConfigPatch,
 	type SearchConfigPreview
-} from '$lib/search-config';
+} from '#lib/search-config.js';
 import type { Settings } from './db/schema';
 import { chatJson, getLlmConfig, LlmHttpError } from './llm/client';
 import { LlmLimiter } from './llm/limiter';
