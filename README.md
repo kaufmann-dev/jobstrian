@@ -181,9 +181,9 @@ and production); `pnpm drizzle-kit migrate` remains available to apply them manu
 | Build Pack     | Nixpacks |
 | Base Directory | `/`      |
 
-`nixpacks.toml` installs Chromium during the build with
-`pnpm exec playwright install --with-deps chromium` so browser-backed portal
-adapters work in production.
+`nixpacks.toml` runs the pinned pnpm 11.18.0 (`packageManager`) for install and
+build, and installs Chromium with `playwright install --with-deps chromium` so
+browser-backed portal adapters work in production.
 
 Pending migrations are applied automatically at server startup, so no
 post-deployment migration command is needed.

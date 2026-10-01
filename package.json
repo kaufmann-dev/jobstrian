@@ -1,5 +1,6 @@
 {
 	"name": "jobstrian",
+	"packageManager": "pnpm@11.18.0",
 	"private": true,
 	"version": "0.0.1",
 	"type": "module",
