@@ -248,8 +248,8 @@ export function listingReconcileWhere(
 		eq(listing.status, 'active'),
 		or(isNull(listing.lastSeenRunId), ne(listing.lastSeenRunId, runId)),
 		or(
-			...scopes.map(
-				(scope) => and(eq(listing.source, scope.source), eq(listing.discoveryCity, scope.city))!
+			...scopes.map((scope) =>
+				and(eq(listing.source, scope.source), eq(listing.discoveryCity, scope.city))!
 			)
 		)
 	);
@@ -680,16 +680,14 @@ async function reviewAutomaticLeadEmails(
 	const rowsById = new Map(rows.map((row) => [row.id, row]));
 	const allCandidates = rows
 		.filter((row) => row.emailSource === 'osm' || row.emailSource === 'website')
-		.map(
-			(row): LeadEmailQualityCandidate => ({
-				id: row.id,
-				name: row.name,
-				category: row.category,
-				website: row.website,
-				email: row.email!,
-				emailSource: row.emailSource as 'osm' | 'website'
-			})
-		);
+		.map((row): LeadEmailQualityCandidate => ({
+			id: row.id,
+			name: row.name,
+			category: row.category,
+			website: row.website,
+			email: row.email!,
+			emailSource: row.emailSource as 'osm' | 'website'
+		}));
 	// Review each automatic address at most once. Once it is accepted or rejected it
 	// keeps that verdict until the address itself changes (upsertLead resets the status
 	// to 'unchecked' only when the discovered address differs). This prevents the

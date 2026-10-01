@@ -32,8 +32,7 @@
 		hideIndicator?: boolean;
 		labelClassName?: string;
 		labelFormatter?:
-			| ((value: unknown, payload: TooltipPayload[]) => string | number | Snippet)
-			| null;
+			((value: unknown, payload: TooltipPayload[]) => string | number | Snippet) | null;
 		formatter?: Snippet<
 			[
 				{

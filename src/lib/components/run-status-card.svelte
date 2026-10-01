@@ -3,13 +3,7 @@
 	import type { BadgeVariant } from '$lib/components/ui/badge/index.js';
 
 	export type RunStatusCardPhaseState =
-		| 'pending'
-		| 'running'
-		| 'done'
-		| 'warning'
-		| 'skipped'
-		| 'error'
-		| 'canceled';
+		'pending' | 'running' | 'done' | 'warning' | 'skipped' | 'error' | 'canceled';
 
 	export type RunStatusCardFailureReason = {
 		code: string;

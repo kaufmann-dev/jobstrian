@@ -13,8 +13,7 @@ describe('AMS scraper', () => {
 	it('keeps configured Austrian cities outside Vienna', async () => {
 		withPage.mockImplementation(async (callback) => {
 			let responseHandler:
-				| ((response: { url(): string; json(): Promise<unknown> }) => void)
-				| undefined;
+				((response: { url(): string; json(): Promise<unknown> }) => void) | undefined;
 			const page = {
 				on: vi.fn((_event: string, handler) => {
 					responseHandler = handler;
@@ -114,8 +113,7 @@ describe('AMS scraper', () => {
 	it('reports complete: true for a successful search with zero results', async () => {
 		withPage.mockImplementation(async (callback) => {
 			let responseHandler:
-				| ((response: { url(): string; json(): Promise<unknown> }) => void)
-				| undefined;
+				((response: { url(): string; json(): Promise<unknown> }) => void) | undefined;
 			const page = {
 				on: vi.fn((_event: string, handler) => {
 					responseHandler = handler;

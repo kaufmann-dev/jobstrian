@@ -421,13 +421,7 @@ export type RunPhaseId =
 	| 'rank-leads'
 	| 'finalize';
 export type RunPhaseState =
-	| 'pending'
-	| 'running'
-	| 'done'
-	| 'warning'
-	| 'skipped'
-	| 'error'
-	| 'canceled';
+	'pending' | 'running' | 'done' | 'warning' | 'skipped' | 'error' | 'canceled';
 export interface RunPhaseFailureReason {
 	code: string;
 	label: string;
@@ -473,12 +467,7 @@ export type ApplicationEmailDnsRecord = {
 
 export type ApplicationEmailRunStatus = 'running' | 'canceling' | 'canceled' | 'done' | 'error';
 export type ApplicationEmailStatus =
-	| 'queued'
-	| 'sending'
-	| 'sent'
-	| 'failed'
-	| 'skipped'
-	| 'canceled';
+	'queued' | 'sending' | 'sent' | 'failed' | 'skipped' | 'canceled';
 export type ApplicationEmailPhaseId = 'setup' | 'queue' | 'send' | 'finalize';
 export interface ApplicationEmailPhaseProgress {
 	state: RunPhaseState;
