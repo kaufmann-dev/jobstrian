@@ -1,15 +1,15 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const { geoSuggestions } = vi.hoisted(() => ({ geoSuggestions: vi.fn() }));
-vi.mock('$lib/server/geo/geoapify', () => ({ geoSuggestions }));
+vi.mock('#lib/server/geo/geoapify.js', () => ({ geoSuggestions }));
 
 import {
 	settingsPatchSchema,
 	toSettingsDbPatch,
 	verifyTypedHomeLocation
-} from '$lib/server/settings-patch';
-import type { Settings } from '$lib/server/db/schema';
-import { DEFAULT_LISTING_RANKING_CRITERIA } from '$lib/ranking-criteria';
+} from '#lib/server/settings-patch.js';
+import type { Settings } from '#lib/server/db/schema.js';
+import { DEFAULT_LISTING_RANKING_CRITERIA } from '#lib/ranking-criteria.js';
 
 const current = {
 	enabledSources: ['ams'],

@@ -1,15 +1,15 @@
 <script lang="ts">
-	import type { ProfileField, ProfilePreview } from '$lib/profile';
-	import type { GeoSuggestion } from '$lib/geo';
+	import type { ProfileField, ProfilePreview } from '#lib/profile.js';
+	import type { GeoSuggestion } from '#lib/geo.js';
 	import { untrack } from 'svelte';
 	import RemoteAutocomplete from './remote-autocomplete.svelte';
 	import StringListEditor from './string-list-editor.svelte';
-	import * as Accordion from '$lib/components/ui/accordion/index.js';
-	import { Input } from '$lib/components/ui/input/index.js';
-	import { Textarea } from '$lib/components/ui/textarea/index.js';
-	import { Checkbox } from '$lib/components/ui/checkbox/index.js';
-	import { Button } from '$lib/components/ui/button/index.js';
-	import { Label } from '$lib/components/ui/label/index.js';
+	import * as Accordion from '#lib/components/ui/accordion/index.js';
+	import { Input } from '#lib/components/ui/input/index.js';
+	import { Textarea } from '#lib/components/ui/textarea/index.js';
+	import { Checkbox } from '#lib/components/ui/checkbox/index.js';
+	import { Button } from '#lib/components/ui/button/index.js';
+	import { Label } from '#lib/components/ui/label/index.js';
 	import Plus from '@lucide/svelte/icons/plus';
 	import Trash2 from '@lucide/svelte/icons/trash-2';
 

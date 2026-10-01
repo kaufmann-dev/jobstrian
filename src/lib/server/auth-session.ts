@@ -1,7 +1,7 @@
 import type { Cookies } from '@sveltejs/kit';
 import { and, eq, isNull, lt, or } from 'drizzle-orm';
 import { getCookies } from 'better-auth/cookies';
-import { SESSION_TOUCH_INTERVAL_MS } from '$lib/session-policy';
+import { SESSION_TOUCH_INTERVAL_MS } from '#lib/session-policy.js';
 import { auth } from './auth';
 import { db } from './db';
 import { session } from './db/schema';

@@ -9,12 +9,12 @@
 		type OsmBusinessTagSuggestion,
 		type SearchConfig,
 		type SearchConfigField
-	} from '$lib/search-config';
-	import { Input } from '$lib/components/ui/input/index.js';
-	import { Checkbox } from '$lib/components/ui/checkbox/index.js';
-	import { Badge } from '$lib/components/ui/badge/index.js';
-	import { Button } from '$lib/components/ui/button/index.js';
-	import type { GeoSuggestion } from '$lib/geo';
+	} from '#lib/search-config.js';
+	import { Input } from '#lib/components/ui/input/index.js';
+	import { Checkbox } from '#lib/components/ui/checkbox/index.js';
+	import { Badge } from '#lib/components/ui/badge/index.js';
+	import { Button } from '#lib/components/ui/button/index.js';
+	import type { GeoSuggestion } from '#lib/geo.js';
 	import RemoteAutocomplete from './remote-autocomplete.svelte';
 	import StringListEditor from './string-list-editor.svelte';
 	import X from '@lucide/svelte/icons/x';

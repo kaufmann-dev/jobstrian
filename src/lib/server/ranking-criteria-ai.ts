@@ -6,7 +6,7 @@ import {
 	rankingCriteriaPatchSchema,
 	type RankingCriteriaPatch,
 	type RankingCriteriaAiPreview
-} from '$lib/ranking-criteria';
+} from '#lib/ranking-criteria.js';
 import type { Settings } from './db/schema';
 import { chatJson, getLlmConfig, LlmHttpError } from './llm/client';
 import { LlmLimiter } from './llm/limiter';

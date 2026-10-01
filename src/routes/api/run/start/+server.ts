@@ -1,4 +1,3 @@
-import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 
 function startFailureMessage(err: unknown): string {
@@ -25,10 +24,10 @@ export const POST: RequestHandler = async ({ request }) => {
 	try {
 		const body = (await request.json().catch(() => null)) as { full?: boolean } | null;
 		const force = body?.full === true;
-		const { startRefresh } = await import('$lib/server/scrape/runner');
+		const { startRefresh } = await import('#lib/server/scrape/runner.js');
 		const runId = await startRefresh(force);
 		if (runId === null) {
-			return json(
+			return Response.json(
 				{
 					started: false,
 					reason: 'already-running',
@@ -37,10 +36,10 @@ export const POST: RequestHandler = async ({ request }) => {
 				{ status: 409 }
 			);
 		}
-		return json({ started: true, runId });
+		return Response.json({ started: true, runId });
 	} catch (err) {
 		console.error('[api/run/start] Aktualisierung konnte nicht gestartet werden:', err);
-		return json(
+		return Response.json(
 			{
 				started: false,
 				reason: 'start-failed',

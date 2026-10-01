@@ -1,5 +1,4 @@
-import { json } from '@sveltejs/kit';
-import { cancelApplicationEmailRun } from '$lib/server/application-email/runner';
+import { cancelApplicationEmailRun } from '#lib/server/application-email/runner.js';
 import type { RequestHandler } from './$types';
 
 export const POST: RequestHandler = async ({ request }) => {
@@ -11,7 +10,7 @@ export const POST: RequestHandler = async ({ request }) => {
 		// Missing JSON is treated as an idempotent no-op.
 	}
 
-	if (runId == null) return json({ canceled: false, active: false });
+	if (runId == null) return Response.json({ canceled: false, active: false });
 	const result = await cancelApplicationEmailRun(runId);
-	return json({ canceled: true, active: result.active });
+	return Response.json({ canceled: true, active: result.active });
 };

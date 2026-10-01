@@ -1,21 +1,21 @@
 <script lang="ts">
-	import type { ColumnDef } from '@tanstack/table-core';
 	import { untrack } from 'svelte';
 	import { toast } from 'svelte-sonner';
-	import * as Sheet from '$lib/components/ui/sheet/index.js';
-	import { Badge } from '$lib/components/ui/badge/index.js';
-	import { Button } from '$lib/components/ui/button/index.js';
-	import * as Select from '$lib/components/ui/select/index.js';
-	import PageHeader from '$lib/components/page-header.svelte';
-	import ServerDataTable from '$lib/components/server-data-table.svelte';
-	import TableFilterCheckbox from '$lib/components/table-filter-checkbox.svelte';
-	import RankFactors from '$lib/components/rank-factors.svelte';
-	import { rankScoreClass } from '$lib/rank-color';
-	import { ServerListController } from '$lib/components/server-list-controller.svelte.js';
-	import { renderSnippet } from '$lib/components/ui/data-table/render-helpers.js';
+	import * as Sheet from '#lib/components/ui/sheet/index.js';
+	import { Badge } from '#lib/components/ui/badge/index.js';
+	import { Button } from '#lib/components/ui/button/index.js';
+	import * as Select from '#lib/components/ui/select/index.js';
+	import PageHeader from '#lib/components/page-header.svelte';
+	import ServerDataTable from '#lib/components/server-data-table.svelte';
+	import TableFilterCheckbox from '#lib/components/table-filter-checkbox.svelte';
+	import RankFactors from '#lib/components/rank-factors.svelte';
+	import { rankScoreClass } from '#lib/rank-color.js';
+	import { ServerListController } from '#lib/components/server-list-controller.svelte.js';
+	import { renderSnippet } from '@tanstack/svelte-table';
+	import type { ServerColumnDef } from '#lib/components/server-data-table.js';
 	import ExternalLink from '@lucide/svelte/icons/external-link';
 	import Star from '@lucide/svelte/icons/star';
-	import type { Listing } from '$lib/server/db/schema';
+	import type { Listing } from '#lib/server/db/schema.js';
 
 	let { data } = $props();
 
@@ -97,7 +97,7 @@
 		return [...new Set(parts)].filter(Boolean).join(', ');
 	}
 
-	const columns: ColumnDef<Listing>[] = [
+	const columns: ServerColumnDef<Listing>[] = [
 		{
 			id: 'star',
 			header: '',

@@ -6,7 +6,7 @@ import {
 	type OsmBusinessTag,
 	type OsmBusinessTagKey,
 	type OsmBusinessTagSuggestion
-} from '$lib/search-config';
+} from '#lib/search-config.js';
 
 export interface OverpassPlace {
 	osmId: string; // e.g. "node/123"

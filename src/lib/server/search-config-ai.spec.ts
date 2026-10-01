@@ -1,10 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Settings } from './db/schema';
-import { DEFAULT_BUSINESS_OSM_TAGS } from '$lib/search-config';
+import { DEFAULT_BUSINESS_OSM_TAGS } from '#lib/search-config.js';
 import {
 	DEFAULT_LEAD_RANKING_CRITERIA,
 	DEFAULT_LISTING_RANKING_CRITERIA
-} from '$lib/ranking-criteria';
+} from '#lib/ranking-criteria.js';
 
 const { chatJson, getSettings, updateSettings } = vi.hoisted(() => ({
 	chatJson: vi.fn(),
@@ -18,7 +18,7 @@ vi.mock('./llm/client', async (importOriginal) => {
 });
 vi.mock('./settings', () => ({ getSettings, updateSettings }));
 
-import { searchConfigPatchSchema, searchConfigPreviewSchema } from '$lib/search-config';
+import { searchConfigPatchSchema, searchConfigPreviewSchema } from '#lib/search-config.js';
 import { LlmHttpError } from './llm/client';
 import {
 	applySearchConfigPatch,

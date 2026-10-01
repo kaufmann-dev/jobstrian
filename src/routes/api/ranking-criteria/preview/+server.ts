@@ -1,8 +1,7 @@
-import { json } from '@sveltejs/kit';
 import {
 	createRankingCriteriaPreview,
 	isRankingCriteriaAiError
-} from '$lib/server/ranking-criteria-ai';
+} from '#lib/server/ranking-criteria-ai.js';
 import type { RequestHandler } from './$types';
 
 export const POST: RequestHandler = async ({ request }) => {
@@ -10,7 +9,7 @@ export const POST: RequestHandler = async ({ request }) => {
 	try {
 		body = await request.json();
 	} catch {
-		return json({ message: 'Ungültige JSON-Daten.' }, { status: 400 });
+		return Response.json({ message: 'Ungültige JSON-Daten.' }, { status: 400 });
 	}
 
 	const intent =
@@ -19,13 +18,13 @@ export const POST: RequestHandler = async ({ request }) => {
 			: '';
 
 	try {
-		return json({ rankingCriteria: await createRankingCriteriaPreview(intent) });
+		return Response.json({ rankingCriteria: await createRankingCriteriaPreview(intent) });
 	} catch (error) {
 		if (isRankingCriteriaAiError(error)) {
-			return json({ message: error.message }, { status: error.status });
+			return Response.json({ message: error.message }, { status: error.status });
 		}
 		console.error('Vorschau der Bewertungskriterien fehlgeschlagen', error);
-		return json(
+		return Response.json(
 			{ message: 'Die Bewertungskriterien konnten nicht erzeugt werden.' },
 			{ status: 500 }
 		);

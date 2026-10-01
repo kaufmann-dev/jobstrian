@@ -8,10 +8,10 @@ const { update, set, where, returning, ensureLeadDraft } = vi.hoisted(() => ({
 	ensureLeadDraft: vi.fn()
 }));
 
-vi.mock('$lib/server/db', () => ({
+vi.mock('#lib/server/db/index.js', () => ({
 	db: { update }
 }));
-vi.mock('$lib/server/application-email/drafts', () => ({
+vi.mock('#lib/server/application-email/drafts.js', () => ({
 	ensureLeadDraft
 }));
 

@@ -1,6 +1,5 @@
-import { json } from '@sveltejs/kit';
-import { LlmHttpError, LlmNotConfiguredError } from '$lib/server/llm/client';
-import { llmConfigStatus, verifyLlmConnection } from '$lib/server/llm/verify';
+import { LlmHttpError, LlmNotConfiguredError } from '#lib/server/llm/client.js';
+import { llmConfigStatus, verifyLlmConnection } from '#lib/server/llm/verify.js';
 import type { RequestHandler } from './$types';
 
 function verifyErrorMessage(err: unknown): string {
@@ -14,9 +13,9 @@ function verifyErrorMessage(err: unknown): string {
 export const POST: RequestHandler = async () => {
 	try {
 		const settings = await verifyLlmConnection();
-		return json({ status: llmConfigStatus(settings) });
+		return Response.json({ status: llmConfigStatus(settings) });
 	} catch (err) {
 		console.error('[api/llm/verify] Prüfung fehlgeschlagen:', err);
-		return json({ message: verifyErrorMessage(err) }, { status: 400 });
+		return Response.json({ message: verifyErrorMessage(err) }, { status: 400 });
 	}
 };

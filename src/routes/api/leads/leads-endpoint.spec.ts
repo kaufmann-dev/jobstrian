@@ -1,8 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const { getLeadPage } = vi.hoisted(() => ({ getLeadPage: vi.fn() }));
-vi.mock('$lib/server/list-pages', async (importOriginal) => {
-	const actual = await importOriginal<typeof import('$lib/server/list-pages')>();
+vi.mock('#lib/server/list-pages.js', async (importOriginal) => {
+	const actual = await importOriginal<typeof import('#lib/server/list-pages.js')>();
 	return { ...actual, getLeadPage };
 });
 

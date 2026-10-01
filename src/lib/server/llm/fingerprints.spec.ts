@@ -3,8 +3,8 @@ import type { Lead, Listing, Settings } from '../db/schema';
 import {
 	DEFAULT_LEAD_RANKING_CRITERIA,
 	DEFAULT_LISTING_RANKING_CRITERIA
-} from '$lib/ranking-criteria';
-import type { OsmBusinessTag, OsmBusinessTagSuggestion } from '$lib/search-config';
+} from '#lib/ranking-criteria.js';
+import type { OsmBusinessTag, OsmBusinessTagSuggestion } from '#lib/search-config.js';
 import type { LlmConfig } from './client';
 import {
 	draftContextHash,

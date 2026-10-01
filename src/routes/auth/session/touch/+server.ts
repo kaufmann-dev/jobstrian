@@ -1,5 +1,5 @@
-import { shouldTouchSession } from '$lib/session-policy';
-import { authBaseURL } from '$lib/server/auth';
+import { shouldTouchSession } from '#lib/session-policy.js';
+import { authBaseURL } from '#lib/server/auth.js';
 import type { RequestHandler } from './$types';
 
 // hooks.server.ts performs the authenticated update. Rechecking the same

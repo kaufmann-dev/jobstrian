@@ -1,4 +1,4 @@
-import type { Listing } from '$lib/server/db/schema';
+import type { Listing } from '#lib/server/db/schema.js';
 
 export const LIST_BATCH_SIZE = 50;
 

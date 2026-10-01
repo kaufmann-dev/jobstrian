@@ -1,15 +1,17 @@
-import { json } from '@sveltejs/kit';
-import { createProfilePreview, isCvProfileError } from '$lib/server/cv-profile';
+import { createProfilePreview, isCvProfileError } from '#lib/server/cv-profile.js';
 import type { RequestHandler } from './$types';
 
 export const POST: RequestHandler = async () => {
 	try {
-		return json({ profile: await createProfilePreview() });
+		return Response.json({ profile: await createProfilePreview() });
 	} catch (error) {
 		if (isCvProfileError(error)) {
-			return json({ message: error.message }, { status: error.status });
+			return Response.json({ message: error.message }, { status: error.status });
 		}
 		console.error('Lebenslauf-Profilvorschau fehlgeschlagen', error);
-		return json({ message: 'Der Lebenslauf konnte nicht ausgewertet werden.' }, { status: 500 });
+		return Response.json(
+			{ message: 'Der Lebenslauf konnte nicht ausgewertet werden.' },
+			{ status: 500 }
+		);
 	}
 };

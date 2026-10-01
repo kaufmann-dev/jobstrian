@@ -1,5 +1,4 @@
-import { json } from '@sveltejs/kit';
-import { applySearchConfigPatch, isSearchConfigAiError } from '$lib/server/search-config-ai';
+import { applySearchConfigPatch, isSearchConfigAiError } from '#lib/server/search-config-ai.js';
 import type { RequestHandler } from './$types';
 
 export const PATCH: RequestHandler = async ({ request }) => {
@@ -7,18 +6,18 @@ export const PATCH: RequestHandler = async ({ request }) => {
 	try {
 		body = await request.json();
 	} catch {
-		return json({ message: 'Ungültige JSON-Daten.' }, { status: 400 });
+		return Response.json({ message: 'Ungültige JSON-Daten.' }, { status: 400 });
 	}
 
 	try {
 		await applySearchConfigPatch(body);
-		return json({ ok: true });
+		return Response.json({ ok: true });
 	} catch (error) {
 		if (isSearchConfigAiError(error)) {
-			return json({ message: error.message }, { status: error.status });
+			return Response.json({ message: error.message }, { status: error.status });
 		}
 		console.error('Aktualisierung der Suchkonfiguration fehlgeschlagen', error);
-		return json(
+		return Response.json(
 			{ message: 'Die Suchkonfiguration konnte nicht aktualisiert werden.' },
 			{ status: 500 }
 		);

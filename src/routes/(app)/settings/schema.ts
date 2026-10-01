@@ -4,13 +4,13 @@ import {
 	educationHistoryListSchema,
 	skillsSchema,
 	workExperienceListSchema
-} from '$lib/profile';
+} from '#lib/profile.js';
 import {
 	DEFAULT_LEAD_RANKING_CRITERIA,
 	DEFAULT_LISTING_RANKING_CRITERIA,
 	rankingCriteriaSchema
-} from '$lib/ranking-criteria';
-import { businessOsmTagsSchema, stringListSchema } from '$lib/search-config';
+} from '#lib/ranking-criteria.js';
+import { businessOsmTagsSchema, stringListSchema } from '#lib/search-config.js';
 
 export const settingsSchema = z.object({
 	fullName: z.string().max(200).default(''),

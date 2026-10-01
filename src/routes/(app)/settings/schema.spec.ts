@@ -5,7 +5,7 @@ import { apiKeySchema, settingsSchema } from './schema';
 import {
 	DEFAULT_LEAD_RANKING_CRITERIA,
 	DEFAULT_LISTING_RANKING_CRITERIA
-} from '$lib/ranking-criteria';
+} from '#lib/ranking-criteria.js';
 
 describe('settingsSchema', () => {
 	it('defaults omitted portal checkbox fields to disabled', async () => {

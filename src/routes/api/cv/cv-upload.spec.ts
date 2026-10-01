@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { isAllowedCvFile } from '$lib/server/cv-validation';
+import { isAllowedCvFile } from '#lib/server/cv-validation.js';
 
 describe('CV upload validation', () => {
 	it('accepts PDFs and rejects DOC, DOCX, and unsupported files', () => {

@@ -1,14 +1,14 @@
 import type { Settings, Listing, Lead } from '../db/schema';
 import { chatJson, type LlmConfig } from './client';
 import type { LlmLimiter } from './limiter';
-import { osmBusinessTagLabel } from '$lib/search-config';
+import { osmBusinessTagLabel } from '#lib/search-config.js';
 import {
 	parseCriterionScores,
 	weightedRankingScore,
 	type RankFactor,
 	type RankingCriteria,
 	type RankingCriterionScore
-} from '$lib/ranking-criteria';
+} from '#lib/ranking-criteria.js';
 
 export const RANK_PROMPT_VERSION = 'rank-v5-weighted-criteria-de';
 

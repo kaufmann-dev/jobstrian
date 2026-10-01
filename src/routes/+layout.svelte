@@ -1,11 +1,11 @@
 <script lang="ts">
-	import { resolve } from '$app/paths';
+	import { resolveHref } from '#lib/paths.js';
 	import { page } from '$app/state';
 	import { ModeWatcher } from 'mode-watcher';
-	import { Toaster } from '$lib/components/ui/sonner/index.js';
-	import { locales, localizeHref } from '$lib/paraglide/runtime';
+	import { Toaster } from '#lib/components/ui/sonner/index.js';
+	import { locales, localizeHref } from '#lib/paraglide/runtime.js';
 	import './layout.css';
-	import favicon from '$lib/assets/favicon.svg';
+	import favicon from '#lib/assets/favicon.svg';
 
 	let { children } = $props();
 </script>
@@ -18,7 +18,7 @@
 
 <div style="display:none">
 	{#each locales as locale (locale)}
-		<a href={resolve(localizeHref(page.url.pathname, { locale }) as '/')}>
+		<a href={resolveHref(localizeHref(page.url.pathname, { locale }))}>
 			{locale}
 		</a>
 	{/each}

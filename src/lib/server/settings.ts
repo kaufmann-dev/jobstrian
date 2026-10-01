@@ -2,8 +2,8 @@ import { eq } from 'drizzle-orm';
 import {
 	DEFAULT_LEAD_RANKING_CRITERIA,
 	DEFAULT_LISTING_RANKING_CRITERIA
-} from '$lib/ranking-criteria';
-import { DEFAULT_BUSINESS_OSM_TAGS, DEFAULT_JOB_SEARCH_KEYWORDS } from '$lib/search-config';
+} from '#lib/ranking-criteria.js';
+import { DEFAULT_BUSINESS_OSM_TAGS, DEFAULT_JOB_SEARCH_KEYWORDS } from '#lib/search-config.js';
 import { db } from './db';
 import { settings, type Settings } from './db/schema';
 

@@ -1,9 +1,9 @@
 import { z } from 'zod';
 import type { Settings } from './db/schema';
-import type { GeoSuggestion } from '$lib/geo';
+import type { GeoSuggestion } from '#lib/geo.js';
 import { geoSuggestions } from './geo/geoapify';
 import { ALL_SOURCES, getSettings, updateSettings } from './settings';
-import { settingsSchema } from '$lib/../routes/(app)/settings/schema';
+import { settingsSchema } from '../../routes/(app)/settings/schema.js';
 
 const PATCHABLE_FIELDS = [
 	'fullName',

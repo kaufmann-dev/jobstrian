@@ -1,8 +1,7 @@
-import { json } from '@sveltejs/kit';
 import {
 	applyRankingCriteriaPatch,
 	isRankingCriteriaAiError
-} from '$lib/server/ranking-criteria-ai';
+} from '#lib/server/ranking-criteria-ai.js';
 import type { RequestHandler } from './$types';
 
 export const PATCH: RequestHandler = async ({ request }) => {
@@ -10,18 +9,18 @@ export const PATCH: RequestHandler = async ({ request }) => {
 	try {
 		body = await request.json();
 	} catch {
-		return json({ message: 'Ungültige JSON-Daten.' }, { status: 400 });
+		return Response.json({ message: 'Ungültige JSON-Daten.' }, { status: 400 });
 	}
 
 	try {
 		await applyRankingCriteriaPatch(body);
-		return json({ ok: true });
+		return Response.json({ ok: true });
 	} catch (error) {
 		if (isRankingCriteriaAiError(error)) {
-			return json({ message: error.message }, { status: error.status });
+			return Response.json({ message: error.message }, { status: error.status });
 		}
 		console.error('Aktualisierung der Bewertungskriterien fehlgeschlagen', error);
-		return json(
+		return Response.json(
 			{ message: 'Die Bewertungskriterien konnten nicht aktualisiert werden.' },
 			{ status: 500 }
 		);

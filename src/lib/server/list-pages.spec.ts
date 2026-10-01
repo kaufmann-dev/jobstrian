@@ -5,7 +5,7 @@ import {
 	DEFAULT_LISTING_FILTERS,
 	LEAD_SORTS,
 	LISTING_SORTS
-} from '$lib/list-pages';
+} from '#lib/list-pages.js';
 import type { Lead, Listing } from './db/schema';
 import {
 	decodeLeadCursor,

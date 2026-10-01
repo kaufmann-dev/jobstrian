@@ -1,29 +1,29 @@
 <script lang="ts">
-	import type { ColumnDef } from '@tanstack/table-core';
 	import { superForm } from 'sveltekit-superforms';
 	import { zod4Client } from 'sveltekit-superforms/adapters';
 	import { onMount, untrack } from 'svelte';
 	import { invalidateAll } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import { toast } from 'svelte-sonner';
-	import { leadContactFormSchema } from '$lib/lead-contact';
-	import * as Sheet from '$lib/components/ui/sheet/index.js';
-	import * as Alert from '$lib/components/ui/alert/index.js';
-	import { Badge } from '$lib/components/ui/badge/index.js';
-	import { Button } from '$lib/components/ui/button/index.js';
-	import { Label } from '$lib/components/ui/label/index.js';
-	import { Textarea } from '$lib/components/ui/textarea/index.js';
-	import { Input } from '$lib/components/ui/input/index.js';
-	import { Spinner } from '$lib/components/ui/spinner/index.js';
-	import PageHeader from '$lib/components/page-header.svelte';
-	import RunStatusCard, { type RunStatusCardPhase } from '$lib/components/run-status-card.svelte';
-	import ConfirmDialog from '$lib/components/confirm-dialog.svelte';
-	import ServerDataTable from '$lib/components/server-data-table.svelte';
-	import TableFilterCheckbox from '$lib/components/table-filter-checkbox.svelte';
-	import RankFactors from '$lib/components/rank-factors.svelte';
-	import { rankScoreClass } from '$lib/rank-color';
-	import { ServerListController } from '$lib/components/server-list-controller.svelte.js';
-	import { renderSnippet } from '$lib/components/ui/data-table/render-helpers.js';
+	import { leadContactFormSchema } from '#lib/lead-contact.js';
+	import * as Sheet from '#lib/components/ui/sheet/index.js';
+	import * as Alert from '#lib/components/ui/alert/index.js';
+	import { Badge } from '#lib/components/ui/badge/index.js';
+	import { Button } from '#lib/components/ui/button/index.js';
+	import { Label } from '#lib/components/ui/label/index.js';
+	import { Textarea } from '#lib/components/ui/textarea/index.js';
+	import { Input } from '#lib/components/ui/input/index.js';
+	import { Spinner } from '#lib/components/ui/spinner/index.js';
+	import PageHeader from '#lib/components/page-header.svelte';
+	import RunStatusCard, { type RunStatusCardPhase } from '#lib/components/run-status-card.svelte';
+	import ConfirmDialog from '#lib/components/confirm-dialog.svelte';
+	import ServerDataTable from '#lib/components/server-data-table.svelte';
+	import TableFilterCheckbox from '#lib/components/table-filter-checkbox.svelte';
+	import RankFactors from '#lib/components/rank-factors.svelte';
+	import { rankScoreClass } from '#lib/rank-color.js';
+	import { ServerListController } from '#lib/components/server-list-controller.svelte.js';
+	import { renderSnippet } from '@tanstack/svelte-table';
+	import type { ServerColumnDef } from '#lib/components/server-data-table.js';
 	import Mail from '@lucide/svelte/icons/mail';
 	import Phone from '@lucide/svelte/icons/phone';
 	import Globe from '@lucide/svelte/icons/globe';
@@ -36,12 +36,12 @@
 	import X from '@lucide/svelte/icons/x';
 	import Send from '@lucide/svelte/icons/send';
 	import TriangleAlert from '@lucide/svelte/icons/triangle-alert';
-	import type { Lead } from '$lib/server/db/schema';
+	import type { Lead } from '#lib/server/db/schema.js';
 	import type {
 		ApplicationEmailPhaseId,
 		ApplicationEmailProgress,
 		ApplicationEmailRun
-	} from '$lib/server/db/schema';
+	} from '#lib/server/db/schema.js';
 
 	const viennaDateTime = new Intl.DateTimeFormat('de-AT', {
 		timeZone: 'Europe/Vienna',
@@ -329,6 +329,7 @@
 				started?: boolean;
 				message?: string;
 			};
+
 			if (!response.ok || !body.started) {
 				throw new Error(body.message ?? 'Bewerbungsversand konnte nicht gestartet werden.');
 			}
@@ -354,6 +355,7 @@
 				const body = (await response.json()) as { run: ApplicationEmailRun | null };
 				polledEmailRun = body.run;
 				finalRun = polledEmailRun;
+
 				if (
 					!polledEmailRun ||
 					(polledEmailRun.status !== 'running' && polledEmailRun.status !== 'canceling')
@@ -426,7 +428,7 @@
 		return CATEGORY_LABELS[category] ?? category.replaceAll('_', ' ');
 	}
 
-	const columns: ColumnDef<Lead>[] = [
+	const columns: ServerColumnDef<Lead>[] = [
 		{
 			id: 'star',
 			header: '',
@@ -786,10 +788,8 @@
 								<button
 									class="flex items-center gap-2 underline"
 									onclick={() => copy(selected!.email!, 'E-Mail')}
+									><Mail class="size-4" />{selected.email}</button
 								>
-									<Mail class="size-4" />
-									{selected.email}
-								</button>
 							{:else}
 								<p class="flex items-center gap-2 text-muted-foreground">
 									<Mail class="size-4" /> Keine E-Mail
@@ -849,9 +849,8 @@
 									variant="outline"
 									size="icon"
 									onclick={() => copy(selected!.draftSubject ?? '', 'Betreff')}
+									><Copy class="size-4" /></Button
 								>
-									<Copy class="size-4" />
-								</Button>
 							</div>
 						</div>
 						<div class="space-y-1">
@@ -859,15 +858,16 @@
 							<Textarea id="body" readonly rows={10} value={selected.draftBody} />
 						</div>
 						{#if data.hasCv}
-							<a href={resolve('/api/cv')} class="flex items-center gap-2 text-sm underline">
+							<a href={resolve('api/cv')} class="flex items-center gap-2 text-sm underline">
 								<Paperclip class="size-4" />
 								<Download class="size-4" /> Lebenslauf herunterladen
 							</a>
 						{/if}
 						<div class="flex flex-col gap-2">
-							<Button class="w-full" onclick={() => copy(selected!.draftBody ?? '', 'Nachricht')}>
-								<Copy class="size-4" /> Text kopieren
-							</Button>
+							<Button class="w-full" onclick={() => copy(selected!.draftBody ?? '', 'Nachricht')}
+								><Copy class="size-4" />Text kopieren</Button
+							>
+
 							{#if selected.email}
 								<Button class="w-full" variant="outline" href={mailtoHref(selected)}>
 									<Mail class="size-4" /> In E-Mail öffnen

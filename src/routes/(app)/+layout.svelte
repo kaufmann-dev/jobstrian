@@ -1,7 +1,8 @@
 <script lang="ts">
 	import { page } from '$app/state';
 	import { resolve } from '$app/paths';
-	import { Button } from '$lib/components/ui/button/index.js';
+	import { Button } from '#lib/components/ui/button/index.js';
+	import { authClient } from '#lib/auth-client.js';
 	import { toggleMode } from 'mode-watcher';
 	import Briefcase from '@lucide/svelte/icons/briefcase';
 	import MapPin from '@lucide/svelte/icons/map-pin';
@@ -32,7 +33,7 @@
 		if (now - lastSessionTouch < sessionTouchInterval) return;
 		lastSessionTouch = now;
 
-		void fetch(resolve('/auth/session/touch'), {
+		void fetch(resolve('auth/session/touch'), {
 			method: 'POST',
 			headers: { 'x-jobstrian-user-interaction': '1' },
 			credentials: 'same-origin',
@@ -48,10 +49,7 @@
 		class="sticky top-0 z-40 border-b border-border/60 bg-background/80 backdrop-blur supports-[backdrop-filter]:bg-background/60"
 	>
 		<div class="mx-auto flex h-14 w-full max-w-[90rem] items-center gap-4 px-4 sm:gap-6">
-			<a
-				href={resolve('/')}
-				class="flex shrink-0 items-center gap-2.5 font-semibold tracking-tight"
-			>
+			<a href={resolve('')} class="flex shrink-0 items-center gap-2.5 font-semibold tracking-tight">
 				<span
 					class="flex size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground"
 				>
@@ -80,11 +78,14 @@
 					<Sun class="size-4 dark:hidden" />
 					<Moon class="hidden size-4 dark:block" />
 				</Button>
-				<form method="POST" action={resolve('/logout')}>
-					<Button type="submit" variant="ghost" size="icon" aria-label="Abmelden">
-						<LogOut class="size-4" />
-					</Button>
-				</form>
+
+				<Button
+					variant="ghost"
+					size="icon"
+					aria-label="Abmelden"
+					onclick={() => authClient.signOut({ callbackURL: '/login' })}
+					><LogOut class="size-4" /></Button
+				>
 			</div>
 		</div>
 	</header>

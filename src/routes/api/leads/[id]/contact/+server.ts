@@ -1,17 +1,17 @@
 import { eq } from 'drizzle-orm';
-import { json } from '@sveltejs/kit';
 import { z } from 'zod';
-import { leadContactSchema } from '$lib/lead-contact';
-import { db } from '$lib/server/db';
-import { lead } from '$lib/server/db/schema';
-import { maskLeadEmail } from '$lib/server/lead-email';
-import { ensureLeadDraft } from '$lib/server/application-email/drafts';
+import { leadContactSchema } from '#lib/lead-contact.js';
+import { db } from '#lib/server/db/index.js';
+import { lead } from '#lib/server/db/schema.js';
+import { maskLeadEmail } from '#lib/server/lead-email.js';
+import { ensureLeadDraft } from '#lib/server/application-email/drafts.js';
 import type { RequestHandler } from './$types';
 
 export const PATCH: RequestHandler = async ({ params, request }) => {
 	const id = z.coerce.number().int().positive().safeParse(params.id);
 	const body = leadContactSchema.safeParse(await request.json().catch(() => null));
-	if (!id.success || !body.success) return json({ message: 'Ungültige Eingabe' }, { status: 400 });
+	if (!id.success || !body.success)
+		return Response.json({ message: 'Ungültige Eingabe' }, { status: 400 });
 
 	const update: Partial<typeof lead.$inferInsert> = {};
 	if (body.data.phone !== undefined) {
@@ -31,10 +31,10 @@ export const PATCH: RequestHandler = async ({ params, request }) => {
 	}
 
 	const [updated] = await db.update(lead).set(update).where(eq(lead.id, id.data)).returning();
-	if (!updated) return json({ message: 'Betrieb nicht gefunden' }, { status: 404 });
+	if (!updated) return Response.json({ message: 'Betrieb nicht gefunden' }, { status: 404 });
 	if (body.data.email !== undefined && updated.email) {
 		const result = await ensureLeadDraft(updated.id);
-		return json({ ...maskLeadEmail(result.lead), draftWarning: result.warning });
+		return Response.json({ ...maskLeadEmail(result.lead), draftWarning: result.warning });
 	}
-	return json(maskLeadEmail(updated));
+	return Response.json(maskLeadEmail(updated));
 };

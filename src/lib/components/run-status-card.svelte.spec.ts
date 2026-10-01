@@ -59,7 +59,7 @@ it('shows the active phase progress collapsed and expands phase details from the
 		.toHaveAttribute('aria-expanded', 'true');
 	// Assert only expand-only content; phase label / count / bar now also exist in the header meter.
 	await expect.element(page.getByText('1 fehlgeschlagen')).toBeVisible();
-	await expect.element(page.getByText('2 übersprungen')).toBeVisible();
+	await expect.element(page.getByText('2 übersprungen', { exact: false })).toBeVisible();
 	await expect.element(page.getByText('Cafe Test: geplant 09:00')).toBeVisible();
 });
 

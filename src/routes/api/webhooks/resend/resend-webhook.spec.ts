@@ -4,7 +4,7 @@ import {
 	applicationEmail,
 	applicationEmailSuppression,
 	resendWebhookEvent
-} from '$lib/server/db/schema';
+} from '#lib/server/db/schema.js';
 
 const mocks = vi.hoisted(() => ({
 	insert: vi.fn(),
@@ -15,8 +15,8 @@ const mocks = vi.hoisted(() => ({
 	getSettings: vi.fn()
 }));
 
-vi.mock('$lib/server/db', () => ({ db: mocks }));
-vi.mock('$lib/server/settings', () => ({ getSettings: mocks.getSettings }));
+vi.mock('#lib/server/db/index.js', () => ({ db: mocks }));
+vi.mock('#lib/server/settings.js', () => ({ getSettings: mocks.getSettings }));
 
 import { POST } from './+server';
 

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { OsmBusinessTag } from '$lib/search-config';
+import type { OsmBusinessTag } from '#lib/search-config.js';
 import {
 	compileBusinessOverpassQueries,
 	findNearbyBusinesses,

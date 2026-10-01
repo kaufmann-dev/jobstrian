@@ -1,5 +1,4 @@
-import { json } from '@sveltejs/kit';
-import { getLeadPage, leadFiltersSchema } from '$lib/server/list-pages';
+import { getLeadPage, leadFiltersSchema } from '#lib/server/list-pages.js';
 import type { RequestHandler } from './$types';
 
 export const GET: RequestHandler = async ({ url }) => {
@@ -11,12 +10,12 @@ export const GET: RequestHandler = async ({ url }) => {
 		sort: url.searchParams.get('sort') ?? undefined,
 		cursor: url.searchParams.get('cursor')
 	});
-	if (!result.success) return json({ message: 'Ungültige Filter' }, { status: 400 });
+	if (!result.success) return Response.json({ message: 'Ungültige Filter' }, { status: 400 });
 	const { cursor, ...filters } = result.data;
 	try {
-		return json(await getLeadPage(filters, cursor));
+		return Response.json(await getLeadPage(filters, cursor));
 	} catch (error) {
 		console.error('Betriebe konnten nicht aufgelistet werden', error);
-		return json({ message: 'Betriebe konnten nicht geladen werden.' }, { status: 500 });
+		return Response.json({ message: 'Betriebe konnten nicht geladen werden.' }, { status: 500 });
 	}
 };

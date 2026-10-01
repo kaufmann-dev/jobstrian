@@ -12,14 +12,14 @@ import {
 	index
 } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
-import type { Certification, EducationHistory, WorkExperience } from '$lib/profile';
-import type { OsmBusinessTag, OsmBusinessTagSuggestion } from '$lib/search-config';
+import type { Certification, EducationHistory, WorkExperience } from '#lib/profile.js';
+import type { OsmBusinessTag, OsmBusinessTagSuggestion } from '#lib/search-config.js';
 import {
 	DEFAULT_LEAD_RANKING_CRITERIA,
 	DEFAULT_LISTING_RANKING_CRITERIA,
 	type RankFactor,
 	type RankingCriteria
-} from '$lib/ranking-criteria';
+} from '#lib/ranking-criteria.js';
 
 /** PostgreSQL bytea, surfaced as a Node Buffer. */
 const bytea = customType<{ data: Buffer; default: false }>({
@@ -59,7 +59,6 @@ export const session = pgTable(
 		ipAddress: text('ip_address'),
 		userAgent: text('user_agent'),
 		lastActiveAt: timestamp('last_active_at').defaultNow().notNull(),
-		idTokenHint: text('id_token_hint'),
 		userId: text('user_id')
 			.notNull()
 			.references(() => user.id, { onDelete: 'cascade' })

@@ -10,7 +10,7 @@ import {
 	profilePreviewSchema,
 	type ProfilePatch,
 	type ProfilePreview
-} from '$lib/profile';
+} from '#lib/profile.js';
 import type { Settings } from './db/schema';
 import { getCvData } from './cv';
 import { chatJson, getLlmConfig, LlmHttpError } from './llm/client';

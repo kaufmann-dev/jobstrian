@@ -1,11 +1,29 @@
 <script lang="ts">
-	import * as Card from '$lib/components/ui/card/index.js';
-	import AuthShell from '$lib/components/auth-shell.svelte';
-	import { Button } from '$lib/components/ui/button/index.js';
+	import * as Card from '#lib/components/ui/card/index.js';
+	import AuthShell from '#lib/components/auth-shell.svelte';
+	import { Button } from '#lib/components/ui/button/index.js';
 	import LogIn from '@lucide/svelte/icons/log-in';
 	import type { PageProps } from './$types';
+	import { authClient } from '#lib/auth-client.js';
+	import { OIDC_PROVIDER_ID } from '#lib/oidc-policy.js';
 
-	let { data, form }: PageProps = $props();
+	let { data }: PageProps = $props();
+	let pending = $state(false);
+	let startError = $state(false);
+
+	async function signIn() {
+		pending = true;
+		startError = false;
+		const { error } = await authClient.signIn.social({
+			provider: OIDC_PROVIDER_ID,
+			callbackURL: data.returnTo,
+			errorCallbackURL: '/login'
+		});
+		if (error) {
+			startError = true;
+			pending = false;
+		}
+	}
 </script>
 
 <svelte:head>
@@ -18,13 +36,20 @@
 </svelte:head>
 
 <AuthShell title="Anmelden" description="Melde dich an, um deine Jobsuche zu verwalten.">
-	<form method="POST" action="?/oidc">
+	<form
+		onsubmit={(event) => {
+			event.preventDefault();
+			void signIn();
+		}}
+	>
 		<Card.Content class="space-y-4">
 			<p class="text-sm text-muted-foreground">
 				Die Anmeldung erfolgt über den zentralen Identitätsdienst.
 			</p>
-			{#if form?.error}
-				<p class="text-sm text-destructive" role="alert">{form.error}</p>
+			{#if startError}
+				<p class="text-sm text-destructive" role="alert">
+					Der Anmeldedienst ist gerade nicht erreichbar. Bitte versuche es erneut.
+				</p>
 			{:else if data.providerError}
 				<p class="text-sm text-destructive" role="alert">
 					Die Anmeldung wurde nicht abgeschlossen. Bitte versuche es erneut.
@@ -32,7 +57,7 @@
 			{/if}
 		</Card.Content>
 		<Card.Footer class="mt-6">
-			<Button type="submit" class="w-full">
+			<Button type="submit" class="w-full" disabled={pending}>
 				<LogIn class="size-4" />
 				Mit OIDC anmelden
 			</Button>
