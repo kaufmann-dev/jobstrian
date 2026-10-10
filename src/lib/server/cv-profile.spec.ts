@@ -1,17 +1,23 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { Settings } from './db/schema';
+import type { Person } from './db/schema';
+import { LlmNotConfiguredError } from './llm/client';
 import { DEFAULT_BUSINESS_OSM_TAGS } from '#lib/search-config.js';
 import {
 	DEFAULT_LEAD_RANKING_CRITERIA,
 	DEFAULT_LISTING_RANKING_CRITERIA
 } from '#lib/ranking-criteria.js';
 
-const { getCvData, getSettings } = vi.hoisted(() => ({
+const { getCvData, getPerson, getLlmConfig } = vi.hoisted(() => ({
 	getCvData: vi.fn(),
-	getSettings: vi.fn()
+	getPerson: vi.fn(),
+	getLlmConfig: vi.fn()
 }));
 vi.mock('./cv', () => ({ getCvData }));
-vi.mock('./settings', () => ({ getSettings, updateSettings: vi.fn() }));
+vi.mock('./people', () => ({ getPerson, updatePerson: vi.fn() }));
+vi.mock('./llm/connections', () => ({
+	getLlmConfig,
+	getLlmLimiter: () => ({ run: async (task: () => unknown) => task() })
+}));
 
 import {
 	createProfilePreview,
@@ -20,9 +26,14 @@ import {
 	selectedProfilePatch
 } from './cv-profile';
 
-function settings(patch: Partial<Settings> = {}): Settings {
+function settings(patch: Partial<Person> = {}): Person {
 	return {
 		id: 1,
+		name: 'Test',
+		slug: 'test',
+		color: 'amber',
+		createdAt: new Date(),
+		llmModelId: null,
 		fullName: '',
 		phone: '',
 		email: '',
@@ -50,13 +61,6 @@ function settings(patch: Partial<Settings> = {}): Settings {
 		businessOsmTags: DEFAULT_BUSINESS_OSM_TAGS,
 		businessRadiusMeters: 5000,
 		enabledSources: [],
-		llmBaseUrl: '',
-		llmApiKey: '',
-		llmModel: '',
-		llmRequestsPerMinute: 300,
-		llmMaxConcurrent: 50,
-		llmVerified: false,
-		llmVerifiedAt: null,
 		resendApiKey: '',
 		resendDomain: '',
 		resendDomainId: null,
@@ -143,23 +147,26 @@ describe('normalizeProfilePreview', () => {
 describe('createProfilePreview', () => {
 	beforeEach(() => {
 		getCvData.mockReset();
-		getSettings.mockReset();
+		getPerson.mockReset();
+		getLlmConfig.mockReset();
 	});
 
 	it('rejects a missing stored CV', async () => {
 		getCvData.mockResolvedValue(null);
-		getSettings.mockResolvedValue(
-			settings({ llmBaseUrl: 'https://llm.test/v1', llmModel: 'test' })
-		);
+		getPerson.mockResolvedValue(settings());
+		getLlmConfig.mockResolvedValue({ baseUrl: 'https://llm.test/v1', apiKey: '', model: 'test' });
 
-		await expect(createProfilePreview()).rejects.toThrow('Kein Lebenslauf hinterlegt.');
+		await expect(createProfilePreview(1)).rejects.toThrow('Kein Lebenslauf hinterlegt.');
 	});
 
 	it('rejects a missing LLM configuration before parsing the PDF', async () => {
 		getCvData.mockResolvedValue({ mimeType: 'application/pdf', data: Buffer.from('not parsed') });
-		getSettings.mockResolvedValue(settings());
+		getPerson.mockResolvedValue(settings());
+		getLlmConfig.mockRejectedValue(new LlmNotConfiguredError());
 
-		await expect(createProfilePreview()).rejects.toThrow('Die KI-Konfiguration ist unvollständig.');
+		await expect(createProfilePreview(1)).rejects.toThrow(
+			'Die KI-Konfiguration ist unvollständig.'
+		);
 	});
 });
 

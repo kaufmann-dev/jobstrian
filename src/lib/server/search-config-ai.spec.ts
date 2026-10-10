@@ -1,25 +1,30 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { Settings } from './db/schema';
+import type { Person } from './db/schema';
 import { DEFAULT_BUSINESS_OSM_TAGS } from '#lib/search-config.js';
 import {
 	DEFAULT_LEAD_RANKING_CRITERIA,
 	DEFAULT_LISTING_RANKING_CRITERIA
 } from '#lib/ranking-criteria.js';
 
-const { chatJson, getSettings, updateSettings } = vi.hoisted(() => ({
+const { chatJson, getPerson, updatePerson, getLlmConfig } = vi.hoisted(() => ({
 	chatJson: vi.fn(),
-	getSettings: vi.fn(),
-	updateSettings: vi.fn()
+	getPerson: vi.fn(),
+	updatePerson: vi.fn(),
+	getLlmConfig: vi.fn()
 }));
 
 vi.mock('./llm/client', async (importOriginal) => {
 	const original = await importOriginal<typeof import('./llm/client')>();
 	return { ...original, chatJson };
 });
-vi.mock('./settings', () => ({ getSettings, updateSettings }));
+vi.mock('./people', () => ({ getPerson, updatePerson }));
+vi.mock('./llm/connections', () => ({
+	getLlmConfig,
+	getLlmLimiter: () => ({ run: async (task: () => unknown) => task() })
+}));
 
 import { searchConfigPatchSchema, searchConfigPreviewSchema } from '#lib/search-config.js';
-import { LlmHttpError } from './llm/client';
+import { LlmHttpError, LlmNotConfiguredError } from './llm/client';
 import {
 	applySearchConfigPatch,
 	createSearchConfigPreview,
@@ -27,9 +32,14 @@ import {
 	selectedSearchConfigPatch
 } from './search-config-ai';
 
-function settings(patch: Partial<Settings> = {}): Settings {
+function settings(patch: Partial<Person> = {}): Person {
 	return {
 		id: 1,
+		name: 'Test',
+		slug: 'test',
+		color: 'amber',
+		createdAt: new Date(),
+		llmModelId: null,
 		fullName: '',
 		phone: '',
 		email: '',
@@ -57,13 +67,6 @@ function settings(patch: Partial<Settings> = {}): Settings {
 		businessOsmTags: DEFAULT_BUSINESS_OSM_TAGS,
 		businessRadiusMeters: 5000,
 		enabledSources: [],
-		llmBaseUrl: 'https://llm.test/v1',
-		llmApiKey: 'secret',
-		llmModel: 'test-model',
-		llmRequestsPerMinute: 300,
-		llmMaxConcurrent: 50,
-		llmVerified: false,
-		llmVerifiedAt: null,
 		resendApiKey: '',
 		resendDomain: '',
 		resendDomainId: null,
@@ -169,32 +172,39 @@ describe('selectedSearchConfigPatch', () => {
 describe('createSearchConfigPreview', () => {
 	beforeEach(() => {
 		chatJson.mockReset();
-		getSettings.mockReset();
-		updateSettings.mockReset();
+		getPerson.mockReset();
+		updatePerson.mockReset();
+		getLlmConfig.mockReset();
+		getLlmConfig.mockResolvedValue({
+			baseUrl: 'https://llm.test/v1',
+			apiKey: 'secret',
+			model: 'm'
+		});
 	});
 
 	it('returns a controlled error when LLM config is missing', async () => {
-		getSettings.mockResolvedValue(settings({ llmBaseUrl: '', llmModel: '' }));
+		getPerson.mockResolvedValue(settings());
+		getLlmConfig.mockRejectedValue(new LlmNotConfiguredError());
 
-		await expect(createSearchConfigPreview('Pflegejobs')).rejects.toThrow(
+		await expect(createSearchConfigPreview(1, 'Pflegejobs')).rejects.toThrow(
 			'Die KI-Konfiguration ist unvollständig.'
 		);
 	});
 
 	it('returns a controlled error for unsupported AI output', async () => {
-		getSettings.mockResolvedValue(settings());
+		getPerson.mockResolvedValue(settings());
 		chatJson.mockResolvedValue({ businessOsmTags: [{ key: 'amenity', value: 'not_in_catalog' }] });
 
-		await expect(createSearchConfigPreview('Pflegejobs')).rejects.toThrow(
+		await expect(createSearchConfigPreview(1, 'Pflegejobs')).rejects.toThrow(
 			'Die KI-Antwort enthält keine gültige Suchkonfiguration.'
 		);
 	});
 
 	it('returns a useful message for LLM auth failure', async () => {
-		getSettings.mockResolvedValue(settings());
+		getPerson.mockResolvedValue(settings());
 		chatJson.mockRejectedValue(new LlmHttpError(401, 'Unauthorized'));
 
-		await expect(createSearchConfigPreview('Pflegejobs')).rejects.toThrow(
+		await expect(createSearchConfigPreview(1, 'Pflegejobs')).rejects.toThrow(
 			'KI-Anmeldung fehlgeschlagen. Prüfe den gespeicherten API-Key.'
 		);
 	});
@@ -202,22 +212,22 @@ describe('createSearchConfigPreview', () => {
 
 describe('applySearchConfigPatch', () => {
 	beforeEach(() => {
-		getSettings.mockReset();
-		updateSettings.mockReset();
+		getPerson.mockReset();
+		updatePerson.mockReset();
 	});
 
 	it('validates and applies selected fields', async () => {
 		const updated = settings({ jobSearchKeywords: ['Pflege'] });
-		getSettings.mockResolvedValue(settings());
-		updateSettings.mockResolvedValue(updated);
+		getPerson.mockResolvedValue(settings());
+		updatePerson.mockResolvedValue(updated);
 
 		await expect(
-			applySearchConfigPatch({
+			applySearchConfigPatch(1, {
 				selected: ['jobSearchKeywords'],
 				searchConfig: { jobSearchKeywords: ['Pflege'], jobSearchLocations: ['Graz'] }
 			})
 		).resolves.toBe(updated);
 
-		expect(updateSettings).toHaveBeenCalledWith({ jobSearchKeywords: ['Pflege'] });
+		expect(updatePerson).toHaveBeenCalledWith(1, { jobSearchKeywords: ['Pflege'] });
 	});
 });

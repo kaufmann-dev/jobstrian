@@ -64,7 +64,7 @@ describe('refresh search profile', () => {
 describe('listing reconciliation scope', () => {
 	it('closes vanished listings only for searched source and city combinations', () => {
 		const scopes = listingSearchScopes(['ams', 'willhaben'], ['Graz']);
-		const query = dialect.sqlToQuery(listingReconcileWhere(7, scopes)!);
+		const query = dialect.sqlToQuery(listingReconcileWhere(3, 7, scopes)!);
 
 		expect(query.sql).toContain('"listing"."source" = $');
 		expect(query.sql).toContain('"listing"."discovery_city" = $');
@@ -79,7 +79,7 @@ describe('listing reconciliation scope', () => {
 		// swallowed failure; here only willhaben completed, so ams listings must
 		// not be closed.
 		const scopes = listingSearchScopes(['willhaben'], ['Graz']);
-		const query = dialect.sqlToQuery(listingReconcileWhere(7, scopes)!);
+		const query = dialect.sqlToQuery(listingReconcileWhere(3, 7, scopes)!);
 
 		expect(query.params).toContain('willhaben');
 		expect(query.params).not.toContain('ams');
@@ -87,7 +87,7 @@ describe('listing reconciliation scope', () => {
 
 	it('closes nothing when no source completed', () => {
 		const scopes = listingSearchScopes([], ['Graz']);
-		expect(listingReconcileWhere(7, scopes)).toBeUndefined();
+		expect(listingReconcileWhere(3, 7, scopes)).toBeUndefined();
 	});
 });
 
@@ -101,8 +101,8 @@ describe('startRefresh concurrency guard', () => {
 		// activeRun not yet assigned) when the second request arrives.
 		returningMock.mockReturnValue(new Promise<never>(() => {}));
 
-		const first = startRefresh();
-		const second = await startRefresh();
+		const first = startRefresh(1);
+		const second = await startRefresh(2);
 
 		expect(second).toBeNull();
 		expect(returningMock).toHaveBeenCalledTimes(1);

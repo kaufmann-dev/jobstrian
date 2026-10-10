@@ -1,5 +1,5 @@
-import type { Settings, Lead } from '../db/schema';
-import { chatJson, type LlmConfig } from './client';
+import type { Person, Lead } from '../db/schema';
+import { chatJson, type LlmEndpoint } from './client';
 import { profileBlock } from './rank';
 import type { LlmLimiter } from './limiter';
 
@@ -39,7 +39,7 @@ export class DraftFormatError extends Error {
 	}
 }
 
-function draftProfileBlock(settings: Settings): string {
+function draftProfileBlock(settings: Person): string {
 	const block = profileBlock(settings);
 	if (!settings.homeAddress) return block;
 	return block
@@ -56,13 +56,13 @@ function proximityLabel(distanceMeters: number): string {
 	return 'Nähe zum Wohnort: im Suchradius';
 }
 
-export function targetRoleLine(settings: Settings): string {
+export function targetRoleLine(settings: Person): string {
 	return settings.jobSearchKeywords.length
 		? `Zielrolle aus Stellen-Keywords: ${settings.jobSearchKeywords.join(', ')}`
 		: 'Zielrolle: nicht eindeutig; neutral als passende Mitarbeit formulieren';
 }
 
-export function buildColdEmailPrompt(settings: Settings, lead: Lead): string {
+export function buildColdEmailPrompt(settings: Person, lead: Lead): string {
 	const matchedTags = lead.matchedOsmTags.length
 		? lead.matchedOsmTags.map((tag) => tag.label).join(', ')
 		: 'keine gespeicherten OSM-Kategorien';
@@ -81,7 +81,7 @@ ${proximityLabel(lead.distanceMeters)}
 Schreibe eine passende Initiativbewerbung per E-Mail an diesen Betrieb. Der Lebenslauf liegt der E-Mail als Anhang bei.`;
 }
 
-function senderName(settings: Settings): string {
+function senderName(settings: Person): string {
 	return settings.fullName.trim() || 'Name nicht angegeben';
 }
 
@@ -139,8 +139,8 @@ function guardDraftBody(rawBody: unknown, sender: string): string | null {
 }
 
 export async function draftColdEmail(
-	cfg: LlmConfig,
-	settings: Settings,
+	cfg: LlmEndpoint,
+	settings: Person,
 	lead: Lead,
 	limiter: LlmLimiter,
 	signal?: AbortSignal

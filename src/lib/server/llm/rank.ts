@@ -1,5 +1,5 @@
-import type { Settings, Listing, Lead } from '../db/schema';
-import { chatJson, type LlmConfig } from './client';
+import type { Person, Listing, Lead } from '../db/schema';
+import { chatJson, type LlmEndpoint } from './client';
 import type { LlmLimiter } from './limiter';
 import { osmBusinessTagLabel } from '#lib/search-config.js';
 import {
@@ -19,7 +19,7 @@ export interface RankResult {
 	factors: RankFactor[];
 }
 
-export function profileBlock(s: Settings): string {
+export function profileBlock(s: Person): string {
 	const exp =
 		s.experienceYears != null
 			? `${s.experienceYears} Jahr${s.experienceYears === 1 ? '' : 'e'} relevante Erfahrung`
@@ -103,7 +103,7 @@ function rankedResult(raw: unknown, criteria: RankingCriteria): RankResult {
 	return weightedRankingScore(criteria, scores);
 }
 
-export function buildListingRankingPrompt(settings: Settings, listing: Listing): string {
+export function buildListingRankingPrompt(settings: Person, listing: Listing): string {
 	return `BEWERBER:\n${profileBlock(settings)}\n\nKRITERIEN FÜR STELLEN:
 ${criteriaBlock(settings.listingRankingCriteria)}
 
@@ -117,7 +117,7 @@ Gehalt: ${listing.salary ?? 'unbekannt'}
 Beschreibung: ${(listing.description ?? '').slice(0, 2000)}`;
 }
 
-export function buildLeadRankingPrompt(settings: Settings, lead: Lead): string {
+export function buildLeadRankingPrompt(settings: Person, lead: Lead): string {
 	const targetRole = settings.jobSearchKeywords.length
 		? settings.jobSearchKeywords.join(', ')
 		: 'keine eindeutige Zielrolle konfiguriert';
@@ -138,8 +138,8 @@ Bewerte, wie gut eine Initiativbewerbung mit den konfigurierten Stellen-Keywords
 }
 
 export async function rankListing(
-	cfg: LlmConfig,
-	settings: Settings,
+	cfg: LlmEndpoint,
+	settings: Person,
 	listing: Listing,
 	limiter: LlmLimiter,
 	signal?: AbortSignal
@@ -157,8 +157,8 @@ export async function rankListing(
 }
 
 export async function rankLead(
-	cfg: LlmConfig,
-	settings: Settings,
+	cfg: LlmEndpoint,
+	settings: Person,
 	lead: Lead,
 	limiter: LlmLimiter,
 	signal?: AbortSignal

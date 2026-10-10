@@ -13,10 +13,10 @@ import {
 	type SearchConfigPatch,
 	type SearchConfigPreview
 } from '#lib/search-config.js';
-import type { Settings } from './db/schema';
-import { chatJson, getLlmConfig, LlmHttpError } from './llm/client';
-import { LlmLimiter } from './llm/limiter';
-import { getSettings, updateSettings } from './settings';
+import type { Person } from './db/schema';
+import { chatJson, LlmHttpError } from './llm/client';
+import { getLlmConfig, getLlmLimiter } from './llm/connections';
+import { getPerson, updatePerson } from './people';
 
 export class SearchConfigAiError extends Error {
 	constructor(
@@ -132,7 +132,10 @@ Regeln:
 - Lasse leere oder nicht ableitbare Felder vollständig weg.
 - Gib OSM-Tags als Objekte mit key und value zurück.`;
 
-export async function createSearchConfigPreview(intent: string): Promise<SearchConfigPreview> {
+export async function createSearchConfigPreview(
+	personId: number,
+	intent: string
+): Promise<SearchConfigPreview> {
 	const trimmedIntent = intent.trim();
 	if (!trimmedIntent) {
 		throw new SearchConfigAiError(
@@ -143,14 +146,11 @@ export async function createSearchConfigPreview(intent: string): Promise<SearchC
 		throw new SearchConfigAiError('Die Beschreibung ist zu lang.', 413);
 	}
 
-	const settings = await getSettings();
+	const settings = await getPerson(personId);
 	const cfg = await getLlmConfig(settings).catch(() => {
 		throw new SearchConfigAiError('Die KI-Konfiguration ist unvollständig.', 409);
 	});
-	const limiter = new LlmLimiter({
-		requestsPerMinute: settings.llmRequestsPerMinute,
-		maxConcurrent: settings.llmMaxConcurrent
-	});
+	const limiter = getLlmLimiter(cfg);
 
 	let raw: unknown;
 	try {
@@ -186,8 +186,8 @@ export async function createSearchConfigPreview(intent: string): Promise<SearchC
 	return parsed.data;
 }
 
-export function selectedSearchConfigPatch(input: SearchConfigPatch): Partial<Settings> {
-	const patch: Partial<Settings> = {};
+export function selectedSearchConfigPatch(input: SearchConfigPatch): Partial<Person> {
+	const patch: Partial<Person> = {};
 	for (const field of input.selected) {
 		const value = input.searchConfig[field];
 		if (value !== undefined) Object.assign(patch, { [field]: value });
@@ -195,11 +195,11 @@ export function selectedSearchConfigPatch(input: SearchConfigPatch): Partial<Set
 	return patch;
 }
 
-export async function applySearchConfigPatch(input: unknown): Promise<Settings> {
+export async function applySearchConfigPatch(personId: number, input: unknown): Promise<Person> {
 	const parsed = searchConfigPatchSchema.safeParse(input);
 	if (!parsed.success) {
 		throw new SearchConfigAiError('Die ausgewählte Suchkonfiguration ist ungültig.');
 	}
-	await getSettings();
-	return updateSettings(selectedSearchConfigPatch(parsed.data));
+	await getPerson(personId);
+	return updatePerson(personId, selectedSearchConfigPatch(parsed.data));
 }

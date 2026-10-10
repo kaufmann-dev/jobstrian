@@ -11,6 +11,17 @@ import {
 const issuer = 'https://identity.example.com/realms/admins';
 
 describe('OIDC discovery policy', () => {
+	it('exposes only the OIDC and OAuth 2.1 auth endpoints', () => {
+		expect(isAuthApiRequest('GET', '/api/auth/oauth2/authorize')).toBe(true);
+		expect(isAuthApiRequest('POST', '/api/auth/oauth2/token')).toBe(true);
+		expect(isAuthApiRequest('POST', '/api/auth/oauth2/register')).toBe(true);
+		expect(isAuthApiRequest('POST', '/api/auth/oauth2/consent')).toBe(true);
+		expect(isAuthApiRequest('GET', '/api/auth/jwks')).toBe(true);
+		expect(isAuthApiRequest('POST', '/api/auth/oauth2/create-client')).toBe(false);
+		expect(isAuthApiRequest('POST', '/api/auth/oauth2/delete-consent')).toBe(false);
+		expect(isAuthApiRequest('GET', '/api/auth/oauth2/get-clients')).toBe(false);
+	});
+
 	it('exposes only the OIDC sign-in, callback, and sign-out auth endpoints', () => {
 		expect(isAuthApiRequest('POST', '/api/auth/sign-in/social')).toBe(true);
 		expect(isAuthApiRequest('GET', '/api/auth/callback/oidc')).toBe(true);
@@ -29,6 +40,7 @@ describe('OIDC discovery policy', () => {
 		expect(safeReturnTo('/\\evil.example.com/')).toBe('/');
 		expect(safeReturnTo('/login?returnTo=/jobs')).toBe('/');
 		expect(safeReturnTo('/api/auth/sign-out')).toBe('/');
+		expect(safeReturnTo('/consent?client_id=x&sig=y')).toBe('/');
 	});
 
 	it('builds the discovery URL from issuers with or without a trailing slash', () => {

@@ -300,10 +300,12 @@ function listingOrder(sort: ListingSort): SQL[] {
 }
 
 export async function getListingPage(
+	personId: number,
 	filters: ListingFilters,
 	cursor: string | null = null
 ): Promise<CursorPage<Listing>> {
-	const where = listingWhere(filters);
+	const owner = eq(listing.personId, personId);
+	const where = and(owner, listingWhere(filters));
 	const decodedCursor = decodeListingCursor(cursor);
 	const [rows, matchingTotal, total] = await Promise.all([
 		db
@@ -313,7 +315,7 @@ export async function getListingPage(
 			.orderBy(...listingOrder(filters.sort))
 			.limit(LIST_BATCH_SIZE + 1),
 		countRows(listing, where),
-		countRows(listing)
+		countRows(listing, owner)
 	]);
 	const hasMore = rows.length > LIST_BATCH_SIZE;
 	const items = hasMore ? rows.slice(0, LIST_BATCH_SIZE) : rows;
@@ -411,10 +413,12 @@ function leadOrder(sort: LeadSort): SQL[] {
 }
 
 export async function getLeadPage(
+	personId: number,
 	filters: LeadFilters,
 	cursor: string | null = null
 ): Promise<CursorPage<Lead>> {
-	const where = leadWhere(filters);
+	const owner = eq(lead.personId, personId);
+	const where = and(owner, leadWhere(filters));
 	const decodedCursor = decodeLeadCursor(cursor);
 	const [rows, matchingTotal, total] = await Promise.all([
 		db
@@ -424,7 +428,7 @@ export async function getLeadPage(
 			.orderBy(...leadOrder(filters.sort))
 			.limit(LIST_BATCH_SIZE + 1),
 		countRows(lead, where),
-		countRows(lead)
+		countRows(lead, owner)
 	]);
 	const hasMore = rows.length > LIST_BATCH_SIZE;
 	const page = hasMore ? rows.slice(0, LIST_BATCH_SIZE) : rows;

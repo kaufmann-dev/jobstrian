@@ -1,7 +1,7 @@
 import * as cheerio from 'cheerio';
 import { and, eq, isNull, ne, or, sql } from 'drizzle-orm';
 import { db } from '../db';
-import { lead, user, type Settings } from '../db/schema';
+import { lead, user, type Person } from '../db/schema';
 import { fetchText } from '../util/http';
 import { haversineMeters } from '../util/distance';
 import { mapLimit } from '../util/concurrency';
@@ -206,14 +206,14 @@ function normalizeDomain(value: string): string {
 		.replace(/\/.*$/, '');
 }
 
-function configuredSenderEmail(settings: Settings): string | undefined {
+function configuredSenderEmail(settings: Person): string | undefined {
 	const domain = normalizeDomain(settings.resendDomain);
 	if (!domain) return undefined;
 	const localPart = settings.resendFromLocalPart.trim().toLowerCase() || 'bewerbung';
 	return normalizeEmailCandidate(`${localPart}@${domain}`);
 }
 
-async function appOwnedEmails(settings: Settings): Promise<Set<string>> {
+async function appOwnedEmails(settings: Person): Promise<Set<string>> {
 	const rows = await db.select({ email: user.email }).from(user);
 	const emails = new Set<string>();
 	for (const raw of [
@@ -289,7 +289,7 @@ export interface LeadSyncResult {
  * websites, and upsert them as leads. Returns ids of newly inserted leads.
  */
 export async function syncLeads(
-	settings: Settings,
+	settings: Person,
 	runId: number,
 	signal?: AbortSignal
 ): Promise<LeadSyncResult> {
@@ -325,7 +325,7 @@ export async function syncLeads(
 					emailSource = 'website';
 				}
 			}
-			const isNew = await upsertLead(place, distance, email, emailSource, runId);
+			const isNew = await upsertLead(settings.id, place, distance, email, emailSource, runId);
 			return isNew ? place.osmId : null;
 		},
 		signal
@@ -339,11 +339,12 @@ export async function syncLeads(
  * engaged with (starred, contacted/ignored, or manually edited). Returns the
  * number of removed leads. Call only after a successful, complete sync.
  */
-export async function reconcileLeads(runId: number): Promise<number> {
+export async function reconcileLeads(personId: number, runId: number): Promise<number> {
 	const removed = await db
 		.delete(lead)
 		.where(
 			and(
+				eq(lead.personId, personId),
 				or(isNull(lead.lastSeenRunId), ne(lead.lastSeenRunId, runId)),
 				eq(lead.starred, false),
 				eq(lead.status, 'new'),
@@ -357,6 +358,7 @@ export async function reconcileLeads(runId: number): Promise<number> {
 }
 
 async function upsertLead(
+	personId: number,
 	place: OverpassPlace,
 	distance: number,
 	email: string | undefined,
@@ -377,6 +379,7 @@ async function upsertLead(
 	const result = await db
 		.insert(lead)
 		.values({
+			personId,
 			osmId: place.osmId,
 			name: place.name,
 			category: place.category,
@@ -407,7 +410,7 @@ async function upsertLead(
 			lastSeenRunId: runId
 		})
 		.onConflictDoUpdate({
-			target: lead.osmId,
+			target: [lead.personId, lead.osmId],
 			set: {
 				name: place.name,
 				category: place.category,

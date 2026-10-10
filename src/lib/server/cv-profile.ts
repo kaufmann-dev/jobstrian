@@ -11,11 +11,11 @@ import {
 	type ProfilePatch,
 	type ProfilePreview
 } from '#lib/profile.js';
-import type { Settings } from './db/schema';
+import type { Person } from './db/schema';
 import { getCvData } from './cv';
-import { chatJson, getLlmConfig, LlmHttpError } from './llm/client';
-import { LlmLimiter } from './llm/limiter';
-import { getSettings, updateSettings } from './settings';
+import { chatJson, LlmHttpError } from './llm/client';
+import { getLlmConfig, getLlmLimiter } from './llm/connections';
+import { getPerson, updatePerson } from './people';
 
 const MAX_PDF_TEXT_LENGTH = 100_000;
 const STRING_FIELDS = [
@@ -190,8 +190,8 @@ Regeln:
 - Verwende für fehlende Eigenschaften innerhalb eines gefundenen Listeneintrags einen leeren String.
 - Übernimm außer Name, Telefon und E-Mail keine sensiblen persönlichen Daten (z.B. Geburtsdatum, Nationalität, Familienstand).`;
 
-export async function createProfilePreview(): Promise<ProfilePreview> {
-	const [storedCv, settings] = await Promise.all([getCvData(), getSettings()]);
+export async function createProfilePreview(personId: number): Promise<ProfilePreview> {
+	const [storedCv, settings] = await Promise.all([getCvData(personId), getPerson(personId)]);
 	if (!storedCv) throw new CvProfileError('Kein Lebenslauf hinterlegt.', 404);
 	if (storedCv.mimeType !== 'application/pdf') {
 		throw new CvProfileError('Der gespeicherte Lebenslauf ist keine PDF-Datei.', 415);
@@ -201,10 +201,7 @@ export async function createProfilePreview(): Promise<ProfilePreview> {
 		throw new CvProfileError('Die KI-Konfiguration ist unvollständig.', 409);
 	});
 	const text = await extractPdfText(storedCv.data);
-	const limiter = new LlmLimiter({
-		requestsPerMinute: settings.llmRequestsPerMinute,
-		maxConcurrent: settings.llmMaxConcurrent
-	});
+	const limiter = getLlmLimiter(cfg);
 	let raw: unknown;
 	try {
 		raw = await chatJson<unknown>(
@@ -235,8 +232,8 @@ export async function createProfilePreview(): Promise<ProfilePreview> {
 	return parsed.data;
 }
 
-export function selectedProfilePatch(current: Settings, input: ProfilePatch): Partial<Settings> {
-	const patch: Partial<Settings> = {};
+export function selectedProfilePatch(current: Person, input: ProfilePatch): Partial<Person> {
+	const patch: Partial<Person> = {};
 	for (const field of input.selected) {
 		const value = input.profile[field];
 		if (value !== undefined) Object.assign(patch, { [field]: value });
@@ -255,9 +252,9 @@ export function selectedProfilePatch(current: Settings, input: ProfilePatch): Pa
 	return patch;
 }
 
-export async function applyProfilePatch(input: unknown): Promise<Settings> {
+export async function applyProfilePatch(personId: number, input: unknown): Promise<Person> {
 	const parsed = profilePatchSchema.safeParse(input);
 	if (!parsed.success) throw new CvProfileError('Die ausgewählten Profildaten sind ungültig.');
-	const current = await getSettings();
-	return updateSettings(selectedProfilePatch(current, parsed.data));
+	const current = await getPerson(personId);
+	return updatePerson(personId, selectedProfilePatch(current, parsed.data));
 }

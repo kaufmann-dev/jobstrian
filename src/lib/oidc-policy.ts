@@ -2,11 +2,22 @@ export const OIDC_PROVIDER_ID = 'oidc';
 export const OIDC_CALLBACK_PATH = `/api/auth/callback/${OIDC_PROVIDER_ID}`;
 export const OIDC_SCOPES = ['openid', 'profile', 'email'] as const;
 
-/** Better Auth endpoints the app exposes: OIDC sign-in start, provider callback, and sign-out. */
+/**
+ * Better Auth endpoints the app exposes: OIDC sign-in start, provider callback and sign-out for
+ * the owner's browser, plus the OAuth 2.1 endpoints MCP clients use to connect.
+ */
 const AUTH_API_ROUTES = new Set([
 	'POST /api/auth/sign-in/social',
 	`GET ${OIDC_CALLBACK_PATH}`,
-	'POST /api/auth/sign-out'
+	'POST /api/auth/sign-out',
+	'GET /api/auth/oauth2/authorize',
+	'POST /api/auth/oauth2/token',
+	'POST /api/auth/oauth2/register',
+	'POST /api/auth/oauth2/consent',
+	'POST /api/auth/oauth2/continue',
+	'POST /api/auth/oauth2/revoke',
+	'GET /api/auth/oauth2/userinfo',
+	'GET /api/auth/jwks'
 ]);
 
 function isLoopbackHostname(hostname: string): boolean {
@@ -82,6 +93,7 @@ export function safeReturnTo(value: string | null | undefined): string {
 	const url = new URL(value, 'http://return-to.invalid');
 	if (url.origin !== 'http://return-to.invalid') return '/';
 	if (url.pathname === '/login' || url.pathname.startsWith('/api/auth')) return '/';
+	if (url.pathname === '/consent') return '/';
 	return `${url.pathname}${url.search}${url.hash}`;
 }
 

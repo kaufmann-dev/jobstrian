@@ -188,11 +188,12 @@ Avoid these legacy Svelte features in new or refactored code:
 ## Backend and Services
 
 - **Authentication**: Check current Better Auth documentation before implementing providers, plugins, adapters, session handling, or account flows.
-  - _Server_: `export const auth = betterAuth({ ... });`
+  - _Server_: `createAuth()` builds `betterAuth({ ... })`; `initAuth()` assigns the exported `auth` from the server `init` hook after migrations, because the `mcp` and `cimd` plugins seed the database and OIDC discovery is read on creation. Never create it at import time.
   - _Hook_: `return svelteKitHandler({ event, resolve, auth, building });`
   - _OIDC_: use the `genericOAuth` plugin with `discoveryUrl` (PKCE and `client_secret_post` are defaults); start sign-in from the login screen with `authClient.signIn.social(...)` and sign out with `authClient.signOut({ callbackURL: '/login' })`. Provider policy is the only administrator admission control.
   - _Sessions_: keep local HttpOnly sessions, never persist access or refresh tokens, and retain the account ID token only as the RP-initiated logout hint.
   - _Cookies_: keep `sveltekitCookies(getRequestEvent)` last in the plugin list.
+  - _MCP/OAuth_: the app is its own OAuth 2.1 server for MCP clients (`jwt`, `mcp`, `cimd` plugins). `/.well-known/*` goes to `auth.handler`, `/mcp` verifies bearer tokens itself, and SvelteKit's built-in CSRF check is replaced by `isForbiddenCrossSiteForm` (`vite.config.ts` sets `csrf.trustedOrigins: ['*']`). Expose new `/api/auth/*` endpoints only through the allow-list in `src/lib/oidc-policy.ts`.
 - **Forms**: Always use Superforms with Zod. Follow the chain: `zod schema -> superforms -> formsnap -> shadcn-svelte form components`. Use `Form.Field`, `Form.Control`, and shadcn error components rather than ad hoc markup.
 - **Email**: Use `better-svelte-email` for templates and Resend for delivery. Render components in server-only code, and send both HTML and plain text.
   ```ts
@@ -200,6 +201,14 @@ Avoid these legacy Svelte features in new or refactored code:
   const html = await new Renderer().render(EmailTemplate, { props });
   const text = toPlainText(html);
   ```
+
+## People, Tracker and MCP
+
+- **Person scope**: One login manages several people. `person` holds each applicant's profile, CV owner, search configuration, ranking criteria and their own Resend sender; `listing`, `lead`, `scrape_run`, application e-mail tables, `application_search`, `application` and the suppression list carry `personId`. Every query, service function, API handler and MCP tool must filter by it. Resolve the route param with `requirePerson(params)` (`src/lib/server/request-person.ts`); person pages live under `/p/[person]` and APIs under `/api/p/[person]`. Never pass a `person` row (it contains credentials) to a client; use `PersonSummary`.
+- **Shared infrastructure**: LLM connections and models (`llm_connection`, `llm_model`) and `app_settings` are app-wide. Resolve a person's model with `getLlmConfig(person)` and always take the limiter from `getLlmLimiter(config)` so concurrent runs share the provider rate limit. Scrape refreshes run one at a time app-wide; e-mail runs are per person.
+- **Tracker**: `src/lib/applications.ts` is the single source of truth for statuses, buckets (`responded`, `waiting`, `ghosted`, `closed`, `planned`; "ghosted" is derived from the date, never stored) and form/tool schemas. Business rules live in `src/lib/server/applications/service.ts`, which the Svelte pages and the MCP tools both call. The default UI and MCP view show only `responded`; never headline counts of merely sent applications.
+- **MCP**: `src/routes/mcp/+server.ts` serves stateless Streamable HTTP; tools are registered in `src/lib/server/mcp/tools.ts` and each must be listed in `TOOL_SCOPES` (`scopes.ts`). Read tools carry `readOnlyHint`, deleting tools `destructiveHint`; tool errors that are safe to show use `ServiceError`.
+- **DB-backed tests**: `service.db.spec.ts` runs only when `TEST_DATABASE_URL` and `DATABASE_URL` both point at the same migrated scratch database. Run unit tests with `NODE_ENV=test` if the shell exports `NODE_ENV=production`.
 
 ## Local Database and Deployment
 

@@ -1,429 +1,177 @@
 <script lang="ts">
-	import { onMount } from 'svelte';
-	import { invalidateAll } from '$app/navigation';
+	import { defaults, superForm } from 'sveltekit-superforms';
+	import { zod4, zod4Client } from 'sveltekit-superforms/adapters';
+	import { fromAction } from 'svelte/attachments';
 	import { resolve } from '$app/paths';
 	import { toast } from 'svelte-sonner';
+	import { personFormSchema } from '#lib/app-settings-schema.js';
+	import { PERSON_COLORS, PERSON_COLOR_KEYS, type PersonColor } from '#lib/people.js';
 	import * as Card from '#lib/components/ui/card/index.js';
+	import * as Form from '#lib/components/ui/form/index.js';
+	import * as RadioGroup from '#lib/components/ui/radio-group/index.js';
 	import { Button } from '#lib/components/ui/button/index.js';
+	import { Input } from '#lib/components/ui/input/index.js';
 	import { Spinner } from '#lib/components/ui/spinner/index.js';
-	import * as Alert from '#lib/components/ui/alert/index.js';
 	import PageHeader from '#lib/components/page-header.svelte';
-	import RunStatusCard, { type RunStatusCardPhase } from '#lib/components/run-status-card.svelte';
-	import ConfirmDialog from '#lib/components/confirm-dialog.svelte';
-	import RefreshCw from '@lucide/svelte/icons/refresh-cw';
-	import RotateCcw from '@lucide/svelte/icons/rotate-ccw';
-	import X from '@lucide/svelte/icons/x';
-	import TriangleAlert from '@lucide/svelte/icons/triangle-alert';
+	import PersonAvatar from '#lib/components/person-avatar.svelte';
+	import TrackerSummary from '#lib/components/tracker-summary.svelte';
 	import Briefcase from '@lucide/svelte/icons/briefcase';
-	import Sparkles from '@lucide/svelte/icons/sparkles';
-	import Archive from '@lucide/svelte/icons/archive';
 	import MapPin from '@lucide/svelte/icons/map-pin';
-	import Mail from '@lucide/svelte/icons/mail';
-	import DoorOpen from '@lucide/svelte/icons/door-open';
-	import { normalizeRunProgress, RUN_PHASE_LABELS } from '#lib/run-progress.js';
-	import type { RunPhaseId, RunProgress, ScrapeRun } from '#lib/server/db/schema.js';
+	import ClipboardList from '@lucide/svelte/icons/clipboard-list';
+	import Plus from '@lucide/svelte/icons/plus';
+	import Users from '@lucide/svelte/icons/users';
 
 	let { data } = $props();
 
-	// While polling we override the loaded run; otherwise fall back to fresh data.
-	let polledRun = $state.raw<ScrapeRun | null>(null);
-	let starting = $state(false);
-	let canceling = $state(false);
-	let updateConfirmOpen = $state(false);
-	let polling = false;
-	let stopped = false;
-
-	const run = $derived(polledRun ?? data.latestRun);
-	const isActive = $derived(run?.status === 'running' || run?.status === 'canceling');
-	const isRunning = $derived(isActive || starting);
-	const stats = $derived(data.stats);
-	const configured = $derived(data.configured);
-	const hasHome = $derived(data.hasHome);
-	const hasSearchConfig = $derived(data.hasSearchConfig);
-	const progress = $derived(normalizeProgress(run));
-	const phaseRows = $derived(toPhaseRows(progress));
-	const currentPhase = $derived(
-		phaseRows.find((phase) => phase.state === 'running') ??
-			phaseRows.find((phase) => phase.state === 'warning' || phase.state === 'error') ??
-			phaseRows.findLast((phase) => phase.state === 'done')
-	);
-	const totalFailed = $derived(phaseRows.reduce((sum, phase) => sum + phase.failed, 0));
-	const dominantFailureReason = $derived.by(() => {
-		const totals: Record<string, { label: string; count: number }> = {};
-		for (const phase of phaseRows) {
-			for (const reason of phase.failureReasons ?? []) {
-				const existing = totals[reason.code];
-				if (existing) existing.count += reason.count;
-				else totals[reason.code] = { label: reason.label, count: reason.count };
-			}
+	// Posts to the savePerson action of the app settings; the reload then replaces the empty state.
+	const form = superForm(defaults(zod4(personFormSchema)), {
+		id: 'person',
+		validators: zod4Client(personFormSchema),
+		onUpdated: ({ form: updated }) => {
+			if (updated.valid && typeof updated.message === 'string') toast.success(updated.message);
 		}
-		let top: { label: string; count: number } | undefined;
-		for (const reason of Object.values(totals)) if (!top || reason.count > top.count) top = reason;
-		return top?.label;
 	});
+	const { form: formData, enhance, submitting } = form;
+	const enhanceAttachment = fromAction(enhance);
 
-	const statGroups = $derived([
-		{
-			title: 'Stellen',
-			cards: [
-				{
-					label: 'Aktive Stellen',
-					value: stats.activeListings,
-					href: '/jobs',
-					icon: Briefcase
-				},
-				{
-					label: 'Davon bewertet',
-					value: stats.rankedListings,
-					href: '/jobs',
-					icon: Sparkles
-				},
-				{ label: 'Geschlossen', value: stats.closedListings, href: '/jobs', icon: Archive }
-			]
-		},
-		{
-			title: 'Betriebe',
-			cards: [
-				{
-					label: 'In der Nähe',
-					value: stats.totalLeads,
-					href: '/leads',
-					icon: MapPin
-				},
-
-				{
-					label: 'Mit E-Mail',
-					value: stats.leadsWithEmail,
-					href: '/leads',
-					icon: Mail
-				},
-
-				{
-					label: 'Ohne Ausschreibung',
-					value: stats.openLeads,
-					href: '/leads',
-					icon: DoorOpen
-				}
-			]
-		}
-	]);
-
-	type StartRunResponse =
-		{ started: true; runId: number } | { started: false; reason: string; message?: string };
-
-	type RunStatusResponse = { run: ScrapeRun | null };
-	type PhaseRow = RunStatusCardPhase & { id: RunPhaseId };
-
-	const phaseLabels = RUN_PHASE_LABELS;
-
-	function normalizeProgress(currentRun: ScrapeRun | null): RunProgress {
-		return normalizeRunProgress(currentRun);
-	}
-
-	function toPhaseRows(currentProgress: RunProgress): PhaseRow[] {
-		return (Object.keys(phaseLabels) as RunPhaseId[]).map((id) => ({
-			id,
-			label: phaseLabels[id],
-			...currentProgress.phases[id]
-		}));
-	}
-
-	function statusLabel(status: ScrapeRun['status'] | undefined): string {
-		if (status === 'running') return 'läuft';
-		if (status === 'canceling') return 'bricht ab';
-		if (status === 'canceled') return 'abgebrochen';
-		if (status === 'done') return 'fertig';
-		if (status === 'error') return 'Fehler';
-		return 'bereit';
-	}
-
-	function statusVariant(
-		status: ScrapeRun['status'] | undefined
-	): 'default' | 'secondary' | 'destructive' | 'outline' {
-		if (status === 'error') return 'destructive';
-		return 'secondary';
-	}
-
-	async function readStartResponse(res: Response): Promise<StartRunResponse | null> {
-		try {
-			return (await res.json()) as StartRunResponse;
-		} catch {
-			return null;
-		}
-	}
-
-	function startFailureToast(res: Response, body: StartRunResponse | null): string {
-		if (body && !body.started && body.message) return body.message;
-		return `Aktualisierung konnte nicht gestartet werden (${res.status}).`;
-	}
-
-	async function poll() {
-		if (polling) return;
-		polling = true;
-		let finalRun: ScrapeRun | null = null;
-		try {
-			while (!stopped) {
-				const res = await fetch('/api/run/status');
-				const body = (await res.json()) as RunStatusResponse;
-				polledRun = body.run;
-				finalRun = polledRun;
-
-				if (!polledRun || (polledRun.status !== 'running' && polledRun.status !== 'canceling'))
-					break;
-
-				await new Promise((r) => setTimeout(r, 1000));
-			}
-		} finally {
-			polling = false;
-			await invalidateAll();
-			if (finalRun?.status === 'done') toast.success('Aktualisierung abgeschlossen');
-			if (finalRun?.status === 'canceled') toast.info('Aktualisierung abgebrochen');
-			if (finalRun?.status === 'error') toast.error('Aktualisierung fehlgeschlagen');
-		}
-	}
-
-	async function update(full: boolean) {
-		starting = true;
-		try {
-			const res = await fetch('/api/run/start', {
-				method: 'POST',
-				headers: { 'content-type': 'application/json' },
-				body: JSON.stringify({ full })
-			});
-			const body = await readStartResponse(res);
-			if (res.status === 409) {
-				toast.info(startFailureToast(res, body));
-			} else if (!res.ok) {
-				toast.error(startFailureToast(res, body));
-				return;
-			}
-			await poll();
-		} catch (err) {
-			const message = err instanceof Error ? err.message : String(err);
-			toast.error(`Aktualisierung konnte nicht gestartet werden: ${message}`);
-		} finally {
-			starting = false;
-		}
-	}
-
-	async function cancelRun() {
-		if (!run) return;
-		canceling = true;
-		try {
-			const res = await fetch('/api/run/cancel', {
-				method: 'POST',
-				headers: { 'content-type': 'application/json' },
-				body: JSON.stringify({ runId: run.id })
-			});
-			if (!res.ok) {
-				toast.error(`Abbruch konnte nicht angefordert werden (${res.status}).`);
-				return;
-			}
-			await poll();
-		} catch (err) {
-			const message = err instanceof Error ? err.message : String(err);
-			toast.error(`Abbruch konnte nicht angefordert werden: ${message}`);
-		} finally {
-			canceling = false;
-		}
-	}
-
-	onMount(() => {
-		if (run?.status === 'running' || run?.status === 'canceling') poll();
-		return () => {
-			stopped = true;
-		};
-	});
+	const quickLinks = [
+		{ section: 'jobs', label: 'Stellen', icon: Briefcase },
+		{ section: 'leads', label: 'Betriebe', icon: MapPin },
+		{ section: 'applications', label: 'Bewerbungen', icon: ClipboardList }
+	] as const;
 </script>
 
 <svelte:head>
-	<title>Übersicht · Jobstrian</title>
+	<title>Alle Personen · Jobstrian</title>
 	<meta
 		name="description"
-		content="Überblick über deine Suchläufe: Fortschritt, neue Stellen und Betriebe auf einen Blick."
+		content="Alle Personen auf einen Blick: Rückmeldungen und nächste Schritte der laufenden Bewerbungssuchen."
 	/>
 </svelte:head>
 
 <div class="space-y-6">
 	<PageHeader
-		title="Übersicht"
-		description="Deine automatisierte Jobsuche und Arbeitgeber-Recherche in Österreich."
+		title="Alle Personen"
+		description="Rückmeldungen und nächste Schritte der laufenden Suchen auf einen Blick."
 	>
 		{#snippet actions()}
-			<Button
-				onclick={() => (updateConfirmOpen = true)}
-				disabled={isRunning || !configured}
-				size="lg"
-			>
-				{#if isRunning}
-					<Spinner class="size-4" />
-				{:else}
-					<RefreshCw class="size-4" />
-				{/if}
-				Aktualisieren
-			</Button>
+			{#if data.overviews.length > 0}
+				<Button href="/settings" variant="outline">
+					<Users class="size-4" />
+					Personen verwalten
+				</Button>
+			{/if}
 		{/snippet}
 	</PageHeader>
 
-	{#if !configured}
-		<Alert.Root>
-			<TriangleAlert class="size-4" />
-			<Alert.Title>KI-Anbindung noch nicht geprüft</Alert.Title>
-			<Alert.Description>
-				Hinterlege in den
-				<a class="underline" href={resolve('settings')}>Einstellungen</a>
-				eine OpenAI-kompatible API und führe „KI Status prüfen“ aus, damit Stellen automatisch bewertet
-				werden können.
-			</Alert.Description>
-		</Alert.Root>
-	{/if}
-	{#if !hasHome}
-		<Alert.Root>
-			<TriangleAlert class="size-4" />
-			<Alert.Title>Adresse nicht bestätigt</Alert.Title>
-			<Alert.Description>
-				Wähle deine Adresse in den
-				<a class="underline" href={resolve('settings')}>Einstellungen</a>
-				aus den Vorschlägen aus, um Job-Suchorte abzuleiten und nahe potenzielle Arbeitgeber zu finden.
-			</Alert.Description>
-		</Alert.Root>
-	{/if}
-	{#if !hasSearchConfig}
-		<Alert.Root>
-			<TriangleAlert class="size-4" />
-			<Alert.Title>Suchkonfiguration fehlt</Alert.Title>
-			<Alert.Description>
-				Hinterlege in den
-				<a class="underline" href={resolve('settings')}>Einstellungen</a>
-				Stellen-Keywords und Betriebskategorien, damit passende Stellen und nahe potenzielle Arbeitgeber
-				gefunden werden.
-			</Alert.Description>
-		</Alert.Root>
-	{/if}
-
-	{#if run}
-		<RunStatusCard
-			title={progress.headline}
-			statusLabel={statusLabel(run.status)}
-			statusVariant={statusVariant(run.status)}
-			active={isActive}
-			phases={phaseRows}
-			summary={isActive
-				? `${currentPhase?.label ?? 'Aktualisierung'} · ${currentPhase?.detail || progress.detail || 'Bereit'}`
-				: totalFailed > 0
-					? `${totalFailed} ${totalFailed === 1 ? 'Bewertung' : 'Bewertungen'} fehlgeschlagen${dominantFailureReason ? ` · ${dominantFailureReason}` : '.'}`
-					: undefined}
-		>
-			{#snippet actions()}
-				{#if isActive}
-					<Button
-						variant="outline"
-						size="sm"
-						class="shrink-0 border-destructive text-destructive hover:bg-destructive/10"
-						aria-label="Abbrechen"
-						onclick={cancelRun}
-						disabled={canceling || run.status === 'canceling'}
-					>
-						{#if canceling || run.status === 'canceling'}
+	{#if data.overviews.length === 0}
+		<Card.Root class="mx-auto w-full max-w-md">
+			<Card.Header>
+				<Card.Title class="text-lg">Lege die erste Person an</Card.Title>
+				<Card.Description>
+					Jede Person hat eigene Stellen, Betriebe, Bewerbungen und Einstellungen. Weitere Personen
+					kannst du später in den App-Einstellungen anlegen.
+				</Card.Description>
+			</Card.Header>
+			<Card.Content>
+				<form
+					method="POST"
+					action="{resolve('settings')}?/savePerson"
+					{@attach enhanceAttachment}
+					class="space-y-4"
+				>
+					<Form.Field {form} name="name">
+						<Form.Control>
+							{#snippet children({ props })}
+								<Form.Label>Name</Form.Label>
+								<Input
+									{...props}
+									bind:value={$formData.name}
+									autocomplete="off"
+									placeholder="z. B. Anna"
+								/>
+							{/snippet}
+						</Form.Control>
+						<Form.FieldErrors />
+					</Form.Field>
+					<Form.Fieldset {form} name="color">
+						<Form.Legend>Farbe</Form.Legend>
+						<RadioGroup.Root
+							name="color"
+							class="flex flex-wrap gap-3"
+							bind:value={
+								() => $formData.color, (value) => ($formData.color = value as PersonColor)
+							}
+						>
+							{#each PERSON_COLOR_KEYS as key (key)}
+								<Form.Control>
+									{#snippet children({ props })}
+										<span
+											class={[
+												'relative inline-flex size-7 rounded-full ring-offset-2 ring-offset-card has-data-[checked]:ring-2 has-data-[checked]:ring-foreground/70',
+												PERSON_COLORS[key].dot
+											]}
+										>
+											<RadioGroup.Item
+												{...props}
+												value={key}
+												aria-label={PERSON_COLORS[key].label}
+												title={PERSON_COLORS[key].label}
+												class="size-7 rounded-full bg-transparent data-checked:bg-transparent dark:data-checked:bg-transparent"
+											/>
+										</span>
+									{/snippet}
+								</Form.Control>
+							{/each}
+						</RadioGroup.Root>
+						<Form.FieldErrors />
+					</Form.Fieldset>
+					<Form.Button class="w-full" disabled={$submitting}>
+						{#if $submitting}
 							<Spinner class="size-4" />
 						{:else}
-							<X class="size-4" />
+							<Plus class="size-4" />
 						{/if}
-						<span class="hidden sm:inline">Abbrechen</span>
-					</Button>
-				{/if}
-			{/snippet}
-
-			{#snippet footer()}
-				<p class="border-t pt-3 text-sm text-muted-foreground">
-					{run.counts.added} neue Stellen · {run.counts.closed} nicht mehr verfügbar · {run.counts
-						.ranked} bewertet · {run.counts.leads} Betriebe gefunden
-					{#if isActive}
-						· KI: {progress.llm.inFlight} aktiv, {progress.llm.queued} warten
-					{/if}
-				</p>
-				{#if run.error}
-					<p class="text-sm text-destructive">{run.error}</p>
-				{/if}
-			{/snippet}
-		</RunStatusCard>
-	{/if}
-
-	<div class="grid gap-6 lg:grid-cols-2">
-		{#each statGroups as group (group.title)}
-			<section class="space-y-3">
-				<h2 class="text-sm font-medium tracking-wide text-muted-foreground uppercase">
-					{group.title}
-				</h2>
-				<div class="grid grid-cols-1 gap-3 sm:grid-cols-3">
-					{#each group.cards as card (card.label)}
+						Person anlegen
+					</Form.Button>
+				</form>
+			</Card.Content>
+		</Card.Root>
+	{:else}
+		<div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+			{#each data.overviews as overview (overview.person.id)}
+				<Card.Root>
+					<Card.Header>
 						<a
-							href={resolve(card.href.slice(1) as 'jobs' | 'leads')}
-							class="rounded-xl outline-none focus-visible:ring-2 focus-visible:ring-ring"
+							href={resolve('/(app)/p/[person]', { person: overview.person.slug })}
+							class="group/person flex items-center gap-3 rounded-xl outline-none focus-visible:ring-2 focus-visible:ring-ring"
 						>
-							<Card.Root
-								class="h-full py-3 transition-all hover:-translate-y-0.5 hover:border-primary/40 sm:py-5"
-							>
-								<div class="flex items-center gap-3 px-5 sm:flex-col sm:items-start sm:gap-2">
-									<span
-										class="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary sm:size-8"
-									>
-										<card.icon class="size-4" />
-									</span>
-									<Card.Title
-										class="order-last ml-auto text-2xl tabular-nums sm:order-none sm:ml-0 sm:text-3xl"
-									>
-										{card.value.toLocaleString('de-AT')}
-									</Card.Title>
-									<Card.Description class="w-full truncate" title={card.label}>
-										{card.label}
-									</Card.Description>
-								</div>
-							</Card.Root>
+							<PersonAvatar person={overview.person} size="lg" />
+							<span class="min-w-0">
+								<span class="block truncate text-base font-semibold group-hover/person:underline">
+									{overview.person.name}
+								</span>
+								<span class="block text-xs text-muted-foreground">Zur Übersicht</span>
+							</span>
 						</a>
-					{/each}
-				</div>
-			</section>
-		{/each}
-	</div>
+					</Card.Header>
+					<Card.Content class="flex-1">
+						<TrackerSummary {overview} />
+					</Card.Content>
+					<Card.Footer class="flex-wrap gap-2 border-t">
+						{#each quickLinks as link (link.section)}
+							<Button
+								href={`/p/${overview.person.slug}/${link.section}`}
+								variant="outline"
+								size="sm"
+							>
+								<link.icon class="size-4" />
+								{link.label}
+							</Button>
+						{/each}
+					</Card.Footer>
+				</Card.Root>
+			{/each}
+		</div>
+	{/if}
 </div>
-
-<ConfirmDialog
-	bind:open={updateConfirmOpen}
-	title="Aktualisieren?"
-	description={updateDescription}
-	info={updateInfo}
-	actions={[
-		{
-			label: 'Komplett neu',
-			variant: 'outline',
-			icon: RotateCcw,
-			onclick: () => {
-				updateConfirmOpen = false;
-				update(true);
-			}
-		},
-		{
-			label: 'Aktualisieren',
-			icon: RefreshCw,
-			onclick: () => {
-				updateConfirmOpen = false;
-				update(false);
-			}
-		}
-	]}
-/>
-{#snippet updateDescription()}
-	Neue Stellen und Betriebe werden gesucht und bewertet. Wähle, wie mit bereits Bewertetem
-	umgegangen wird.
-{/snippet}
-{#snippet updateInfo()}
-	<p>
-		<span class="font-medium text-foreground">Aktualisieren:</span> Bereits Bewertetes bleibt erhalten;
-		nur Neues und bei geänderter Konfiguration Betroffenes wird neu bewertet.
-	</p>
-	<p class="mt-2">
-		<span class="font-medium text-foreground">Komplett neu:</span> Alle KI-Bewertungen (Stellen, Betriebe,
-		E-Mail-Prüfung, Anschreiben) werden verworfen und neu erstellt — das kostet mehr KI-Zeit.
-	</p>
-{/snippet}

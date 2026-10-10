@@ -4,9 +4,67 @@
 
 Jobstrian searches Austrian job portals for configured role keywords and Austrian cities,
 derives a portal city from your validated home address when no explicit cities are configured,
-finds configured business categories near your home for speculative
-applications, and rates each job / business using a user-configured
-OpenAI-compatible LLM.
+finds configured business categories near the applicant's home for speculative
+applications, rates each job / business using a user-configured
+OpenAI-compatible LLM and tracks which companies actually answered.
+
+One login manages several **people** (for example yourself, your partner, your mom). Each
+person has their own profile, CV, search configuration, ranking criteria, jobs, businesses,
+applications and e-mail sender; the LLM connections are shared.
+
+## People
+
+- **Alle Personen** (`/`) shows one card per person with their replies and next steps.
+- Every person lives under `/p/<slug>` (Übersicht, Stellen, Betriebe, Bewerbungen,
+  Einstellungen). The person switcher in the header keeps the current section when you switch.
+  The slug is derived from the name once and never changes, so links and the Resend webhook URL
+  stay valid after a rename.
+- **App-Einstellungen** (`/settings`) manage people, shared **KI-Verbindungen** (several
+  OpenAI-compatible endpoints, each with saved and individually verified models), the default
+  model, the "Keine Antwort nach … Tagen" threshold and the connected MCP apps.
+- Each person can pick a saved model of their own or use the app default. Deleting a person
+  deletes everything that belongs to them.
+- Only one job-portal refresh runs at a time (the portals, the browser and the LLM provider are
+  shared); starting a second one reports who is currently running. Application e-mails are sent
+  per person in parallel.
+
+## Bewerbungen (application tracker)
+
+Applications are grouped into **search episodes** ("Jobsuche 2024", "Jobsuche 2026"). One episode
+per person is running; marking an application as accepted ends it as "Stelle gefunden", and a later
+search starts a new episode, so the history of earlier searches stays intact.
+
+Many employers never answer, so "Beworben" is not progress. The page opens on **Rückmeldungen**
+(replied, interview, offer, accepted). Everything else lives in muted tabs: **Wartet** (applied, no
+reply yet), **Keine Antwort** (no reply after the configured number of days, derived from the date,
+default 21), **Abgeschlossen** (rejected or withdrawn) and **Geplant**. The response rate counts any
+reaction, including rejections. Applications are created manually, with **Bewerbung anlegen** on a
+Stelle or Betrieb, automatically when an application e-mail to a Betrieb has been sent, or via MCP.
+
+## MCP server
+
+Jobstrian is an OAuth 2.1 authorization server and MCP server (`POST {ORIGIN}/mcp`, stateless
+Streamable HTTP) for the tracker. Connect an AI client:
+
+```bash
+claude mcp add --transport http jobstrian https://your-domain.example/mcp
+codex mcp add jobstrian --url https://your-domain.example/mcp
+```
+
+The client registers itself (Client ID Metadata Documents or dynamic client registration), you sign
+in through your OIDC provider and approve it on the consent screen. Access tokens last 15 minutes
+and refresh automatically; **App-Einstellungen → Verbundene Apps** lists and revokes clients.
+Discovery lives at `/.well-known/oauth-protected-resource/mcp` and
+`/.well-known/oauth-authorization-server/api/auth`.
+
+| Scope                | Tools                                                                                                                                                |
+| -------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `applications:read`  | `list_people`, `get_overview`, `list_searches`, `list_applications`, `get_application`                                                               |
+| `applications:write` | `create_search`, `update_search`, `create_application`, `update_application`, `set_application_status`, `add_application_note`, `delete_application` |
+
+Tools take the person's slug in `person` (see `list_people`). `list_applications` returns only real
+replies by default and always reports `bucket_counts`. Combine it with a mail connector: read the
+reply, then call `set_application_status`.
 
 ## Features
 
@@ -44,8 +102,9 @@ OpenAI-compatible LLM.
   includes Saturdays and Sundays. Changes also reschedule queued e-mails within
   30 seconds. Public holidays do not affect the schedule.
 - **Update button**: one run scrapes, deduplicates, closes vanished listings,
-  synchronizes businesses and rates new or changed entries. Structured progress
-  is shown live with per-phase counts, LLM queue metrics and cancellation.
+  synchronizes businesses and rates new or changed entries for the current person.
+  Structured progress is shown live with per-phase counts, LLM queue metrics and
+  cancellation.
 - OIDC-protected (Better Auth), German UI, light / dark mode.
 
 ## Tech Stack
@@ -117,12 +176,17 @@ pnpm dev
 Open `http://localhost:5173/login` and sign in through the configured OIDC provider.
 Provider access policy determines which administrators may use Jobstrian; the app does not maintain
 an identity or claim allowlist. After signing in, enter your address, role keywords, business
-categories and the OpenAI-compatible LLM (base URL including `/v1`, model, API key) in **Settings**.
-Then click **KI Status prüfen**: Jobstrian sends one live request to the endpoint and only
-marks the connection **aktiviert** if it succeeds. AI-powered features (profile import, search
-and criteria generation) and the **Aktualisieren** run on the overview stay disabled until the
-check passes, and the status resets whenever the base URL, model or API key changes.
-For automatic applications, also configure Resend in **Settings**:
+categories in the person's **Einstellungen**. Create the first person on the start page, then add
+the OpenAI-compatible LLM under **App-Einstellungen → KI-Verbindungen** (base URL including `/v1`,
+API key), save one or more models (loaded from the endpoint's model list or typed manually) and
+click **Prüfen** on a model: Jobstrian sends one live request and only marks the model
+**Geprüft** if it succeeds. AI-powered features (profile import, search and criteria generation)
+and the **Aktualisieren** run on a person's overview stay disabled until their model (their own
+choice or the app default) is verified; the status resets whenever the connection's base URL or
+API key changes.
+For automatic applications, also configure Resend per person in their **Einstellungen**
+(every person sends from their own address, so each has their own Resend key, domain, sender,
+reply-to and webhook; the same key or domain may be reused):
 
 1. In the Resend dashboard, create a full-access API key under **API Keys** and
    paste it into **Resend API-Key**. Jobstrian uses this key to create / read
@@ -133,9 +197,9 @@ For automatic applications, also configure Resend in **Settings**:
    provider, verify the domain in the Resend dashboard, then click
    **Resend-Status prüfen** again so Jobstrian can sync the verified status.
 4. In the Resend dashboard, create a webhook endpoint for
-   `https://your-domain.example/api/webhooks/resend`, replacing the host with
-   the deployed Jobstrian URL. Enable at least `email.bounced` and
-   `email.complained`.
+   `https://your-domain.example/api/webhooks/resend/<person-slug>` (the settings page
+   shows the exact URL), replacing the host with the deployed Jobstrian URL. Enable at
+   least `email.bounced` and `email.complained`.
 5. Copy the webhook signing secret from Resend (usually `whsec_…`) into
    **Webhook Secret**. Jobstrian uses it to verify that incoming bounce /
    complaint events really came from Resend.
@@ -155,6 +219,8 @@ Jobstrian shows its own login screen, then starts Better Auth's generic OIDC flo
 - Public Client: Off
 - Callback URL: `/api/auth/callback/oidc`
 - Logout Callback URL: `/login`
+- MCP clients use Jobstrian's own OAuth server; no extra provider configuration is needed. The
+  consent screen and `/mcp` are served from `ORIGIN`, so it must match the public URL.
 - Required authentication variables: `ORIGIN`, `BETTER_AUTH_SECRET`, `OIDC_ISSUER`, `OIDC_CLIENT_ID`, `OIDC_CLIENT_SECRET` (see **Environment Variables → Required**).
 
 Production app, issuer, and discovered provider URLs must use HTTPS; plain HTTP is accepted only
@@ -209,5 +275,9 @@ CV uploads are hard capped to **10 MB** by backend validation.
 - Portal scrapers are inherently fragile: adapters prefer internal JSON
   endpoints, are isolated from each other (a broken adapter does not stop the
   run) and occasionally need maintenance when markup changes.
-- LLM, Resend and profile configuration live in the database (`settings` table)
-  and are maintained inside the app – not in `.env`.
+- People, their profiles and Resend setups (`person` table), LLM connections and models
+  (`llm_connection`, `llm_model`) and app defaults (`app_settings`) live in the database and
+  are maintained inside the app – not in `.env`. Nearly every other table (`listing`, `lead`,
+  `scrape_run`, application e-mails, `application_search`, `application`) belongs to one person.
+- The Drizzle schema, migrations and the MCP tool list are the source of truth; MCP tools must
+  be registered in `TOOL_SCOPES` (`src/lib/server/mcp/scopes.ts`).

@@ -26,9 +26,10 @@ import {
 	type ApplicationEmailProgress,
 	type ApplicationEmailRun,
 	type Lead,
-	type Settings
+	type Person
 } from '../db/schema';
-import { getSettings } from '../settings';
+import { getPerson } from '../people';
+import { ensureApplicationForLead } from '../applications/service';
 import { getCvData } from '../cv';
 import {
 	applicationEmailFromAddress,
@@ -50,8 +51,9 @@ type Counts = { queued: number; sent: number; failed: number; skipped: number };
 type ActiveRun = { runId: number; controller: AbortController; startedAt: Date };
 type InterruptedApplicationEmailRecovery = 'resumed' | 'canceled' | 'ignored';
 
-let activeRun: ActiveRun | null = null;
-let starting = false;
+/** Email runs span hours (paced sending), so every person can have their own active run. */
+const activeRuns = new Map<number, ActiveRun>();
+const starting = new Set<number>();
 
 export type ApplicationEmailSummary = {
 	ready: boolean;
@@ -67,7 +69,7 @@ export type TestApplicationEmailResult = {
 };
 
 type ApplicationEmailSendInput = {
-	settings: Settings;
+	settings: Person;
 	recipientEmail: string;
 	subject: string;
 	body: string;
@@ -187,17 +189,21 @@ class ProgressWriter {
 }
 
 export function hasActiveApplicationEmailRun(runId?: number): boolean {
-	return activeRun !== null && (runId == null || activeRun.runId === runId);
+	return [...activeRuns.values()].some((run) => runId == null || run.runId === runId);
 }
 
-async function eligibleLeadCount(): Promise<number> {
-	const [row] = await db.select({ value: count() }).from(lead).where(eligibleLeadWhere());
+async function eligibleLeadCount(personId: number): Promise<number> {
+	const [row] = await db.select({ value: count() }).from(lead).where(eligibleLeadWhere(personId));
 	return row?.value ?? 0;
 }
 
-function eligibleLeadWhere() {
-	const normalizedSuppression = sql`lower(${applicationEmailSuppression.email}) = lower(${lead.email})`;
+function eligibleLeadWhere(personId: number) {
+	const normalizedSuppression = and(
+		eq(applicationEmailSuppression.personId, personId),
+		sql`lower(${applicationEmailSuppression.email}) = lower(${lead.email})`
+	);
 	return and(
+		eq(lead.personId, personId),
 		eq(lead.status, 'new'),
 		isNotNull(lead.email),
 		or(eq(lead.emailManual, true), eq(lead.emailQualityStatus, 'accepted')),
@@ -218,28 +224,31 @@ function eligibleLeadWhere() {
 	);
 }
 
-async function eligibleLeads(): Promise<Lead[]> {
+async function eligibleLeads(personId: number): Promise<Lead[]> {
 	return db
 		.select()
 		.from(lead)
-		.where(eligibleLeadWhere())
+		.where(eligibleLeadWhere(personId))
 		.orderBy(desc(lead.starred), desc(lead.rankScore), asc(lead.distanceMeters), asc(lead.id));
 }
 
-async function latestRun(): Promise<ApplicationEmailRun | null> {
+async function latestRun(personId: number): Promise<ApplicationEmailRun | null> {
 	const [row] = await db
 		.select()
 		.from(applicationEmailRun)
+		.where(eq(applicationEmailRun.personId, personId))
 		.orderBy(desc(applicationEmailRun.id))
 		.limit(1);
 	return row ?? null;
 }
 
-export async function getApplicationEmailSummary(): Promise<ApplicationEmailSummary> {
+export async function getApplicationEmailSummary(
+	personId: number
+): Promise<ApplicationEmailSummary> {
 	const [settings, latest, eligible] = await Promise.all([
-		getSettings(),
-		latestRun(),
-		eligibleLeadCount()
+		getPerson(personId),
+		latestRun(personId),
+		eligibleLeadCount(personId)
 	]);
 	const readiness = await applicationEmailReadiness(settings);
 	return {
@@ -295,13 +304,14 @@ async function cancelPendingRows(runId: number, counts: Counts): Promise<void> {
 	counts.queued = Math.max(0, counts.queued - pending.length);
 }
 
-async function sentTodayCount(from: Date): Promise<number> {
+async function sentTodayCount(personId: number, from: Date): Promise<number> {
 	const { start, end } = viennaDayBounds(from);
 	const [row] = await db
 		.select({ value: count() })
 		.from(applicationEmail)
 		.where(
 			and(
+				eq(applicationEmail.personId, personId),
 				eq(applicationEmail.status, 'sent'),
 				gte(applicationEmail.sentAt, start),
 				lt(applicationEmail.sentAt, end)
@@ -310,20 +320,21 @@ async function sentTodayCount(from: Date): Promise<number> {
 	return row?.value ?? 0;
 }
 
-async function queueRun(runId: number, rows: Lead[], settings: Settings): Promise<number> {
+async function queueRun(runId: number, rows: Lead[], settings: Person): Promise<number> {
 	if (!rows.length) return 0;
 	const from = new Date();
 	const scheduled = scheduleApplicationEmails(rows.length, {
 		from,
 		dailyLimit: settings.applicationEmailDailyLimit,
 		sendOnWeekends: settings.applicationEmailSendOnWeekends,
-		alreadySentToday: await sentTodayCount(from)
+		alreadySentToday: await sentTodayCount(settings.id, from)
 	});
 	await db
 		.insert(applicationEmail)
 		.values(
 			rows.map((row, index) => ({
 				runId,
+				personId: settings.id,
 				leadId: row.id,
 				recipientEmail: row.email!,
 				leadName: row.name,
@@ -353,7 +364,7 @@ export function repaceScheduledAt<T extends { id: number; scheduledAt: Date }>(
 	return new Map(ordered.map((row, index) => [row.id, scheduled[index]]));
 }
 
-async function repaceQueuedRows(runId: number, settings: Settings): Promise<void> {
+async function repaceQueuedRows(runId: number, settings: Person): Promise<void> {
 	const rows = await db
 		.select({ id: applicationEmail.id, scheduledAt: applicationEmail.scheduledAt })
 		.from(applicationEmail)
@@ -364,14 +375,14 @@ async function repaceQueuedRows(runId: number, settings: Settings): Promise<void
 	const repaced = repaceScheduledAt(rows, from, {
 		dailyLimit: settings.applicationEmailDailyLimit,
 		sendOnWeekends: settings.applicationEmailSendOnWeekends,
-		alreadySentToday: await sentTodayCount(from)
+		alreadySentToday: await sentTodayCount(settings.id, from)
 	});
 	for (const [id, scheduledAt] of repaced) {
 		await db.update(applicationEmail).set({ scheduledAt }).where(eq(applicationEmail.id, id));
 	}
 }
 
-function resendClient(s: Settings): Resend {
+function resendClient(s: Person): Resend {
 	if (!s.resendApiKey) throw new Error('Resend API-Key fehlt.');
 	return new Resend(s.resendApiKey);
 }
@@ -391,7 +402,7 @@ function unwrapSendId(result: unknown): string | null {
 	return response.data?.id ?? null;
 }
 
-function testEmailReadiness(settings: Settings): string[] {
+function testEmailReadiness(settings: Person): string[] {
 	const reasons: string[] = [];
 	if (!settings.resendApiKey) reasons.push('Resend API-Key fehlt.');
 	if (!settings.applicationEmailEnabled) reasons.push('DNS-Einträge sind noch nicht bestätigt.');
@@ -403,7 +414,7 @@ function testEmailReadiness(settings: Settings): string[] {
 async function sendRenderedApplicationEmail(
 	input: ApplicationEmailSendInput
 ): Promise<string | null> {
-	const cv = await getCvData();
+	const cv = await getCvData(input.settings.id);
 	if (!cv) throw new Error('Lebenslauf-PDF fehlt.');
 	const html = await new Renderer().render(ApplicationEmailTemplate, {
 		props: {
@@ -435,7 +446,7 @@ async function sendRenderedApplicationEmail(
 
 async function sendApplicationEmail(
 	row: ApplicationEmail,
-	settings: Settings
+	settings: Person
 ): Promise<string | null> {
 	return sendRenderedApplicationEmail({
 		settings,
@@ -450,8 +461,10 @@ async function sendApplicationEmail(
 	});
 }
 
-export async function sendTestApplicationEmail(): Promise<TestApplicationEmailResult> {
-	const settings = await getSettings();
+export async function sendTestApplicationEmail(
+	personId: number
+): Promise<TestApplicationEmailResult> {
+	const settings = await getPerson(personId);
 	const readiness = testEmailReadiness(settings);
 	const recipient = applicationEmailReplyTo(settings);
 	if (readiness.length) {
@@ -472,7 +485,7 @@ async function sendQueuedRow(
 	row: ApplicationEmail,
 	writer: ProgressWriter
 ): Promise<'sent' | 'failed' | 'requeued' | 'skipped'> {
-	const settings = await getSettings();
+	const settings = await getPerson(row.personId);
 	const now = new Date();
 	const nextWindow = nextApplicationEmailWindowStart(now, settings.applicationEmailSendOnWeekends);
 	if (nextWindow.getTime() > now.getTime()) {
@@ -493,7 +506,12 @@ async function sendQueuedRow(
 	const [suppressed] = await db
 		.select({ email: applicationEmailSuppression.email })
 		.from(applicationEmailSuppression)
-		.where(sql`lower(${applicationEmailSuppression.email}) = lower(${row.recipientEmail})`)
+		.where(
+			and(
+				eq(applicationEmailSuppression.personId, row.personId),
+				sql`lower(${applicationEmailSuppression.email}) = lower(${row.recipientEmail})`
+			)
+		)
 		.limit(1);
 	if (
 		suppressed ||
@@ -516,6 +534,10 @@ async function sendQueuedRow(
 			.set({ status: 'sent', resendEmailId, sentAt: new Date(), error: null })
 			.where(eq(applicationEmail.id, row.id));
 		await db.update(lead).set({ status: 'contacted' }).where(eq(lead.id, row.leadId));
+		// The tracker entry must never turn a delivered email into a failed one.
+		await ensureApplicationForLead(row.leadId).catch((error) => {
+			console.error('[application-email] Bewerbung konnte nicht erfasst werden:', error);
+		});
 		writer.counts.sent++;
 		return 'sent';
 	} catch (err) {
@@ -548,7 +570,7 @@ async function sendQueuedRow(
 async function runApplicationEmailWorker(
 	runId: number,
 	signal: AbortSignal,
-	scheduledSettings: Settings,
+	scheduledSettings: Person,
 	progress = createProgress()
 ): Promise<void> {
 	const counts = await refreshCounts(runId);
@@ -572,7 +594,7 @@ async function runApplicationEmailWorker(
 				.limit(1);
 			if (!run || run.status === 'canceling') throw abortReason(signal);
 
-			const settings = await getSettings();
+			const settings = await getPerson(scheduledSettings.id);
 			if (
 				settings.applicationEmailSendOnWeekends !== scheduledSettings.applicationEmailSendOnWeekends
 			) {
@@ -675,15 +697,16 @@ async function runApplicationEmailWorker(
 			})
 			.where(eq(applicationEmailRun.id, runId));
 	} finally {
-		if (activeRun?.runId === runId) activeRun = null;
+		const owner = scheduledSettings.id;
+		if (activeRuns.get(owner)?.runId === runId) activeRuns.delete(owner);
 	}
 }
 
-export async function startApplicationEmailRun(): Promise<number | null> {
-	if (activeRun || starting) return null;
-	starting = true;
+export async function startApplicationEmailRun(personId: number): Promise<number | null> {
+	if (activeRuns.has(personId) || starting.has(personId)) return null;
+	starting.add(personId);
 	try {
-		const settings = await getSettings();
+		const settings = await getPerson(personId);
 		const readiness = await applicationEmailReadiness(settings);
 		if (!readiness.ready) {
 			throw new Error(`Bewerbungsversand ist noch nicht bereit. ${readiness.reasons.join(' ')}`);
@@ -691,9 +714,14 @@ export async function startApplicationEmailRun(): Promise<number | null> {
 
 		const [run] = await db
 			.insert(applicationEmailRun)
-			.values({ status: 'running', phase: 'Bewerbungsversand startet', progress: createProgress() })
+			.values({
+				personId,
+				status: 'running',
+				phase: 'Bewerbungsversand startet',
+				progress: createProgress()
+			})
 			.returning();
-		const rows = await eligibleLeads();
+		const rows = await eligibleLeads(personId);
 		const queued = await queueRun(run.id, rows, settings);
 		const counts: Counts = { queued, sent: 0, failed: 0, skipped: rows.length - queued };
 		const progress = createProgress(
@@ -728,16 +756,16 @@ export async function startApplicationEmailRun(): Promise<number | null> {
 		if (queued === 0) return run.id;
 
 		const controller = new AbortController();
-		activeRun = { runId: run.id, controller, startedAt: new Date() };
+		activeRuns.set(personId, { runId: run.id, controller, startedAt: new Date() });
 		void runApplicationEmailWorker(run.id, controller.signal, settings, progress);
 		return run.id;
 	} finally {
-		starting = false;
+		starting.delete(personId);
 	}
 }
 
 export async function cancelApplicationEmailRun(runId: number): Promise<{ active: boolean }> {
-	const active = activeRun?.runId === runId ? activeRun : null;
+	const active = [...activeRuns.values()].find((run) => run.runId === runId) ?? null;
 	await db
 		.update(applicationEmailRun)
 		.set({ status: 'canceling', cancelRequestedAt: new Date(), phase: 'Abbruch angefordert' })
@@ -769,15 +797,16 @@ async function finishInterruptedCancelingRun(run: ApplicationEmailRun): Promise<
 export async function recoverInterruptedApplicationEmailRun(
 	runId: number
 ): Promise<InterruptedApplicationEmailRecovery> {
-	if (activeRun || starting) return 'ignored';
-	starting = true;
+	const [run] = await db
+		.select()
+		.from(applicationEmailRun)
+		.where(eq(applicationEmailRun.id, runId))
+		.limit(1);
+	if (!run) return 'ignored';
+	const personId = run.personId;
+	if (activeRuns.has(personId) || starting.has(personId)) return 'ignored';
+	starting.add(personId);
 	try {
-		const [run] = await db
-			.select()
-			.from(applicationEmailRun)
-			.where(eq(applicationEmailRun.id, runId))
-			.limit(1);
-		if (!run) return 'ignored';
 		if (run.status === 'canceling') {
 			await finishInterruptedCancelingRun(run);
 			return 'canceled';
@@ -785,13 +814,13 @@ export async function recoverInterruptedApplicationEmailRun(
 		if (run.status !== 'running') return 'ignored';
 
 		const controller = new AbortController();
-		activeRun = { runId, controller, startedAt: new Date() };
+		activeRuns.set(personId, { runId, controller, startedAt: new Date() });
 		try {
 			await db
 				.update(applicationEmail)
 				.set({ status: 'queued' })
 				.where(and(eq(applicationEmail.runId, runId), eq(applicationEmail.status, 'sending')));
-			const settings = await getSettings();
+			const settings = await getPerson(personId);
 			await repaceQueuedRows(runId, settings);
 			void runApplicationEmailWorker(
 				runId,
@@ -800,11 +829,11 @@ export async function recoverInterruptedApplicationEmailRun(
 				progressOrDefault(run.progress)
 			);
 		} catch (err) {
-			if (activeRun?.runId === runId) activeRun = null;
+			if (activeRuns.get(personId)?.runId === runId) activeRuns.delete(personId);
 			throw err;
 		}
 		return 'resumed';
 	} finally {
-		starting = false;
+		starting.delete(personId);
 	}
 }

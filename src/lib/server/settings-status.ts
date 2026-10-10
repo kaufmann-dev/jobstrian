@@ -1,8 +1,8 @@
-import type { Settings } from './db/schema';
+import type { Person } from './db/schema';
 
 export function hasSavedHomeLocation(
 	settings: Pick<
-		Settings,
+		Person,
 		'homeAddress' | 'homeLocationProvider' | 'homeLocationId' | 'homeCity' | 'homeLat' | 'homeLon'
 	>
 ): boolean {

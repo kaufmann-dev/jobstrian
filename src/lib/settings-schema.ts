@@ -1,0 +1,67 @@
+import { z } from 'zod';
+import {
+	certificationsSchema,
+	educationHistoryListSchema,
+	skillsSchema,
+	workExperienceListSchema
+} from '#lib/profile.js';
+import {
+	DEFAULT_LEAD_RANKING_CRITERIA,
+	DEFAULT_LISTING_RANKING_CRITERIA,
+	rankingCriteriaSchema
+} from '#lib/ranking-criteria.js';
+import { businessOsmTagsSchema, stringListSchema } from '#lib/search-config.js';
+
+export const settingsSchema = z.object({
+	fullName: z.string().max(200).default(''),
+	phone: z.string().max(50).default(''),
+	email: z.string().max(200).default(''),
+	profileText: z.string().max(5000).default(''),
+	languages: z.array(z.string().max(200)).max(50).default([]),
+	skills: skillsSchema.default([]),
+	workExperience: workExperienceListSchema.default([]),
+	educationHistory: educationHistoryListSchema.default([]),
+	certifications: certificationsSchema.default([]),
+	germanLevel: z.string().max(20).default(''),
+	experienceYears: z.number().int().min(0).max(60).nullable().default(null),
+	educationStatus: z.string().max(500).default(''),
+	availability: z.string().max(500).default(''),
+	listingRankingCriteria: rankingCriteriaSchema.default(DEFAULT_LISTING_RANKING_CRITERIA),
+	leadRankingCriteria: rankingCriteriaSchema.default(DEFAULT_LEAD_RANKING_CRITERIA),
+	homeAddress: z.string().max(500).default(''),
+	jobSearchKeywords: stringListSchema.default([]),
+	jobSearchLocations: stringListSchema.default([]),
+	businessOsmTags: businessOsmTagsSchema.default([]),
+	businessRadiusMeters: z.number().int().min(250).max(20000).default(5000),
+	sourceHokify: z.boolean().default(false),
+	sourceWillhaben: z.boolean().default(false),
+	sourceKarriere: z.boolean().default(false),
+	sourceAms: z.boolean().default(false),
+	// Saved LLM model of this person; null uses the app default.
+	llmModelId: z.number().int().positive().nullable().default(null),
+	resendApiKey: z.string().max(500).default(''),
+	resendDomain: z.string().trim().max(255).default(''),
+	resendFromLocalPart: z
+		.string()
+		.trim()
+		.min(1)
+		.max(100)
+		.regex(/^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+$/, 'Ungültiger lokaler E-Mail-Teil')
+		.default('bewerbung'),
+	resendFromName: z.string().trim().max(200).default(''),
+	resendReplyTo: z.union([z.email(), z.literal('')]).default(''),
+	resendWebhookSecret: z.string().trim().max(500).default(''),
+	applicationEmailDailyLimit: z.number().int().min(1).max(1000).default(90),
+	applicationEmailSendOnWeekends: z.boolean().default(false)
+});
+
+export const resendSettingsSchema = settingsSchema.pick({
+	resendApiKey: true,
+	resendDomain: true,
+	resendFromLocalPart: true,
+	resendFromName: true,
+	resendReplyTo: true,
+	resendWebhookSecret: true
+});
+
+export type SettingsSchema = typeof settingsSchema;

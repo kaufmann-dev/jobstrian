@@ -1,4 +1,4 @@
-import { chatJson, type LlmConfig } from './client';
+import { chatJson, type LlmEndpoint } from './client';
 import type { LlmLimiter } from './limiter';
 import type { RunPhaseFailureReason } from '../db/schema';
 import { bumpFailure, toFailureReasons } from '../run-failures';
@@ -226,7 +226,7 @@ function parseLlmResults(
 }
 
 export async function reviewLeadEmailCandidates(
-	cfg: LlmConfig,
+	cfg: LlmEndpoint,
 	candidates: LeadEmailQualityCandidate[],
 	limiter: LlmLimiter,
 	signal?: AbortSignal,

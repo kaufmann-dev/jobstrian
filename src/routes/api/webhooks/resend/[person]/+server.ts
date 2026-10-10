@@ -1,0 +1,99 @@
+import { Resend } from 'resend';
+import { and, eq } from 'drizzle-orm';
+import { db } from '#lib/server/db/index.js';
+import {
+	applicationEmail,
+	applicationEmailSuppression,
+	resendWebhookEvent
+} from '#lib/server/db/schema.js';
+import { findPersonBySlug } from '#lib/server/people.js';
+import type { RequestHandler } from './$types';
+
+type ResendWebhookPayload = {
+	type?: string;
+	data?: {
+		email_id?: string;
+		to?: string | string[];
+	};
+};
+
+function firstRecipient(value: unknown): string | null {
+	if (typeof value === 'string') return value.toLowerCase();
+	if (Array.isArray(value)) {
+		const first = value.find((item): item is string => typeof item === 'string');
+		return first?.toLowerCase() ?? null;
+	}
+	return null;
+}
+
+export const POST: RequestHandler = async ({ request, params }) => {
+	const settings = await findPersonBySlug(params.person);
+	if (!settings) return Response.json({ message: 'Person nicht gefunden.' }, { status: 404 });
+	if (!settings.resendWebhookSecret) {
+		return Response.json({ message: 'Webhook-Secret ist nicht konfiguriert.' }, { status: 400 });
+	}
+
+	const payload = await request.text();
+	const eventId = request.headers.get('svix-id') ?? '';
+	let event: ResendWebhookPayload;
+	try {
+		event = (await new Resend(settings.resendApiKey).webhooks.verify({
+			payload,
+			headers: {
+				id: eventId,
+				timestamp: request.headers.get('svix-timestamp') ?? '',
+				signature: request.headers.get('svix-signature') ?? ''
+			},
+			webhookSecret: settings.resendWebhookSecret
+		})) as ResendWebhookPayload;
+	} catch {
+		return Response.json({ message: 'Webhook-Signatur ist ungültig.' }, { status: 400 });
+	}
+
+	if (!eventId || !event.type) {
+		return Response.json({ message: 'Webhook-Daten sind ungültig.' }, { status: 400 });
+	}
+
+	await db
+		.insert(resendWebhookEvent)
+		.values({ id: eventId, type: event.type, payload: event as Record<string, unknown> })
+		.onConflictDoNothing();
+
+	if (event.type === 'email.bounced' || event.type === 'email.complained') {
+		const emailId = event.data?.email_id;
+		const recipient = firstRecipient(event.data?.to);
+		let sourceId: number | null = null;
+		if (emailId) {
+			const [sent] = await db
+				.select()
+				.from(applicationEmail)
+				.where(
+					and(
+						eq(applicationEmail.resendEmailId, emailId),
+						eq(applicationEmail.personId, settings.id)
+					)
+				)
+				.limit(1);
+			sourceId = sent?.id ?? null;
+			if (sent) {
+				await db
+					.update(applicationEmail)
+					.set({ status: 'failed', error: event.type })
+					.where(eq(applicationEmail.id, sent.id));
+			}
+		}
+		if (recipient) {
+			await db
+				.insert(applicationEmailSuppression)
+				.values({
+					personId: settings.id,
+					email: recipient,
+					reason: event.type,
+					sourceApplicationEmailId: sourceId
+				})
+				.onConflictDoNothing();
+		}
+	}
+
+	return Response.json({ received: true });
+};

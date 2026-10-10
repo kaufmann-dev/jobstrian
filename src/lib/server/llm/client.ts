@@ -1,24 +1,26 @@
-import type { Settings } from '../db/schema';
-import { getSettings } from '../settings';
-import { abortError, isAbortError, LlmLimiter } from './limiter';
+import { abortError, isAbortError, type LlmLimiter } from './limiter';
 
-export interface LlmConfig {
+/** What a chat request needs to reach a model. */
+export interface LlmEndpoint {
 	baseUrl: string;
 	apiKey: string;
 	model: string;
 }
 
-export class LlmNotConfiguredError extends Error {
-	constructor() {
-		super('LLM ist nicht konfiguriert. Base URL oder Modell fehlen in den Einstellungen.');
-		this.name = 'LlmNotConfiguredError';
-	}
+/** A resolved saved model: endpoint plus the limits of its connection. */
+export interface LlmConfig extends LlmEndpoint {
+	connectionId: number;
+	modelRowId: number;
+	requestsPerMinute: number;
+	maxConcurrent: number;
+	verified: boolean;
 }
 
-export async function getLlmConfig(settings?: Settings): Promise<LlmConfig> {
-	const s = settings ?? (await getSettings());
-	if (!s.llmBaseUrl || !s.llmModel) throw new LlmNotConfiguredError();
-	return { baseUrl: s.llmBaseUrl, apiKey: s.llmApiKey, model: s.llmModel };
+export class LlmNotConfiguredError extends Error {
+	constructor() {
+		super('Kein KI-Modell ausgewählt. Lege unter Einstellungen eine KI-Verbindung mit Modell an.');
+		this.name = 'LlmNotConfiguredError';
+	}
 }
 
 export class LlmHttpError extends Error {
@@ -102,7 +104,7 @@ function unfence(text: string): string {
  * message as JSON (response_format json_object). Throws on transport/parse error.
  */
 export async function chatJson<T>(
-	cfg: LlmConfig,
+	cfg: LlmEndpoint,
 	messages: { role: 'system' | 'user'; content: string }[],
 	opts: {
 		temperature?: number;

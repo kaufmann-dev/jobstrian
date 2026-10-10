@@ -1,9 +1,9 @@
 import { z } from 'zod';
-import type { Settings } from './db/schema';
+import type { Person } from './db/schema';
 import type { GeoSuggestion } from '#lib/geo.js';
 import { geoSuggestions } from './geo/geoapify';
-import { ALL_SOURCES, getSettings, updateSettings } from './settings';
-import { settingsSchema } from '../../routes/(app)/settings/schema.js';
+import { settingsSchema } from '#lib/settings-schema.js';
+import { ALL_SOURCES, getPerson, updatePerson } from './people';
 
 const PATCHABLE_FIELDS = [
 	'fullName',
@@ -29,10 +29,7 @@ const PATCHABLE_FIELDS = [
 	'sourceWillhaben',
 	'sourceKarriere',
 	'sourceAms',
-	'llmBaseUrl',
-	'llmModel',
-	'llmRequestsPerMinute',
-	'llmMaxConcurrent',
+	'llmModelId',
 	'applicationEmailDailyLimit',
 	'applicationEmailSendOnWeekends'
 ] as const;
@@ -74,9 +71,7 @@ export type SettingsPatch = Omit<z.infer<typeof settingsPatchSchema>, 'patch'> &
 	patch: Partial<Record<PatchableField, unknown>>;
 };
 
-function locationPatch(
-	homeLocation: NonNullable<SettingsPatch['homeLocation']>
-): Partial<Settings> {
+function locationPatch(homeLocation: NonNullable<SettingsPatch['homeLocation']>): Partial<Person> {
 	if (!homeLocation.verified) {
 		return {
 			homeAddress: homeLocation.address,
@@ -149,14 +144,14 @@ export async function verifyTypedHomeLocation(
 	}
 }
 
-export function toSettingsDbPatch(input: SettingsPatch, current?: Settings): Partial<Settings> {
+export function toSettingsDbPatch(input: SettingsPatch, current?: Person): Partial<Person> {
 	const { sourceHokify, sourceWillhaben, sourceKarriere, sourceAms, ...ordinary } = input.patch;
 	const hasSourcePatch =
 		sourceHokify !== undefined ||
 		sourceWillhaben !== undefined ||
 		sourceKarriere !== undefined ||
 		sourceAms !== undefined;
-	const patch: Partial<Settings> = {};
+	const patch: Partial<Person> = {};
 	for (const [field, value] of Object.entries(ordinary)) {
 		const parsed = settingsSchema.shape[field as keyof typeof settingsSchema.shape].parse(value);
 		Object.assign(patch, { [field]: parsed });
@@ -189,20 +184,14 @@ export function toSettingsDbPatch(input: SettingsPatch, current?: Settings): Par
 		});
 	}
 	if (input.homeLocation) Object.assign(patch, locationPatch(input.homeLocation));
-	const baseUrlChanged = patch.llmBaseUrl !== undefined && patch.llmBaseUrl !== current?.llmBaseUrl;
-	const modelChanged = patch.llmModel !== undefined && patch.llmModel !== current?.llmModel;
-	if (baseUrlChanged || modelChanged) {
-		patch.llmVerified = false;
-		patch.llmVerifiedAt = null;
-	}
 	return patch;
 }
 
-export async function applySettingsPatch(input: unknown): Promise<Settings> {
+export async function applySettingsPatch(personId: number, input: unknown): Promise<Person> {
 	const parsed = settingsPatchSchema.safeParse(input);
 	if (!parsed.success) throw parsed.error;
 	const data = parsed.data as SettingsPatch;
 	if (data.homeLocation) data.homeLocation = await verifyTypedHomeLocation(data.homeLocation);
-	const current = await getSettings();
-	return updateSettings(toSettingsDbPatch(data, current));
+	const current = await getPerson(personId);
+	return updatePerson(personId, toSettingsDbPatch(data, current));
 }

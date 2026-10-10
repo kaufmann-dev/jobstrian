@@ -67,7 +67,11 @@
 		"vitest-browser-svelte": "^3.1.0"
 	},
 	"dependencies": {
-		"better-auth": "^1.7.6",
+		"@better-auth/cimd": "1.7.7",
+		"@better-auth/mcp": "1.7.7",
+		"@better-auth/oauth-provider": "1.7.7",
+		"@modelcontextprotocol/server": "2.3.0",
+		"better-auth": "^1.7.7",
 		"better-svelte-email": "^2.3.0",
 		"cheerio": "^1.2.0",
 		"chromium-bidi": "157.0.8080-0",

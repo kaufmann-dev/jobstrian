@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import type { Lead, Listing, Settings } from '../db/schema';
+import type { Lead, Listing, Person } from '../db/schema';
 import {
 	DEFAULT_LEAD_RANKING_CRITERIA,
 	DEFAULT_LISTING_RANKING_CRITERIA
 } from '#lib/ranking-criteria.js';
 import type { OsmBusinessTag, OsmBusinessTagSuggestion } from '#lib/search-config.js';
-import type { LlmConfig } from './client';
+import type { LlmEndpoint } from './client';
 import {
 	draftContextHash,
 	leadContentHash,
@@ -22,9 +22,14 @@ const matchedTags: OsmBusinessTagSuggestion[] = [
 	{ key: 'amenity', value: 'pharmacy', raw: 'amenity=pharmacy', label: 'Amenity: Pharmacy' }
 ];
 
-function settings(patch: Partial<Settings> = {}): Settings {
+function settings(patch: Partial<Person> = {}): Person {
 	return {
 		id: 1,
+		name: 'Test',
+		slug: 'test',
+		color: 'amber',
+		createdAt: new Date(),
+		llmModelId: null,
 		fullName: '',
 		phone: '',
 		email: '',
@@ -52,13 +57,6 @@ function settings(patch: Partial<Settings> = {}): Settings {
 		businessOsmTags: businessTags,
 		businessRadiusMeters: 5000,
 		enabledSources: ['willhaben'],
-		llmBaseUrl: 'https://llm.example.test/v1',
-		llmApiKey: 'secret',
-		llmModel: 'model-a',
-		llmRequestsPerMinute: 300,
-		llmMaxConcurrent: 50,
-		llmVerified: false,
-		llmVerifiedAt: null,
 		resendApiKey: '',
 		resendDomain: '',
 		resendDomainId: null,
@@ -77,7 +75,7 @@ function settings(patch: Partial<Settings> = {}): Settings {
 	};
 }
 
-const cfg: LlmConfig = {
+const cfg: LlmEndpoint = {
 	baseUrl: 'https://llm.example.test/v1',
 	apiKey: 'secret',
 	model: 'model-a'
@@ -86,6 +84,7 @@ const cfg: LlmConfig = {
 function listingRow(patch: Partial<Listing> = {}): Listing {
 	return {
 		id: 1,
+		personId: 1,
 		source: 'willhaben',
 		externalId: 'abc',
 		url: 'https://example.test/job/abc',
@@ -115,6 +114,7 @@ function listingRow(patch: Partial<Listing> = {}): Listing {
 
 function leadRow(patch: Partial<Lead> = {}): Lead {
 	return {
+		personId: 1,
 		id: 1,
 		osmId: 'node/1',
 		name: 'Cafe Test',

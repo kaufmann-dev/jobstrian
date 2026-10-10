@@ -1,8 +1,8 @@
 import { Resend } from 'resend';
 import { eq } from 'drizzle-orm';
 import { db } from '../db';
-import { settings, type ApplicationEmailDnsRecord, type Settings } from '../db/schema';
-import { getSettings, updateSettings } from '../settings';
+import { person, type ApplicationEmailDnsRecord, type Person } from '../db/schema';
+import { getPerson, updatePerson } from '../people';
 import { getCvMeta } from '../cv';
 
 export type ApplicationEmailReadiness = {
@@ -55,7 +55,7 @@ export function normalizeLocalPart(value: string): string {
 	return value.trim().toLowerCase() || 'bewerbung';
 }
 
-export function applicationEmailFromAddress(s: Settings): string {
+export function applicationEmailFromAddress(s: Person): string {
 	const domain = normalizeDomain(s.resendDomain);
 	const local = normalizeLocalPart(s.resendFromLocalPart);
 	if (!domain) return '';
@@ -64,11 +64,11 @@ export function applicationEmailFromAddress(s: Settings): string {
 	return name ? `${name.replaceAll('"', '')} <${address}>` : address;
 }
 
-export function applicationEmailReplyTo(s: Settings): string {
+export function applicationEmailReplyTo(s: Person): string {
 	return s.resendReplyTo.trim() || s.email.trim();
 }
 
-export function applicationEmailDomainConfig(s: Settings): ApplicationEmailDomainConfig {
+export function applicationEmailDomainConfig(s: Person): ApplicationEmailDomainConfig {
 	return {
 		hasResendApiKey: Boolean(s.resendApiKey),
 		domain: s.resendDomain,
@@ -84,8 +84,7 @@ export function applicationEmailDomainConfig(s: Settings): ApplicationEmailDomai
 	};
 }
 
-export async function applicationEmailReadiness(s?: Settings): Promise<ApplicationEmailReadiness> {
-	s ??= await getSettings();
+export async function applicationEmailReadiness(s: Person): Promise<ApplicationEmailReadiness> {
 	const reasons: string[] = [];
 	if (!s.resendApiKey) reasons.push('Resend API-Key fehlt.');
 	if (!normalizeDomain(s.resendDomain)) reasons.push('Versanddomain fehlt.');
@@ -96,16 +95,16 @@ export async function applicationEmailReadiness(s?: Settings): Promise<Applicati
 	if (!applicationEmailFromAddress(s)) reasons.push('Absenderadresse fehlt.');
 	if (!applicationEmailReplyTo(s)) reasons.push('Antwortadresse fehlt.');
 	if (!s.resendWebhookSecret.trim()) reasons.push('Resend Webhook-Secret fehlt.');
-	if (!(await getCvMeta())) reasons.push('Lebenslauf-PDF fehlt.');
+	if (!(await getCvMeta(s.id))) reasons.push('Lebenslauf-PDF fehlt.');
 	return { ready: reasons.length === 0, reasons };
 }
 
-function resendClient(s: Settings): Resend {
+function resendClient(s: Person): Resend {
 	if (!s.resendApiKey) throw new Error('Resend API-Key fehlt.');
 	return new Resend(s.resendApiKey);
 }
 
-function ensureDomain(s: Settings): string {
+function ensureDomain(s: Person): string {
 	const domain = normalizeDomain(s.resendDomain);
 	if (!domain || !DOMAIN_RE.test(domain)) throw new Error('Bitte gib eine gültige Domain ein.');
 	return domain;
@@ -163,18 +162,21 @@ async function createDomain(client: Resend, domain: string): Promise<ResendDomai
 	);
 }
 
-export async function saveApplicationEmailSettings(input: {
-	resendApiKey?: string;
-	resendDomain: string;
-	resendFromLocalPart: string;
-	resendFromName: string;
-	resendReplyTo: string;
-	resendWebhookSecret?: string;
-}): Promise<Settings> {
-	const current = await getSettings();
+export async function saveApplicationEmailSettings(
+	personId: number,
+	input: {
+		resendApiKey?: string;
+		resendDomain: string;
+		resendFromLocalPart: string;
+		resendFromName: string;
+		resendReplyTo: string;
+		resendWebhookSecret?: string;
+	}
+): Promise<Person> {
+	const current = await getPerson(personId);
 	const domain = normalizeDomain(input.resendDomain);
 	const domainChanged = domain !== current.resendDomain;
-	const patch: Partial<Settings> = {
+	const patch: Partial<Person> = {
 		resendDomain: domain,
 		resendFromLocalPart: normalizeLocalPart(input.resendFromLocalPart),
 		resendFromName: input.resendFromName.trim(),
@@ -189,27 +191,27 @@ export async function saveApplicationEmailSettings(input: {
 		patch.resendDnsVerifiedAt = null;
 		patch.applicationEmailEnabled = false;
 	}
-	return updateSettings(patch);
+	return updatePerson(personId, patch);
 }
 
-export async function syncResendDomain(): Promise<Settings> {
-	const current = await getSettings();
+export async function syncResendDomain(personId: number): Promise<Person> {
+	const current = await getPerson(personId);
 	const client = resendClient(current);
 	const domain = ensureDomain(current);
 	const existing = current.resendDomainId
 		? await readDomain(client, current.resendDomainId).catch(() => null)
 		: await findDomainByName(client, domain);
 	const next = existing ?? (await createDomain(client, domain));
-	const patch: Partial<Settings> = {
+	const patch: Partial<Person> = {
 		resendDomainId: next.id ?? current.resendDomainId,
 		resendDomainStatus: next.status ?? 'pending',
 		resendDnsRecords: toDnsRecords(next.records),
 		applicationEmailEnabled: next.status === 'verified',
 		resendDnsVerifiedAt: next.status === 'verified' ? new Date() : null
 	};
-	return updateSettings(patch);
+	return updatePerson(personId, patch);
 }
 
-export async function disableApplicationEmailSending(): Promise<void> {
-	await db.update(settings).set({ applicationEmailEnabled: false }).where(eq(settings.id, 1));
+export async function disableApplicationEmailSending(personId: number): Promise<void> {
+	await db.update(person).set({ applicationEmailEnabled: false }).where(eq(person.id, personId));
 }

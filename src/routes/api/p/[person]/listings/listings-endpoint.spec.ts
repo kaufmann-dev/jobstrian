@@ -1,0 +1,54 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+const { getListingPage } = vi.hoisted(() => ({ getListingPage: vi.fn() }));
+vi.mock('#lib/server/list-pages.js', async (importOriginal) => {
+	const actual = await importOriginal<typeof import('#lib/server/list-pages.js')>();
+	return { ...actual, getListingPage };
+});
+
+vi.mock('#lib/server/request-person.js', () => ({
+	requirePerson: async () => ({ id: 3, slug: 'maria' })
+}));
+
+import { GET } from './+server';
+
+describe('GET /api/listings', () => {
+	beforeEach(() => {
+		getListingPage.mockReset();
+	});
+
+	it('passes a cursor through without triggering the former boolean-comparison 500', async () => {
+		getListingPage.mockResolvedValue({ items: [], nextCursor: null, matchingTotal: 0, total: 0 });
+		const url = new URL('http://localhost/api/listings?cursor=valid&sort=recommended');
+		const response = await GET({ url, params: { person: 'maria' } } as never);
+		expect(response.status).toBe(200);
+		expect(getListingPage).toHaveBeenCalledWith(
+			3,
+			expect.objectContaining({ sort: 'recommended' }),
+			'valid'
+		);
+	});
+
+	it('treats an empty search as an unfiltered request', async () => {
+		getListingPage.mockResolvedValue({ items: [], nextCursor: null, matchingTotal: 0, total: 0 });
+		const response = await GET({
+			params: { person: 'maria' },
+			url: new URL('http://localhost/api/listings?search=&sort=recommended')
+		} as never);
+
+		expect(response.status).toBe(200);
+		expect(getListingPage).toHaveBeenCalledWith(3, expect.objectContaining({ search: '' }), null);
+	});
+
+	it('logs server failures and returns a clear JSON error', async () => {
+		vi.spyOn(console, 'error').mockImplementation(() => undefined);
+		getListingPage.mockRejectedValue(new Error('database failed'));
+		const response = await GET({
+			params: { person: 'maria' },
+			url: new URL('http://localhost/api/listings')
+		} as never);
+		expect(response.status).toBe(500);
+		expect(await response.json()).toEqual({ message: 'Stellen konnten nicht geladen werden.' });
+		expect(console.error).toHaveBeenCalled();
+	});
+});

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { Lead, Settings } from '../db/schema';
+import type { Lead, Person } from '../db/schema';
 import {
 	DEFAULT_LEAD_RANKING_CRITERIA,
 	DEFAULT_LISTING_RANKING_CRITERIA
@@ -12,9 +12,14 @@ import {
 	profileBlock
 } from './rank';
 
-function settings(patch: Partial<Settings> = {}): Settings {
+function settings(patch: Partial<Person> = {}): Person {
 	return {
 		id: 1,
+		name: 'Test',
+		slug: 'test',
+		color: 'amber',
+		createdAt: new Date(),
+		llmModelId: null,
 		fullName: '',
 		phone: '',
 		email: '',
@@ -42,13 +47,6 @@ function settings(patch: Partial<Settings> = {}): Settings {
 		businessOsmTags: [],
 		businessRadiusMeters: 5000,
 		enabledSources: [],
-		llmBaseUrl: '',
-		llmApiKey: '',
-		llmModel: '',
-		llmRequestsPerMinute: 300,
-		llmMaxConcurrent: 50,
-		llmVerified: false,
-		llmVerifiedAt: null,
 		resendApiKey: '',
 		resendDomain: '',
 		resendDomainId: null,
@@ -69,6 +67,7 @@ function settings(patch: Partial<Settings> = {}): Settings {
 
 function lead(patch: Partial<Lead> = {}): Lead {
 	return {
+		personId: 1,
 		id: 1,
 		osmId: 'node/1',
 		name: 'Stadt Apotheke',
@@ -224,6 +223,7 @@ describe('listing ranking prompt', () => {
 			}),
 			{
 				id: 1,
+				personId: 1,
 				source: 'test',
 				externalId: 'job-1',
 				url: 'https://example.test/job',

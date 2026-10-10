@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { Settings } from '../db/schema';
+import type { Person } from '../db/schema';
 import type { OverpassPlace } from './overpass';
 
 const {
@@ -36,9 +36,14 @@ vi.mock('../db', () => ({
 
 import { extractEmailFromWebsite, syncLeads } from './leads';
 
-function settings(patch: Partial<Settings> = {}): Settings {
+function settings(patch: Partial<Person> = {}): Person {
 	return {
 		id: 1,
+		name: 'Test',
+		slug: 'test',
+		color: 'amber',
+		createdAt: new Date(),
+		llmModelId: null,
 		fullName: '',
 		phone: '',
 		email: 'applicant@example.com',
@@ -66,13 +71,6 @@ function settings(patch: Partial<Settings> = {}): Settings {
 		businessOsmTags: [],
 		businessRadiusMeters: 5000,
 		enabledSources: [],
-		llmBaseUrl: '',
-		llmApiKey: '',
-		llmModel: '',
-		llmRequestsPerMinute: 300,
-		llmMaxConcurrent: 50,
-		llmVerified: false,
-		llmVerifiedAt: null,
 		resendApiKey: '',
 		resendDomain: 'mail.example.com',
 		resendDomainId: null,

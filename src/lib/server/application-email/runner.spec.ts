@@ -1,8 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { Settings } from '../db/schema';
+import type { Person } from '../db/schema';
 
 type RunRow = {
 	id: number;
+	personId: number;
 	status: 'running' | 'canceling' | 'canceled' | 'done' | 'error';
 	phase: string;
 	counts: { queued: number; sent: number; failed: number; skipped: number };
@@ -13,6 +14,7 @@ type RunRow = {
 
 type EmailRow = {
 	id: number;
+	personId: number;
 	runId: number;
 	leadId: number;
 	recipientEmail: string;
@@ -53,6 +55,7 @@ function progress() {
 const fake = vi.hoisted(() => {
 	type MutableRunRow = {
 		id: number;
+		personId: number;
 		status: string;
 		phase: string;
 		counts: { queued: number; sent: number; failed: number; skipped: number };
@@ -62,6 +65,7 @@ const fake = vi.hoisted(() => {
 	};
 	type MutableEmailRow = {
 		id: number;
+		personId: number;
 		runId: number;
 		leadId: number;
 		recipientEmail: string;
@@ -235,8 +239,12 @@ const fake = vi.hoisted(() => {
 });
 
 vi.mock('../db', () => ({ db: fake.db }));
-vi.mock('../settings', () => ({
-	getSettings: vi.fn(async () => ({
+vi.mock('../applications/service', () => ({
+	ensureApplicationForLead: vi.fn(async () => undefined)
+}));
+vi.mock('../people', () => ({
+	getPerson: vi.fn(async () => ({
+		id: 1,
 		resendApiKey: 'test-key',
 		resendDomain: 'example.com',
 		resendFromLocalPart: 'bewerbung',
@@ -275,7 +283,7 @@ vi.mock('resend', () => ({
 vi.mock('./application-email-template.svelte', () => ({ default: {} }));
 
 import { getCvData } from '../cv';
-import { getSettings } from '../settings';
+import { getPerson } from '../people';
 import {
 	cancelApplicationEmailRun,
 	recoverInterruptedApplicationEmailRun,
@@ -284,8 +292,9 @@ import {
 } from './runner';
 import { isApplicationEmailSendWindow } from './schedule';
 
-function defaultSettings(patch: Partial<Settings> = {}): Settings {
+function defaultSettings(patch: Partial<Person> = {}): Person {
 	return {
+		id: 1,
 		resendApiKey: 'test-key',
 		resendDomain: 'example.com',
 		resendFromLocalPart: 'bewerbung',
@@ -297,7 +306,7 @@ function defaultSettings(patch: Partial<Settings> = {}): Settings {
 		fullName: 'Applicant',
 		email: 'reply@example.com',
 		...patch
-	} as Settings;
+	} as Person;
 }
 
 function defaultCv(): Awaited<ReturnType<typeof getCvData>> {
@@ -312,7 +321,7 @@ beforeEach(() => {
 	vi.useFakeTimers({ toFake: ['Date'] });
 	vi.setSystemTime(new Date('2026-06-29T09:00:00.000Z'));
 	fake.reset();
-	vi.mocked(getSettings).mockResolvedValue(defaultSettings());
+	vi.mocked(getPerson).mockResolvedValue(defaultSettings());
 	vi.mocked(getCvData).mockResolvedValue(defaultCv());
 });
 
@@ -321,6 +330,7 @@ afterEach(() => vi.useRealTimers());
 function seedRun(status: RunRow['status']): RunRow {
 	return {
 		id: 1,
+		personId: 1,
 		status,
 		phase: 'Bewerbungen werden versendet',
 		counts: { queued: 1, sent: 0, failed: 0, skipped: 0 },
@@ -333,6 +343,7 @@ function seedRun(status: RunRow['status']): RunRow {
 function seedEmail(status: EmailRow['status'], id = 10): EmailRow {
 	return {
 		id,
+		personId: 1,
 		runId: 1,
 		leadId: 100 + id,
 		recipientEmail: `lead-${id}@example.com`,
@@ -370,7 +381,7 @@ function seedLead(
 
 describe('test application e-mail', () => {
 	it('sends the rendered template with the CV attachment to the reply-to address', async () => {
-		const result = await sendTestApplicationEmail();
+		const result = await sendTestApplicationEmail(1);
 
 		expect(result).toEqual({ recipient: 'reply@example.com', resendEmailId: 'resend-1' });
 		expect(fake.state.sendCalls[0].idempotencyKey).toMatch(/^application-email-test-/);
@@ -395,14 +406,14 @@ describe('test application e-mail', () => {
 	it('fails with a clear message when the CV attachment is missing', async () => {
 		vi.mocked(getCvData).mockResolvedValue(null);
 
-		await expect(sendTestApplicationEmail()).rejects.toThrow('Lebenslauf-PDF fehlt.');
+		await expect(sendTestApplicationEmail(1)).rejects.toThrow('Lebenslauf-PDF fehlt.');
 		expect(fake.state.sendCalls).toEqual([]);
 	});
 
 	it('fails before sending when Resend is not configured', async () => {
-		vi.mocked(getSettings).mockResolvedValue(defaultSettings({ resendApiKey: '' }));
+		vi.mocked(getPerson).mockResolvedValue(defaultSettings({ resendApiKey: '' }));
 
-		await expect(sendTestApplicationEmail()).rejects.toThrow('Resend API-Key fehlt.');
+		await expect(sendTestApplicationEmail(1)).rejects.toThrow('Resend API-Key fehlt.');
 		expect(fake.state.sendCalls).toEqual([]);
 	});
 });
@@ -482,7 +493,7 @@ describe('interrupted application e-mail recovery', () => {
 		expect(fake.state.emails[0].scheduledAt.toISOString()).toBe('2026-06-29T07:00:00.000Z');
 		expect(fake.state.sendCalls).toHaveLength(0);
 
-		vi.mocked(getSettings).mockResolvedValue(
+		vi.mocked(getPerson).mockResolvedValue(
 			defaultSettings({ applicationEmailSendOnWeekends: true })
 		);
 		await vi.advanceTimersByTimeAsync(30_000);
@@ -494,7 +505,7 @@ describe('interrupted application e-mail recovery', () => {
 	it('postpones queued weekend sends when weekend sending is disabled', async () => {
 		vi.useFakeTimers();
 		vi.setSystemTime(new Date('2026-06-27T06:59:45.000Z'));
-		vi.mocked(getSettings).mockResolvedValue(
+		vi.mocked(getPerson).mockResolvedValue(
 			defaultSettings({ applicationEmailSendOnWeekends: true })
 		);
 		fake.state.runs.push(seedRun('running'));
@@ -504,7 +515,7 @@ describe('interrupted application e-mail recovery', () => {
 		await recoverInterruptedApplicationEmailRun(1);
 		await vi.advanceTimersByTimeAsync(0);
 		expect(fake.state.emails[0].scheduledAt.toISOString()).toBe('2026-06-27T07:00:00.000Z');
-		vi.mocked(getSettings).mockResolvedValue(defaultSettings());
+		vi.mocked(getPerson).mockResolvedValue(defaultSettings());
 		await vi.advanceTimersByTimeAsync(30_000);
 		expect(fake.state.emails[0].scheduledAt.toISOString()).toBe('2026-06-29T07:00:00.000Z');
 		expect(fake.state.sendCalls).toHaveLength(0);

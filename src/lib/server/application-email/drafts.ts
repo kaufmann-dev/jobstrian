@@ -1,11 +1,11 @@
 import { eq } from 'drizzle-orm';
 import { db } from '../db';
 import { lead, type Lead } from '../db/schema';
-import { getSettings } from '../settings';
-import { getLlmConfig, LlmNotConfiguredError } from '../llm/client';
+import { getPerson } from '../people';
+import { LlmNotConfiguredError } from '../llm/client';
+import { getLlmConfig, getLlmLimiter } from '../llm/connections';
 import { draftColdEmail } from '../llm/draft-email';
 import { draftContextHash, leadContentHash, shouldDraftLead } from '../llm/fingerprints';
-import { LlmLimiter } from '../llm/limiter';
 
 export type DraftRefreshResult = {
 	lead: Lead;
@@ -17,7 +17,7 @@ export async function ensureLeadDraft(leadId: number): Promise<DraftRefreshResul
 	if (!row) throw new Error('Betrieb nicht gefunden.');
 	if (!row.email) return { lead: row, warning: null };
 
-	const settings = await getSettings();
+	const settings = await getPerson(row.personId);
 	let cfg;
 	try {
 		cfg = await getLlmConfig(settings);
@@ -35,10 +35,7 @@ export async function ensureLeadDraft(leadId: number): Promise<DraftRefreshResul
 	const contextHash = draftContextHash(settings, cfg);
 	if (!shouldDraftLead(row, contextHash, contentHash)) return { lead: row, warning: null };
 
-	const limiter = new LlmLimiter({
-		requestsPerMinute: settings.llmRequestsPerMinute,
-		maxConcurrent: Math.max(1, Math.min(settings.llmMaxConcurrent, 2))
-	});
+	const limiter = getLlmLimiter(cfg);
 	try {
 		const draft = await draftColdEmail(cfg, settings, row, limiter);
 		const [updated] = await db

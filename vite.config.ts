@@ -16,7 +16,9 @@ export default defineConfig({
 			},
 			adapter: adapter(),
 			// Public origin behind the reverse proxy; used for CSRF checks and request URLs.
-			paths: { origin: process.env.ORIGIN || undefined }
+			paths: { origin: process.env.ORIGIN || undefined },
+			// Replaced by the equivalent check in hooks.server.ts, which exempts OAuth endpoints.
+			csrf: { trustedOrigins: ['*'] }
 		}),
 		paraglideVitePlugin({ project: './project.inlang', outdir: './src/lib/paraglide' })
 	],

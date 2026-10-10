@@ -6,16 +6,20 @@ import { getTextDirection } from '#lib/paraglide/runtime.js';
 import { isAuthApiRequest, safeReturnTo } from '#lib/oidc-policy.js';
 import { paraglideMiddleware } from '#lib/paraglide/server.js';
 import { isSessionExpired, shouldTouchSession } from '#lib/session-policy.js';
-import { auth, authBaseURL } from '#lib/server/auth.js';
+import { auth, authBaseURL, initAuth } from '#lib/server/auth.js';
 import {
 	clearSessionCookies,
 	deleteStoredSession,
 	getStoredSession,
 	touchStoredSession
 } from '#lib/server/auth-session.js';
+import { isForbiddenCrossSiteForm } from '#lib/server/csrf.js';
 import { runMigrations } from '#lib/server/db/migrate.js';
 
-/** Apply pending database migrations once, before the server handles requests. */
+/**
+ * Apply pending database migrations once, then start Better Auth (which reads the OIDC
+ * discovery document and seeds the OAuth resource), before the server handles requests.
+ */
 export async function init() {
 	try {
 		await runMigrations();
@@ -23,7 +27,20 @@ export async function init() {
 		console.error('Datenbankmigration beim Start fehlgeschlagen', error);
 		throw error;
 	}
+	await initAuth();
 }
+
+/**
+ * SvelteKit's own CSRF check is disabled in vite.config.ts because it rejects the OAuth token
+ * requests of MCP clients (form posts without an Origin header). This is the same check minus
+ * Better Auth's routes, which apply their own origin checks.
+ */
+const handleCsrf: Handle = ({ event, resolve }) => {
+	if (isForbiddenCrossSiteForm(event.request, event.url)) {
+		return new Response('Cross-site POST form submissions are forbidden', { status: 403 });
+	}
+	return resolve(event);
+};
 
 const handleParaglide: Handle = ({ event, resolve }) =>
 	paraglideMiddleware(event.request, ({ request, locale }) =>
@@ -42,7 +59,11 @@ const handleParaglide: Handle = ({ event, resolve }) =>
 const handleAuth: Handle = async ({ event, resolve }) => {
 	const { pathname } = event.url;
 	const isAuthApi = pathname.startsWith('/api/auth');
-	const isWebhook = pathname === '/api/webhooks/resend';
+	const isWebhook = pathname.startsWith('/api/webhooks/resend/');
+	// OAuth discovery (RFC 8414, RFC 9728, OpenID) lives at the origin root, outside /api/auth.
+	if (pathname.startsWith('/.well-known/') && !building) return auth.handler(event.request);
+	// The MCP endpoint verifies its own OAuth access tokens.
+	if (pathname === '/mcp') return resolve(event);
 	if (isAuthApi) {
 		if (!isAuthApiRequest(event.request.method, pathname)) {
 			return new Response('Nicht gefunden', { status: 404 });
@@ -77,11 +98,12 @@ const handleAuth: Handle = async ({ event, resolve }) => {
 		const returnTo = `${pathname}${event.url.search}`;
 		redirect(302, returnTo === '/' ? '/login' : `/login?returnTo=${encodeURIComponent(returnTo)}`);
 	}
-	if (event.locals.user && pathname === '/login') {
+	// A signed query means an MCP client's authorization sent the user here; sign-in resumes it.
+	if (event.locals.user && pathname === '/login' && !event.url.searchParams.has('sig')) {
 		redirect(302, safeReturnTo(event.url.searchParams.get('returnTo')));
 	}
 
 	return resolve(event);
 };
 
-export const handle: Handle = sequence(handleParaglide, handleAuth);
+export const handle: Handle = sequence(handleCsrf, handleParaglide, handleAuth);

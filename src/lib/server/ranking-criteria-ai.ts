@@ -7,11 +7,11 @@ import {
 	type RankingCriteriaPatch,
 	type RankingCriteriaAiPreview
 } from '#lib/ranking-criteria.js';
-import type { Settings } from './db/schema';
-import { chatJson, getLlmConfig, LlmHttpError } from './llm/client';
-import { LlmLimiter } from './llm/limiter';
+import type { Person } from './db/schema';
+import { chatJson, LlmHttpError } from './llm/client';
+import { getLlmConfig, getLlmLimiter } from './llm/connections';
 import { profileBlock } from './llm/rank';
-import { getSettings, updateSettings } from './settings';
+import { getPerson, updatePerson } from './people';
 
 export class RankingCriteriaAiError extends Error {
 	constructor(
@@ -50,7 +50,7 @@ Regeln:
 - Nutze keine doppelten IDs innerhalb derselben Liste.
 - Kriterien sollen zum Nutzerwunsch, Profil und Suchkonfiguration passen.`;
 
-function currentContext(settings: Settings): string {
+function currentContext(settings: Person): string {
 	return [
 		`PROFIL:\n${profileBlock(settings) || 'Kein Profil erfasst.'}`,
 		`SUCHKEYWORDS: ${settings.jobSearchKeywords.join(', ') || 'keine'}`,
@@ -64,6 +64,7 @@ function currentContext(settings: Settings): string {
 }
 
 export async function createRankingCriteriaPreview(
+	personId: number,
 	intent: string
 ): Promise<RankingCriteriaAiPreview> {
 	const trimmedIntent = intent.trim();
@@ -74,14 +75,11 @@ export async function createRankingCriteriaPreview(
 		throw new RankingCriteriaAiError('Die Beschreibung ist zu lang.', 413);
 	}
 
-	const settings = await getSettings();
+	const settings = await getPerson(personId);
 	const cfg = await getLlmConfig(settings).catch(() => {
 		throw new RankingCriteriaAiError('Die KI-Konfiguration ist unvollständig.', 409);
 	});
-	const limiter = new LlmLimiter({
-		requestsPerMinute: settings.llmRequestsPerMinute,
-		maxConcurrent: settings.llmMaxConcurrent
-	});
+	const limiter = getLlmLimiter(cfg);
 
 	let raw: unknown;
 	try {
@@ -114,8 +112,8 @@ export async function createRankingCriteriaPreview(
 	return parsed.data;
 }
 
-export function selectedRankingCriteriaPatch(input: RankingCriteriaPatch): Partial<Settings> {
-	const patch: Partial<Settings> = {};
+export function selectedRankingCriteriaPatch(input: RankingCriteriaPatch): Partial<Person> {
+	const patch: Partial<Person> = {};
 	for (const field of input.selected) {
 		const value = input.rankingCriteria[field];
 		if (value !== undefined) Object.assign(patch, { [field]: value });
@@ -123,11 +121,11 @@ export function selectedRankingCriteriaPatch(input: RankingCriteriaPatch): Parti
 	return patch;
 }
 
-export async function applyRankingCriteriaPatch(input: unknown): Promise<Settings> {
+export async function applyRankingCriteriaPatch(personId: number, input: unknown): Promise<Person> {
 	const parsed = rankingCriteriaPatchSchema.safeParse(input);
 	if (!parsed.success) {
 		throw new RankingCriteriaAiError('Die ausgewählten Bewertungskriterien sind ungültig.');
 	}
-	await getSettings();
-	return updateSettings(selectedRankingCriteriaPatch(parsed.data));
+	await getPerson(personId);
+	return updatePerson(personId, selectedRankingCriteriaPatch(parsed.data));
 }

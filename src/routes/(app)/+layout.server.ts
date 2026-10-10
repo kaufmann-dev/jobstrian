@@ -1,14 +1,9 @@
-import { getSettings } from '#lib/server/settings.js';
-import { hasSavedHomeLocation } from '#lib/server/settings-status.js';
+import { listPeople, toPersonSummary } from '#lib/server/people.js';
 import type { LayoutServerLoad } from './$types';
 
-export const load: LayoutServerLoad = async ({ locals, depends }) => {
-	depends('app:settings-status');
-	const settings = await getSettings();
+export const load: LayoutServerLoad = async ({ locals }) => {
 	return {
 		user: locals.user,
-		configured: settings.llmVerified,
-		hasHome: hasSavedHomeLocation(settings),
-		hasSearchConfig: settings.jobSearchKeywords.length > 0 && settings.businessOsmTags.length > 0
+		people: (await listPeople()).map(toPersonSummary)
 	};
 };

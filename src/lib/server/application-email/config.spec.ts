@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { Settings } from '../db/schema';
+import type { Person } from '../db/schema';
 
 const { getCvMeta } = vi.hoisted(() => ({
 	getCvMeta: vi.fn()
@@ -14,7 +14,7 @@ vi.mock('../cv', () => ({ getCvMeta }));
 
 import { applicationEmailReadiness } from './config';
 
-function settings(patch: Partial<Settings> = {}): Settings {
+function settings(patch: Partial<Person> = {}): Person {
 	return {
 		resendApiKey: 're_test',
 		resendDomain: 'example.com',
@@ -26,7 +26,7 @@ function settings(patch: Partial<Settings> = {}): Settings {
 		fullName: 'Applicant',
 		email: 'reply@example.com',
 		...patch
-	} as Settings;
+	} as Person;
 }
 
 describe('applicationEmailReadiness', () => {

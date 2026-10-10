@@ -9,12 +9,13 @@ import {
 	type RunPhaseId,
 	type RunPhaseProgress,
 	type RunProgress,
-	type Settings
+	type Person
 } from '../db/schema';
-import { getSettings } from '../settings';
+import { getPerson } from '../people';
 import { reconcileLeads, syncLeads } from '../geo/leads';
 import { OverpassUnavailableError } from '../geo/overpass';
-import { getLlmConfig, LlmNotConfiguredError, type LlmConfig } from '../llm/client';
+import { LlmNotConfiguredError, type LlmConfig } from '../llm/client';
+import { getLlmConfig, getLlmLimiter } from '../llm/connections';
 import { bumpFailure, errorCauseMessage, toFailureReasons } from '../run-failures';
 import {
 	draftContextHash,
@@ -24,7 +25,7 @@ import {
 	rawListingContentHash,
 	shouldRankListing
 } from '../llm/fingerprints';
-import { isAbortError, LlmLimiter } from '../llm/limiter';
+import { isAbortError, type LlmLimiter } from '../llm/limiter';
 import { rankListing, rankLead } from '../llm/rank';
 import { draftColdEmail } from '../llm/draft-email';
 import { reviewLeadEmailCandidates, type LeadEmailQualityCandidate } from '../llm/email-quality';
@@ -40,8 +41,15 @@ const DETAIL_FETCH_CONCURRENCY = 5;
 const PROGRESS_FLUSH_INTERVAL_MS = 1000;
 
 type Counts = { added: number; closed: number; ranked: number; leads: number };
-type ActiveRun = { runId: number; controller: AbortController; startedAt: Date };
+type ActiveRun = {
+	personId: number;
+	runId: number;
+	controller: AbortController;
+	startedAt: Date;
+};
 
+// One refresh at a time app-wide: the portals, the shared Playwright browser and the LLM
+// provider are shared by every person, so a second person has to wait for the running one.
 let activeRun: ActiveRun | null = null;
 // Claimed synchronously by startRefresh before its first await so two concurrent
 // start requests cannot both pass the "already running" check and launch two runs.
@@ -49,6 +57,11 @@ let starting = false;
 
 export function isRunning(): boolean {
 	return activeRun !== null;
+}
+
+/** The person a refresh is currently running for, if any. */
+export function activeRunPersonId(): number | null {
+	return activeRun?.personId ?? null;
 }
 
 export function hasActiveRun(runId?: number): boolean {
@@ -118,11 +131,17 @@ class ProgressWriter {
 }
 
 /** Upsert a scraped listing; returns true if newly inserted. */
-async function upsertListing(source: string, r: RawListing, runId: number): Promise<boolean> {
+async function upsertListing(
+	personId: number,
+	source: string,
+	r: RawListing,
+	runId: number
+): Promise<boolean> {
 	const contentHash = rawListingContentHash(source, r);
 	const res = await db
 		.insert(listing)
 		.values({
+			personId,
 			source,
 			externalId: r.externalId,
 			url: r.url,
@@ -139,7 +158,7 @@ async function upsertListing(source: string, r: RawListing, runId: number): Prom
 			contentHash
 		})
 		.onConflictDoUpdate({
-			target: [listing.source, listing.externalId],
+			target: [listing.personId, listing.source, listing.externalId],
 			set: {
 				url: r.url,
 				title: r.title,
@@ -161,7 +180,7 @@ async function upsertListing(source: string, r: RawListing, runId: number): Prom
 
 export function hasVerifiedHomeLocation(
 	settings: Pick<
-		Settings,
+		Person,
 		'homeLocationProvider' | 'homeLocationId' | 'homeCity' | 'homeLat' | 'homeLon'
 	>
 ): boolean {
@@ -176,7 +195,7 @@ export function hasVerifiedHomeLocation(
 
 export function jobSearchLocations(
 	settings: Pick<
-		Settings,
+		Person,
 		| 'jobSearchLocations'
 		| 'homeLocationProvider'
 		| 'homeLocationId'
@@ -193,7 +212,7 @@ export function jobSearchLocations(
 
 export function buildProfileQuery(
 	settings: Pick<
-		Settings,
+		Person,
 		| 'jobSearchKeywords'
 		| 'jobSearchLocations'
 		| 'homeLocationProvider'
@@ -209,7 +228,7 @@ export function buildProfileQuery(
 	return { keywords, locations };
 }
 
-function scrapeSkipDetail(settings: Settings, adapters: readonly unknown[]): string {
+function scrapeSkipDetail(settings: Person, adapters: readonly unknown[]): string {
 	if (adapters.length === 0) return 'Keine Quellen aktiviert';
 	if (settings.jobSearchKeywords.length === 0) return 'Keine Stellen-Keywords konfiguriert';
 	return 'Kein Job-Suchort aus Konfiguration oder Adresse ableitbar';
@@ -240,11 +259,13 @@ export function listingSearchScopes(
 }
 
 export function listingReconcileWhere(
+	personId: number,
 	runId: number,
 	scopes: readonly ListingSearchScope[]
 ): SQL | undefined {
 	if (scopes.length === 0) return undefined;
 	return and(
+		eq(listing.personId, personId),
 		eq(listing.status, 'active'),
 		or(isNull(listing.lastSeenRunId), ne(listing.lastSeenRunId, runId)),
 		or(
@@ -302,19 +323,21 @@ async function closeVanishedListings(
 }
 
 /** Flag leads whose business name matches an active listing's company. */
-async function markLeadsWithPostings(): Promise<void> {
+async function markLeadsWithPostings(personId: number): Promise<void> {
 	await db.execute(sql`
 		update ${lead} l set has_active_posting = exists (
 			select 1 from ${listing} j
-			where j.status = 'active' and length(trim(j.company)) > 0
+			where j.person_id = ${personId} and j.status = 'active' and length(trim(j.company)) > 0
 			and (position(lower(l.name) in lower(j.company)) > 0
 			     or position(lower(j.company) in lower(l.name)) > 0)
 		)
+		where l.person_id = ${personId}
 	`);
 }
 
 export async function runRefresh(
 	runId: number,
+	personId: number,
 	signal: AbortSignal,
 	progress = createProgress(),
 	force = false
@@ -328,12 +351,7 @@ export async function runRefresh(
 	const completeSources = new Set<string>();
 
 	try {
-		const settings = await getSettings();
-		const limiter = new LlmLimiter({
-			requestsPerMinute: settings.llmRequestsPerMinute,
-			maxConcurrent: settings.llmMaxConcurrent
-		});
-		writer.setLimiter(limiter);
+		const settings = await getPerson(personId);
 		const profile = buildProfileQuery(settings);
 		throwIfAborted(signal);
 
@@ -371,7 +389,7 @@ export async function runRefresh(
 				if (complete) completeSources.add(adapter.id);
 				for (const raw of listings) {
 					throwIfAborted(signal);
-					if (await upsertListing(adapter.id, raw, runId)) counts.added++;
+					if (await upsertListing(personId, adapter.id, raw, runId)) counts.added++;
 				}
 				writer.phase('scrape', { current: index + 1, detail });
 				await writer.flush(true);
@@ -395,7 +413,7 @@ export async function runRefresh(
 		let reconcileCandidates = 0;
 		if (profile && completeSources.size > 0) {
 			const scopes = listingSearchScopes([...completeSources], profile.locations);
-			const where = listingReconcileWhere(runId, scopes);
+			const where = listingReconcileWhere(personId, runId, scopes);
 			if (where) {
 				const result = await closeVanishedListings(where, writer, signal);
 				counts.closed = result.closed;
@@ -417,7 +435,7 @@ export async function runRefresh(
 		});
 		await writer.flush(true);
 
-		await enrichDescriptions(writer, signal);
+		await enrichDescriptions(personId, writer, signal);
 
 		writer.phase(
 			'leads',
@@ -437,8 +455,8 @@ export async function runRefresh(
 			try {
 				const leadResult = await syncLeads(settings, runId, signal);
 				counts.leads = leadResult.total;
-				await markLeadsWithPostings();
-				const removedLeads = await reconcileLeads(runId);
+				await markLeadsWithPostings(personId);
+				const removedLeads = await reconcileLeads(personId, runId);
 				writer.phase('leads', {
 					state: 'done',
 					current: 1,
@@ -471,7 +489,7 @@ export async function runRefresh(
 		}
 		await writer.flush(true);
 
-		await rankAll(settings, limiter, counts, writer, signal, force);
+		await rankAll(settings, counts, writer, signal, force);
 
 		writer.phase(
 			'finalize',
@@ -546,11 +564,17 @@ export async function runRefresh(
  * the body in its search response) are skipped. Each detail page is fetched at
  * most once across runs because already-filled descriptions are not re-selected.
  */
-async function enrichDescriptions(writer: ProgressWriter, signal: AbortSignal): Promise<void> {
+async function enrichDescriptions(
+	personId: number,
+	writer: ProgressWriter,
+	signal: AbortSignal
+): Promise<void> {
 	const rows = await db
 		.select()
 		.from(listing)
-		.where(and(eq(listing.status, 'active'), isNull(listing.description)));
+		.where(
+			and(eq(listing.personId, personId), eq(listing.status, 'active'), isNull(listing.description))
+		);
 	const work = rows.filter((row) => typeof ADAPTERS[row.source]?.fetchDescription === 'function');
 	const skipped = rows.length - work.length;
 	let completed = 0;
@@ -616,8 +640,7 @@ async function enrichDescriptions(writer: ProgressWriter, signal: AbortSignal): 
 }
 
 async function rankAll(
-	settings: Settings,
-	limiter: LlmLimiter,
+	settings: Person,
 	counts: Counts,
 	writer: ProgressWriter,
 	signal: AbortSignal,
@@ -659,14 +682,17 @@ async function rankAll(
 		throw err;
 	}
 
+	const limiter = getLlmLimiter(cfg);
+	writer.setLimiter(limiter);
 	const rankContext = rankingContextHash(settings, cfg);
 	const draftContext = draftContextHash(settings, cfg);
-	await reviewAutomaticLeadEmails(cfg, limiter, writer, signal, force);
+	await reviewAutomaticLeadEmails(settings.id, cfg, limiter, writer, signal, force);
 	await rankListings(settings, cfg, limiter, rankContext, counts, writer, signal, force);
 	await rankLeads(settings, cfg, limiter, rankContext, draftContext, writer, signal, force);
 }
 
 async function reviewAutomaticLeadEmails(
+	personId: number,
 	cfg: LlmConfig,
 	limiter: LlmLimiter,
 	writer: ProgressWriter,
@@ -676,7 +702,7 @@ async function reviewAutomaticLeadEmails(
 	const rows = await db
 		.select()
 		.from(lead)
-		.where(and(isNotNull(lead.email), eq(lead.emailManual, false)));
+		.where(and(eq(lead.personId, personId), isNotNull(lead.email), eq(lead.emailManual, false)));
 	const rowsById = new Map(rows.map((row) => [row.id, row]));
 	const allCandidates = rows
 		.filter((row) => row.emailSource === 'osm' || row.emailSource === 'website')
@@ -811,7 +837,7 @@ async function reviewAutomaticLeadEmails(
 }
 
 async function rankListings(
-	settings: Settings,
+	settings: Person,
 	cfg: LlmConfig,
 	limiter: LlmLimiter,
 	contextHash: string,
@@ -820,7 +846,10 @@ async function rankListings(
 	signal: AbortSignal,
 	force = false
 ): Promise<void> {
-	const rows = await db.select().from(listing).where(eq(listing.status, 'active'));
+	const rows = await db
+		.select()
+		.from(listing)
+		.where(and(eq(listing.personId, settings.id), eq(listing.status, 'active')));
 	const work = rows
 		.map((row) => ({ row, contentHash: row.contentHash ?? listingContentHash(row) }))
 		.filter(({ row, contentHash }) => force || shouldRankListing(row, contextHash, contentHash));
@@ -845,7 +874,7 @@ async function rankListings(
 
 	await mapLimit(
 		work,
-		settings.llmMaxConcurrent,
+		cfg.maxConcurrent,
 		async ({ row, contentHash }) => {
 			throwIfAborted(signal);
 			try {
@@ -899,7 +928,7 @@ async function rankListings(
 }
 
 async function rankLeads(
-	settings: Settings,
+	settings: Person,
 	cfg: LlmConfig,
 	limiter: LlmLimiter,
 	rankContext: string,
@@ -908,7 +937,7 @@ async function rankLeads(
 	signal: AbortSignal,
 	force = false
 ): Promise<void> {
-	const rows = await db.select().from(lead);
+	const rows = await db.select().from(lead).where(eq(lead.personId, settings.id));
 	const planned = rows.map((row) => planLeadLlmWork(row, rankContext, draftContext, force));
 	const work = planned.filter((item) => item.rank || item.draft);
 	const skipped = planned.length - work.length;
@@ -932,7 +961,7 @@ async function rankLeads(
 
 	await mapLimit(
 		work,
-		settings.llmMaxConcurrent,
+		cfg.maxConcurrent,
 		async ({ row, contentHash, rank, draft }) => {
 			throwIfAborted(signal);
 			try {
@@ -994,7 +1023,7 @@ async function rankLeads(
  * When `force` is set, every AI evaluation (E-Mail-Prüfung, Stellen- und
  * Betriebsbewertung, Anschreiben) is redone from scratch, ignoring skip caches.
  */
-export async function startRefresh(force = false): Promise<number | null> {
+export async function startRefresh(personId: number, force = false): Promise<number | null> {
 	if (activeRun || starting) return null;
 	starting = true;
 	const progress = createProgress();
@@ -1002,11 +1031,11 @@ export async function startRefresh(force = false): Promise<number | null> {
 	try {
 		const [run] = await db
 			.insert(scrapeRun)
-			.values({ status: 'running', phase: 'starting', progress })
+			.values({ personId, status: 'running', phase: 'starting', progress })
 			.returning({ id: scrapeRun.id });
 
-		activeRun = { runId: run.id, controller, startedAt: new Date() };
-		runRefresh(run.id, controller.signal, progress, force).finally(() => {
+		activeRun = { personId, runId: run.id, controller, startedAt: new Date() };
+		runRefresh(run.id, personId, controller.signal, progress, force).finally(() => {
 			if (activeRun?.runId === run.id) activeRun = null;
 		});
 		return run.id;
