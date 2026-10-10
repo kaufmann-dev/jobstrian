@@ -3,6 +3,7 @@
 	import { resolve } from '$app/paths';
 	import { Button } from '#lib/components/ui/button/index.js';
 	import * as DropdownMenu from '#lib/components/ui/dropdown-menu/index.js';
+	import * as Sheet from '#lib/components/ui/sheet/index.js';
 	import PersonAvatar from '#lib/components/person-avatar.svelte';
 	import { authClient } from '#lib/auth-client.js';
 	import { resolveHref } from '#lib/paths.js';
@@ -19,12 +20,14 @@
 	import Sun from '@lucide/svelte/icons/sun';
 	import Moon from '@lucide/svelte/icons/moon';
 	import LogOut from '@lucide/svelte/icons/log-out';
+	import Menu from '@lucide/svelte/icons/menu';
 
 	type NavItem = { href: string; label: string; icon: typeof Briefcase; exact?: boolean };
 
 	let { children, data } = $props();
 	const sessionTouchInterval = 5 * 60 * 1000;
 	let lastSessionTouch = 0;
+	let menuOpen = $state(false);
 
 	const slug = $derived(page.params.person);
 	const currentPerson = $derived(slug ? data.people.find((p) => p.slug === slug) : undefined);
@@ -60,6 +63,16 @@
 		return item.exact ? pathname === item.href : pathname.startsWith(item.href);
 	}
 
+	function navClass(item: NavItem): string {
+		return isActive(item)
+			? 'bg-primary/10 text-primary hover:bg-primary/15 hover:text-primary dark:bg-primary/15 dark:hover:bg-primary/20'
+			: 'text-muted-foreground hover:text-foreground';
+	}
+
+	function signOut() {
+		void authClient.signOut({ callbackURL: '/login' });
+	}
+
 	function personHref(personSlug: string): string {
 		return `/p/${personSlug}${currentPerson ? section : ''}`;
 	}
@@ -86,7 +99,7 @@
 		class="sticky top-0 z-40 border-b border-border/60 bg-background/80 backdrop-blur supports-[backdrop-filter]:bg-background/60"
 	>
 		<div
-			class="mx-auto flex min-h-14 w-full max-w-[90rem] flex-wrap items-center gap-x-2 gap-y-1 px-4 py-2 sm:flex-nowrap sm:gap-x-4 sm:py-0"
+			class="mx-auto flex min-h-14 w-full max-w-[90rem] items-center gap-x-2 px-4 py-2 sm:gap-x-4 xl:py-0"
 		>
 			<a href={resolve('')} class="flex shrink-0 items-center gap-2.5 font-semibold tracking-tight">
 				<span
@@ -94,7 +107,7 @@
 				>
 					<Briefcase class="size-4.5" />
 				</span>
-				<span class="hidden md:inline">Jobstrian</span>
+				<span class="hidden sm:inline">Jobstrian</span>
 			</a>
 
 			<DropdownMenu.Root>
@@ -165,31 +178,22 @@
 				</DropdownMenu.Content>
 			</DropdownMenu.Root>
 
-			<nav
-				class="order-last flex w-full items-center gap-1 sm:order-none sm:w-auto"
-				aria-label="Hauptnavigation"
-			>
+			<nav class="hidden items-center gap-1 xl:flex" aria-label="Hauptnavigation">
 				{#each navItems as item (item.href)}
 					<Button
 						href={item.href}
 						variant="ghost"
 						size="sm"
-						class={[
-							'flex-1 px-2 sm:flex-none sm:px-3',
-							isActive(item)
-								? 'bg-primary/10 text-primary hover:bg-primary/15 hover:text-primary dark:bg-primary/15 dark:hover:bg-primary/20'
-								: 'text-muted-foreground hover:text-foreground'
-						]}
-						aria-label={item.label}
+						class={['px-3', navClass(item)]}
 						aria-current={isActive(item) ? 'page' : undefined}
 					>
 						<item.icon class="size-4" />
-						<span class="hidden sm:inline">{item.label}</span>
+						{item.label}
 					</Button>
 				{/each}
 			</nav>
 
-			<div class="ml-auto flex items-center gap-1">
+			<div class="ml-auto hidden items-center gap-1 xl:flex">
 				{#if currentPerson}
 					<Button
 						href="/settings"
@@ -205,15 +209,76 @@
 					<Sun class="size-4 dark:hidden" />
 					<Moon class="hidden size-4 dark:block" />
 				</Button>
-
-				<Button
-					variant="ghost"
-					size="icon"
-					aria-label="Abmelden"
-					onclick={() => authClient.signOut({ callbackURL: '/login' })}
-					><LogOut class="size-4" /></Button
-				>
+				<Button variant="ghost" size="icon" aria-label="Abmelden" onclick={signOut}>
+					<LogOut class="size-4" />
+				</Button>
 			</div>
+
+			<Sheet.Root bind:open={menuOpen}>
+				<Sheet.Trigger>
+					{#snippet child({ props })}
+						<Button
+							{...props}
+							variant="ghost"
+							size="icon"
+							class="ml-auto xl:hidden"
+							aria-label="Menü öffnen"
+						>
+							<Menu class="size-5" />
+						</Button>
+					{/snippet}
+				</Sheet.Trigger>
+				<Sheet.Content side="right" class="gap-0 xl:hidden">
+					<Sheet.Header class="border-b border-border/60">
+						<Sheet.Title>Menü</Sheet.Title>
+						<Sheet.Description class="sr-only">Navigation und Kontoaktionen</Sheet.Description>
+					</Sheet.Header>
+					<nav class="flex flex-col gap-1 p-3" aria-label="Hauptnavigation">
+						{#each navItems as item (item.href)}
+							<Button
+								href={item.href}
+								variant="ghost"
+								class={['h-11 justify-start gap-3 px-3 text-base', navClass(item)]}
+								aria-current={isActive(item) ? 'page' : undefined}
+								onclick={() => (menuOpen = false)}
+							>
+								<item.icon class="size-5" />
+								{item.label}
+							</Button>
+						{/each}
+					</nav>
+					<div class="mt-auto flex flex-col gap-1 border-t border-border/60 p-3">
+						{#if currentPerson}
+							<Button
+								href="/settings"
+								variant="ghost"
+								class="h-11 justify-start gap-3 px-3 text-base text-muted-foreground hover:text-foreground"
+								onclick={() => (menuOpen = false)}
+							>
+								<SlidersHorizontal class="size-5" />
+								App-Einstellungen
+							</Button>
+						{/if}
+						<Button
+							variant="ghost"
+							class="h-11 justify-start gap-3 px-3 text-base text-muted-foreground hover:text-foreground"
+							onclick={toggleMode}
+						>
+							<Sun class="size-5 dark:hidden" />
+							<Moon class="hidden size-5 dark:block" />
+							Theme wechseln
+						</Button>
+						<Button
+							variant="ghost"
+							class="h-11 justify-start gap-3 px-3 text-base text-muted-foreground hover:text-foreground"
+							onclick={signOut}
+						>
+							<LogOut class="size-5" />
+							Abmelden
+						</Button>
+					</div>
+				</Sheet.Content>
+			</Sheet.Root>
 		</div>
 	</header>
 	<main class="mx-auto w-full max-w-[90rem] flex-1 px-4 py-8">
