@@ -360,7 +360,7 @@
 		</RunStatusCard>
 	{/if}
 
-	<section class="space-y-3 lg:w-[calc(50%-0.75rem)]">
+	<section class="space-y-3">
 		<h2 class="text-sm font-medium tracking-wide text-muted-foreground uppercase">Bewerbungen</h2>
 		<a
 			href={applicationsHref}
