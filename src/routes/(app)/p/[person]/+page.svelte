@@ -24,6 +24,7 @@
 	import ClipboardList from '@lucide/svelte/icons/clipboard-list';
 	import ArrowRight from '@lucide/svelte/icons/arrow-right';
 	import { normalizeRunProgress, RUN_PHASE_LABELS } from '#lib/run-progress.js';
+	import { formatLlmProgress } from '#lib/llm-progress.js';
 	import type { RunPhaseId, RunProgress, ScrapeRun } from '#lib/server/db/schema.js';
 
 	let { data } = $props();
@@ -322,7 +323,7 @@
 			summary={isActive
 				? `${currentPhase?.label ?? 'Aktualisierung'} · ${currentPhase?.detail || progress.detail || 'Bereit'}`
 				: totalFailed > 0
-					? `${totalFailed} ${totalFailed === 1 ? 'Bewertung' : 'Bewertungen'} fehlgeschlagen${dominantFailureReason ? ` · ${dominantFailureReason}` : '.'}`
+					? `${totalFailed} ${totalFailed === 1 ? 'Vorgang' : 'Vorgänge'} fehlgeschlagen${dominantFailureReason ? ` · ${dominantFailureReason}` : '.'}`
 					: undefined}
 		>
 			{#snippet actions()}
@@ -350,7 +351,7 @@
 					{run.counts.added} neue Stellen · {run.counts.closed} nicht mehr verfügbar · {run.counts
 						.ranked} bewertet · {run.counts.leads} Betriebe gefunden
 					{#if isActive}
-						· KI: {progress.llm.inFlight} aktiv, {progress.llm.queued} warten
+						· {formatLlmProgress(progress.llm)}
 					{/if}
 				</p>
 				{#if run.error}

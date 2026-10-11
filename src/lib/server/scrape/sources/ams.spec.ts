@@ -1,4 +1,5 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import type { Response as BrowserResponse } from 'playwright';
 
 const { withPage } = vi.hoisted(() => ({ withPage: vi.fn() }));
 vi.mock('../browser', () => ({ withPage }));
@@ -9,11 +10,13 @@ describe('AMS scraper', () => {
 	beforeEach(() => {
 		withPage.mockReset();
 	});
+	afterEach(() => vi.useRealTimers());
 
 	it('keeps configured Austrian cities outside Vienna', async () => {
 		withPage.mockImplementation(async (callback) => {
 			let responseHandler:
-				((response: { url(): string; json(): Promise<unknown> }) => void) | undefined;
+				| ((response: { url(): string; ok(): boolean; json(): Promise<unknown> }) => void)
+				| undefined;
 			const page = {
 				on: vi.fn((_event: string, handler) => {
 					responseHandler = handler;
@@ -22,6 +25,7 @@ describe('AMS scraper', () => {
 				$: vi.fn().mockResolvedValue({ fill: vi.fn(), press: vi.fn() }),
 				waitForResponse: vi.fn(async () => {
 					await responseHandler?.({
+						ok: () => true,
 						url: () => 'https://jobs.ams.at/public/emps/api/search',
 						json: async () => ({
 							results: [
@@ -113,7 +117,8 @@ describe('AMS scraper', () => {
 	it('reports complete: true for a successful search with zero results', async () => {
 		withPage.mockImplementation(async (callback) => {
 			let responseHandler:
-				((response: { url(): string; json(): Promise<unknown> }) => void) | undefined;
+				| ((response: { url(): string; ok(): boolean; json(): Promise<unknown> }) => void)
+				| undefined;
 			const page = {
 				on: vi.fn((_event: string, handler) => {
 					responseHandler = handler;
@@ -122,6 +127,7 @@ describe('AMS scraper', () => {
 				$: vi.fn().mockResolvedValue({ fill: vi.fn(), press: vi.fn() }),
 				waitForResponse: vi.fn(async () => {
 					await responseHandler?.({
+						ok: () => true,
 						url: () => 'https://jobs.ams.at/public/emps/api/search',
 						json: async () => ({ results: [] })
 					});
@@ -143,4 +149,36 @@ describe('AMS scraper', () => {
 
 		await expect(ams.search({ keywords: ['Office'], locations: ['Graz'] })).rejects.toBe(abort);
 	});
+
+	it.each(['rate-limit', 'invalid-json'])(
+		'recovers from a %s API response without retaining a warning',
+		async (failure) => {
+			vi.useFakeTimers();
+			let attempt = 0;
+			withPage.mockImplementation(async (callback) => {
+				const first = ++attempt === 1;
+				let responseHandler!: (response: BrowserResponse) => void;
+				return callback({
+					on: (_event: string, handler: typeof responseHandler) => {
+						responseHandler = handler;
+					},
+					goto: vi.fn(),
+					$: async () => ({ fill: vi.fn(), press: vi.fn() }),
+					waitForResponse: async () =>
+						responseHandler({
+							url: () => 'https://jobs.ams.at/public/emps/api/search',
+							ok: () => !(first && failure === 'rate-limit'),
+							status: () => 429,
+							headers: () => ({ 'retry-after': '2' }),
+							json: async () => (first && failure === 'invalid-json' ? {} : { results: [] })
+						} as unknown as BrowserResponse),
+					waitForTimeout: vi.fn()
+				});
+			});
+			const pending = ams.search({ keywords: ['Office'], locations: ['Graz'] });
+			await vi.advanceTimersByTimeAsync(2500);
+			expect(await pending).toEqual({ listings: [], complete: true, failureReasons: [] });
+			expect(attempt).toBe(2);
+		}
+	);
 });

@@ -1,6 +1,8 @@
 import type { LlmApiType } from '#lib/llm.js';
 import { responseJsonSchema, type LlmResponseSchema } from './response-schemas';
-import { abortError, isAbortError, type LlmLimiter } from './limiter';
+import { type LlmLimiter } from './limiter';
+import { HttpError, withRetry, isTransientError, type RetryContext } from '../util/retry';
+import { rateLimitHints, providerAccessBlocked } from './rate-limits';
 
 /** What a chat request needs to reach a model. */
 export interface LlmEndpoint {
@@ -29,52 +31,23 @@ export class LlmNotConfiguredError extends Error {
 	}
 }
 
-export class LlmHttpError extends Error {
+export class LlmHttpError extends HttpError {
 	constructor(
-		readonly status: number,
+		status: number,
 		message: string,
-		readonly retryAfterMs?: number
+		retryAfterMs?: number,
+		readonly accessBlocked = false
 	) {
-		super(message);
+		super(status, message, retryAfterMs);
 		this.name = 'LlmHttpError';
 	}
 }
 
-const RETRYABLE_STATUSES = new Set([408, 409, 425, 429]);
-
 export function isRetryableLlmError(error: unknown): boolean {
-	if (isAbortError(error) || error instanceof LlmResponseError) return false;
-	if (error instanceof LlmHttpError) {
-		return RETRYABLE_STATUSES.has(error.status) || error.status >= 500;
-	}
-	return (
-		error instanceof TypeError ||
-		error instanceof SyntaxError ||
-		(error instanceof DOMException && error.name === 'TimeoutError')
-	);
-}
-
-export function parseRetryAfter(value: string | null, now = Date.now()): number | undefined {
-	if (!value) return undefined;
-	const seconds = Number(value);
-	if (Number.isFinite(seconds) && seconds >= 0) return seconds * 1000;
-	const date = Date.parse(value);
-	return Number.isFinite(date) ? Math.max(0, date - now) : undefined;
-}
-
-function delay(ms: number, signal?: AbortSignal): Promise<void> {
-	if (signal?.aborted) return Promise.reject(signal.reason ?? abortError());
-	return new Promise((resolve, reject) => {
-		const timer = setTimeout(resolve, ms);
-		signal?.addEventListener(
-			'abort',
-			() => {
-				clearTimeout(timer);
-				reject(signal.reason ?? abortError());
-			},
-			{ once: true }
-		);
-	});
+	if (error instanceof LlmResponseError) return error.retryable;
+	if (error instanceof LlmHttpError)
+		return !error.accessBlocked && (error.status === 409 || isTransientError(error));
+	return isTransientError(error);
 }
 
 function attemptSignal(
@@ -99,7 +72,10 @@ function attemptSignal(
 }
 
 export class LlmResponseError extends Error {
-	constructor(message: string) {
+	constructor(
+		message: string,
+		readonly retryable = false
+	) {
 		super(message);
 		this.name = 'LlmResponseError';
 	}
@@ -195,7 +171,8 @@ function unfence(text: string): string {
 export async function chatJson<T>(
 	cfg: LlmEndpoint,
 	messages: { role: 'system' | 'user'; content: string }[],
-	opts: {
+	opts: RetryContext & {
+		parse?: (value: unknown) => T;
 		response: LlmResponseSchema;
 		context?: string;
 		maxOutputTokens?: number;
@@ -208,7 +185,6 @@ export async function chatJson<T>(
 		random?: () => number;
 	}
 ): Promise<T> {
-	const maxAttempts = opts.maxAttempts ?? 3;
 	const system = messages
 		.filter((m) => m.role === 'system')
 		.map((m) => m.content)
@@ -267,14 +243,9 @@ export async function chatJson<T>(
 							{ role: 'user', content: [opts.context, input].filter(Boolean).join('\n\n') }
 						]
 					};
-	const sleep = opts.sleep ?? delay;
-	const random = opts.random ?? Math.random;
-	let lastError: unknown;
-
-	for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-		if (opts.signal?.aborted) throw opts.signal.reason ?? abortError();
-		try {
-			return await opts.limiter.run(async (limiterSignal) => {
+	return withRetry(
+		async (attempt) => {
+			return opts.limiter.run(async (limiterSignal, feedback) => {
 				const request = attemptSignal(limiterSignal, opts.timeoutMs);
 				try {
 					const started = Date.now();
@@ -303,11 +274,15 @@ export async function chatJson<T>(
 							...normalizeUsage(cfg.apiType, data?.usage)
 						})
 					);
+					const hints = rateLimitHints(res.headers, cfg.apiType);
+					const blocked = providerAccessBlocked(data);
+					feedback.response(res.status, hints, blocked);
 					if (!res.ok) {
 						throw new LlmHttpError(
 							res.status,
-							`LLM-Anfrage fehlgeschlagen (${res.status}).${res.status === 400 ? ' Prüfe Modell und Unterstützung für strukturierte Ausgaben.' : res.status === 404 ? ' Prüfe Modell und API-Endpunkt.' : ''}`,
-							parseRetryAfter(res.headers.get('retry-after'))
+							`${blocked ? 'KI-Zugang gesperrt: Guthaben oder Kontingent prüfen.' : `LLM-Anfrage fehlgeschlagen (${res.status}).`}${res.status === 400 ? ' Prüfe Modell und Unterstützung für strukturierte Ausgaben.' : res.status === 404 ? ' Prüfe Modell und API-Endpunkt.' : ''}`,
+							hints.retryAfterMs,
+							blocked
 						);
 					}
 					if (!data) throw new SyntaxError('LLM hat keine gültige Antwort zurückgegeben.');
@@ -318,20 +293,43 @@ export async function chatJson<T>(
 					);
 					const parsed = opts.response.schema.safeParse(raw);
 					if (!parsed.success)
-						throw new LlmResponseError('Die KI-Antwort entspricht nicht dem erwarteten Schema.');
+						throw new LlmResponseError(
+							'Die KI-Antwort entspricht nicht dem erwarteten Schema.',
+							true
+						);
+					if (opts.parse) {
+						try {
+							return opts.parse(parsed.data);
+						} catch (error) {
+							if (error instanceof LlmResponseError) throw error;
+							throw new LlmResponseError(
+								error instanceof Error ? error.message : 'Ungültige KI-Antwort.',
+								true
+							);
+						}
+					}
 					return parsed.data as T;
 				} finally {
 					request.cleanup();
 				}
 			}, opts.signal);
-		} catch (error) {
-			if (opts.signal?.aborted || isAbortError(error)) throw error;
-			lastError = error;
-			if (attempt === maxAttempts || !isRetryableLlmError(error)) throw error;
-			const retryAfter = error instanceof LlmHttpError ? error.retryAfterMs : undefined;
-			const backoff = 500 * 2 ** (attempt - 1);
-			await sleep(retryAfter ?? Math.round(backoff * (0.75 + random() * 0.5)), opts.signal);
+		},
+		{
+			signal: opts.signal,
+			maxAttempts: opts.maxAttempts,
+			onRetry: opts.onRetry,
+			sleep: opts.sleep,
+			random: opts.random,
+			classify: (error) => {
+				if (
+					error instanceof LlmHttpError &&
+					error.status === 429 &&
+					!error.accessBlocked &&
+					opts.deferRateLimits
+				)
+					return 'defer';
+				return isRetryableLlmError(error) ? 'retry' : 'stop';
+			}
 		}
-	}
-	throw lastError;
+	);
 }

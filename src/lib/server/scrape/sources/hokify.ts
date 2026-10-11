@@ -1,3 +1,6 @@
+import { bumpFailure, toFailureReasons } from '../../run-failures';
+import type { RunPhaseFailureReason } from '../../db/schema';
+import { type RetryObserver } from '../../util/retry';
 import * as cheerio from 'cheerio';
 import { fetchText } from '../../util/http';
 import { htmlToText } from '../../util/html';
@@ -54,23 +57,42 @@ function parse(html: string): ParsedItem[] {
 export const hokify: SourceAdapter = {
 	id: 'hokify',
 	label: 'hokify',
-	async fetchDescription(url: string, signal?: AbortSignal): Promise<string | null> {
+	async fetchDescription(
+		url: string,
+		signal?: AbortSignal,
+		onRetry?: RetryObserver
+	): Promise<string | null> {
 		const html = await fetchText(url, {
 			timeoutMs: 20_000,
 			headers: { 'accept-language': 'de-AT,de;q=0.9' },
-			signal
+			signal,
+			onRetry
 		});
 		const $ = cheerio.load(html);
 		const inner = $('[itemprop="description"]').first().html();
 		return inner ? htmlToText(inner) : null;
 	},
 	// Removed hokify jobs answer 404/422 on their /job/<id> detail route.
-	async isListingGone(url: string, signal?: AbortSignal): Promise<boolean> {
-		return detailPageGone(url, (finalUrl) => finalUrl.pathname.startsWith('/job/'), signal);
+	async isListingGone(
+		url: string,
+		signal?: AbortSignal,
+		onRetry?: RetryObserver
+	): Promise<boolean> {
+		return detailPageGone(
+			url,
+			(finalUrl) => finalUrl.pathname.startsWith('/job/'),
+			signal,
+			onRetry
+		);
 	},
-	async search(profile: ProfileQuery, signal?: AbortSignal): Promise<ScrapeResult> {
+	async search(
+		profile: ProfileQuery,
+		signal?: AbortSignal,
+		onRetry?: RetryObserver
+	): Promise<ScrapeResult> {
 		const byId = new Map<string, RawListing>();
 		let complete = true;
+		const reasons = new Map<string, RunPhaseFailureReason>();
 		for (const locationName of profile.locations) {
 			const location = slug(locationName);
 			if (!location) continue;
@@ -81,7 +103,8 @@ export const hokify: SourceAdapter = {
 					const html = await fetchText(url, {
 						timeoutMs: 20_000,
 						headers: { 'accept-language': 'de-AT,de;q=0.9' },
-						signal
+						signal,
+						onRetry
 					});
 					for (const { locationParts, ...item } of parse(html)) {
 						const match = matchLocation(locationParts, profile.locations);
@@ -96,10 +119,11 @@ export const hokify: SourceAdapter = {
 				} catch (err) {
 					rethrowIfAbort(err, signal);
 					complete = false;
+					bumpFailure(reasons, err);
 					console.error(`[hokify] "${keyword}" in "${locationName}" fehlgeschlagen:`, err);
 				}
 			}
 		}
-		return { listings: [...byId.values()], complete };
+		return { listings: [...byId.values()], complete, failureReasons: toFailureReasons(reasons) };
 	}
 };

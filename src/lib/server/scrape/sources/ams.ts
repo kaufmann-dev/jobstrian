@@ -1,3 +1,6 @@
+import { bumpFailure, toFailureReasons } from '../../run-failures';
+import type { RunPhaseFailureReason } from '../../db/schema';
+import { HttpError, parseRetryAfter, withRetry, type RetryObserver } from '../../util/retry';
 import { withPage } from '../browser';
 import { rethrowIfAbort } from '../abort';
 import type { ProfileQuery, RawListing, ScrapeResult, SourceAdapter } from '../types';
@@ -75,15 +78,26 @@ async function searchKeyword(
 	return withPage(async (page) => {
 		const captured: AmsResult[] = [];
 		let sawResponse = false;
-		page.on('response', async (res) => {
+		const responses: Promise<void>[] = [];
+		let responseError: unknown;
+		page.on('response', (res) => {
 			if (!/\/public\/emps\/api\/search/.test(res.url())) return;
 			sawResponse = true;
-			try {
-				const json = (await res.json()) as { results?: AmsResult[] };
-				if (Array.isArray(json.results)) captured.push(...json.results);
-			} catch {
-				// non-JSON or body already consumed
-			}
+			responses.push(
+				(async () => {
+					if (!res.ok())
+						throw new HttpError(
+							res.status(),
+							'AMS-Suchanfrage fehlgeschlagen.',
+							parseRetryAfter(res.headers()['retry-after'] ?? null)
+						);
+					const json = (await res.json()) as { results?: AmsResult[] } | null;
+					if (!Array.isArray(json?.results)) throw new SyntaxError('Ungültige AMS-Suchantwort.');
+					captured.push(...json.results);
+				})().catch((error) => {
+					responseError = error;
+				})
+			);
 		});
 
 		await page.goto('https://jobs.ams.at/public/emps/', {
@@ -99,7 +113,10 @@ async function searchKeyword(
 			.waitForResponse((r) => /\/public\/emps\/api\/search/.test(r.url()), { timeout: 15_000 })
 			.catch(() => {});
 		await page.waitForTimeout(1200);
-		if (!sawResponse) throw new Error('AMS-Suchantwort wurde nicht empfangen.');
+		await Promise.all(responses);
+		if (responseError) throw responseError;
+		if (!sawResponse)
+			throw new DOMException('AMS-Suchantwort wurde nicht empfangen.', 'TimeoutError');
 
 		const byId = new Map<string, RawListing>();
 		for (const result of captured) {
@@ -113,21 +130,30 @@ async function searchKeyword(
 export const ams: SourceAdapter = {
 	id: 'ams',
 	label: 'AMS eJob-Room',
-	async search(profile: ProfileQuery, signal?: AbortSignal): Promise<ScrapeResult> {
+	async search(
+		profile: ProfileQuery,
+		signal?: AbortSignal,
+		onRetry?: RetryObserver
+	): Promise<ScrapeResult> {
 		const byId = new Map<string, RawListing>();
 		let complete = true;
+		const reasons = new Map<string, RunPhaseFailureReason>();
 		for (const keyword of profile.keywords) {
 			if (signal?.aborted) throw signal.reason;
 			try {
-				for (const listing of await searchKeyword(keyword, profile.locations, signal)) {
+				for (const listing of await withRetry(
+					() => searchKeyword(keyword, profile.locations, signal),
+					{ signal, onRetry }
+				)) {
 					byId.set(listing.externalId, listing);
 				}
 			} catch (err) {
 				rethrowIfAbort(err, signal);
 				complete = false;
+				bumpFailure(reasons, err);
 				console.error(`[ams] "${keyword}" fehlgeschlagen:`, err);
 			}
 		}
-		return { listings: [...byId.values()], complete };
+		return { listings: [...byId.values()], complete, failureReasons: toFailureReasons(reasons) };
 	}
 };

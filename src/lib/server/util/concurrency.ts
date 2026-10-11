@@ -15,6 +15,10 @@ export async function mapLimit<T, R>(
 		}
 	};
 	const workers = Array.from({ length: Math.min(limit, items.length) }, worker);
-	await Promise.all(workers);
+	// Drain every worker before returning a failure: pending cleanup/progress writes
+	// must finish before the caller persists a terminal run state.
+	const outcomes = await Promise.allSettled(workers);
+	const failure = outcomes.find((outcome) => outcome.status === 'rejected');
+	if (failure?.status === 'rejected') throw failure.reason;
 	return results;
 }

@@ -1,3 +1,6 @@
+import type { RetryObserver } from '../util/retry';
+import type { RunPhaseFailureReason } from '../db/schema';
+
 export interface ProfileQuery {
 	/** Job keywords to search for, e.g. ["Pflegeassistenz", "Verkauf"]. */
 	keywords: string[];
@@ -26,6 +29,7 @@ export interface ScrapeResult {
 	 * source that reported `complete: true`.
 	 */
 	complete: boolean;
+	failureReasons: RunPhaseFailureReason[];
 }
 
 export interface SourceAdapter {
@@ -36,14 +40,22 @@ export interface SourceAdapter {
 	 * internally, log, set `complete = false`, and return whatever was gathered.
 	 * Re-throw only on abort.
 	 */
-	search(profile: ProfileQuery, signal?: AbortSignal): Promise<ScrapeResult>;
+	search(
+		profile: ProfileQuery,
+		signal?: AbortSignal,
+		onRetry?: RetryObserver
+	): Promise<ScrapeResult>;
 	/**
 	 * Fetch the full job-ad body text for a single listing's detail page.
 	 * Returns normalized plain text, or null when no description is available.
 	 * Only implemented by sources whose search results lack the body; omit it
 	 * when the description already comes from `search` (e.g. AMS).
 	 */
-	fetchDescription?(url: string, signal?: AbortSignal): Promise<string | null>;
+	fetchDescription?(
+		url: string,
+		signal?: AbortSignal,
+		onRetry?: RetryObserver
+	): Promise<string | null>;
 	/**
 	 * Confirm via the listing's own detail page that the ad is gone. Search
 	 * results only cover the first page, so the runner closes a vanished
@@ -53,5 +65,5 @@ export interface SourceAdapter {
 	 * the portal cannot be probed statelessly (e.g. the AMS SPA); such sources
 	 * are closed directly when they vanish from the results.
 	 */
-	isListingGone?(url: string, signal?: AbortSignal): Promise<boolean>;
+	isListingGone?(url: string, signal?: AbortSignal, onRetry?: RetryObserver): Promise<boolean>;
 }

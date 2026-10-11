@@ -47,6 +47,11 @@ export function createRunProgress(headline = 'Aktualisierung startet'): RunProgr
 		llm: {
 			requestsPerMinute: 300,
 			maxConcurrent: 50,
+			effectiveRequestsPerMinute: 300,
+			effectiveMaxConcurrent: 50,
+			cooldownUntil: null,
+			recovering: false,
+			rateLimitEvents: 0,
 			queued: 0,
 			inFlight: 0,
 			completed: 0,
@@ -93,6 +98,17 @@ export function normalizeRunProgress(currentRun: RunProgressSource | null): RunP
 		headline: stored.headline ?? fallback.headline,
 		detail: stored.detail ?? fallback.detail,
 		phases,
-		llm: { ...fallback.llm, ...stored.llm }
+		llm: {
+			...fallback.llm,
+			...stored.llm,
+			effectiveRequestsPerMinute:
+				stored.llm?.effectiveRequestsPerMinute ??
+				stored.llm?.requestsPerMinute ??
+				fallback.llm.requestsPerMinute,
+			effectiveMaxConcurrent:
+				stored.llm?.effectiveMaxConcurrent ??
+				stored.llm?.maxConcurrent ??
+				fallback.llm.maxConcurrent
+		}
 	};
 }

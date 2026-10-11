@@ -1,3 +1,4 @@
+import type { RetryObserver } from '../util/retry';
 import { and, eq, inArray, isNotNull, isNull, ne, or, sql, type SQL } from 'drizzle-orm';
 import { db } from '../db';
 import {
@@ -85,6 +86,11 @@ function isAbortLike(err: unknown): boolean {
 class ProgressWriter {
 	private lastFlush = 0;
 	private limiter: LlmLimiter | null = null;
+	private heartbeat: ReturnType<typeof setInterval> | null = null;
+	private writes: Promise<void> = Promise.resolve();
+	private writeError: unknown;
+	private baseDetails = new Map<RunPhaseId, string>();
+	private retries = new Map<RunPhaseId, Map<string, string>>();
 
 	constructor(
 		private readonly runId: number,
@@ -93,9 +99,46 @@ class ProgressWriter {
 	) {}
 
 	phase(id: RunPhaseId, patch: Partial<RunPhaseProgress>, headline?: string): void {
-		this.progress.phases[id] = { ...this.progress.phases[id], ...patch };
+		if (patch.detail != null) this.baseDetails.set(id, patch.detail);
+		const active = this.retries.get(id);
+		const retryDetail = active?.size
+			? [...active.values()].slice(0, 2).join(' · ') +
+				(active.size > 2 ? ` · ${active.size - 2} weitere Wiederholungen` : '')
+			: '';
+		const detail = [this.baseDetails.get(id) ?? '', retryDetail].filter(Boolean).join(' · ');
+		this.progress.phases[id] = { ...this.progress.phases[id], ...patch, detail };
 		if (headline) this.progress.headline = headline;
-		if (patch.detail != null) this.progress.detail = patch.detail;
+		this.progress.detail = detail;
+	}
+
+	retry(id: RunPhaseId, key: string, label: string): RetryObserver {
+		return async (status) => {
+			let active = this.retries.get(id);
+			if (!active) {
+				active = new Map();
+				this.retries.set(id, active);
+			}
+			if (status.state === 'finished') active.delete(key);
+			else if (status.attempt > 1) active.set(key, `${label}: erneuter Versuch ${status.attempt}`);
+			this.phase(id, {});
+			await this.flush();
+		};
+	}
+
+	startHeartbeat(): void {
+		this.heartbeat = setInterval(() => {
+			void this.flush().catch((error) => {
+				this.writeError = error;
+				if (this.heartbeat) clearInterval(this.heartbeat);
+				this.heartbeat = null;
+			});
+		}, PROGRESS_FLUSH_INTERVAL_MS);
+	}
+
+	async stopHeartbeat(): Promise<void> {
+		if (this.heartbeat) clearInterval(this.heartbeat);
+		this.heartbeat = null;
+		await this.writes;
 	}
 
 	setLimiter(limiter: LlmLimiter): void {
@@ -104,10 +147,29 @@ class ProgressWriter {
 	}
 
 	llm(): void {
-		if (this.limiter) this.progress.llm = this.limiter.metrics();
+		if (this.limiter) {
+			const phases = ['email-quality', 'rank-listings', 'rank-leads'] as const;
+			this.progress.llm = {
+				...this.limiter.metrics(),
+				failed: phases.reduce((sum, id) => sum + this.progress.phases[id].failed, 0),
+				completed: phases.reduce(
+					(sum, id) =>
+						sum +
+						Math.max(
+							0,
+							this.progress.phases[id].current -
+								this.progress.phases[id].skipped -
+								this.progress.phases[id].failed
+						),
+					0
+				),
+				skipped: phases.reduce((sum, id) => sum + this.progress.phases[id].skipped, 0)
+			};
+		}
 	}
 
 	cancelRunning(): void {
+		this.retries.clear();
 		for (const id of Object.keys(this.progress.phases) as RunPhaseId[]) {
 			const phase = this.progress.phases[id];
 			if (phase.state === 'running') {
@@ -119,14 +181,26 @@ class ProgressWriter {
 	}
 
 	async flush(force = false): Promise<void> {
+		if (this.writeError) throw this.writeError;
 		const now = Date.now();
 		if (!force && now - this.lastFlush < PROGRESS_FLUSH_INTERVAL_MS) return;
 		this.lastFlush = now;
 		this.llm();
-		await db
-			.update(scrapeRun)
-			.set({ phase: this.progress.headline, counts: this.counts, progress: this.progress })
-			.where(eq(scrapeRun.id, this.runId));
+		const snapshot = structuredClone({
+			phase: this.progress.headline,
+			counts: this.counts,
+			progress: this.progress
+		});
+		this.writes = this.writes
+			.then(async () => {
+				if (this.writeError) return;
+				await db.update(scrapeRun).set(snapshot).where(eq(scrapeRun.id, this.runId));
+			})
+			.catch((error) => {
+				this.writeError = error;
+			});
+		await this.writes;
+		if (this.writeError) throw this.writeError;
 	}
 }
 
@@ -289,10 +363,17 @@ async function closeVanishedListings(
 	where: SQL,
 	writer: ProgressWriter,
 	signal: AbortSignal
-): Promise<{ closed: number; candidates: number }> {
+): Promise<{
+	closed: number;
+	candidates: number;
+	failed: number;
+	failureReasons: RunPhaseFailureReason[];
+}> {
 	const candidates = await db.select().from(listing).where(where);
 	const toClose: number[] = [];
 	let checked = 0;
+	let failed = 0;
+	const reasons = new Map<string, RunPhaseFailureReason>();
 	await mapLimit(
 		candidates,
 		DETAIL_FETCH_CONCURRENCY,
@@ -300,15 +381,27 @@ async function closeVanishedListings(
 			throwIfAborted(signal);
 			const isListingGone = ADAPTERS[row.source]?.isListingGone;
 			try {
-				if (!isListingGone || (await isListingGone(row.url, signal))) toClose.push(row.id);
+				if (
+					!isListingGone ||
+					(await isListingGone(
+						row.url,
+						signal,
+						writer.retry('reconcile', String(row.id), row.title)
+					))
+				)
+					toClose.push(row.id);
 			} catch (err) {
 				if (isAbortLike(err)) throw err;
+				failed++;
+				bumpFailure(reasons, err);
 				console.warn(`[runner] Verfügbarkeit der Stelle ${row.id} unklar, bleibt aktiv:`, err);
 			} finally {
 				checked++;
 				writer.phase('reconcile', {
 					current: checked,
 					total: candidates.length,
+					failed,
+					failureReasons: toFailureReasons(reasons),
 					detail: `Nicht mehr gelistete Stellen geprüft: ${checked} / ${candidates.length}`
 				});
 				await writer.flush();
@@ -319,7 +412,12 @@ async function closeVanishedListings(
 	if (toClose.length > 0) {
 		await db.update(listing).set({ status: 'closed' }).where(inArray(listing.id, toClose));
 	}
-	return { closed: toClose.length, candidates: candidates.length };
+	return {
+		closed: toClose.length,
+		candidates: candidates.length,
+		failed,
+		failureReasons: toFailureReasons(reasons)
+	};
 }
 
 /** Flag leads whose business name matches an active listing's company. */
@@ -344,6 +442,7 @@ export async function runRefresh(
 ): Promise<void> {
 	const counts: Counts = { added: 0, closed: 0, ranked: 0, leads: 0 };
 	const writer = new ProgressWriter(runId, counts, progress);
+	writer.startHeartbeat();
 	let usesBrowser = false;
 	let finalDetail = '';
 	// Only sources that finished without any swallowed fetch failure are eligible
@@ -385,7 +484,16 @@ export async function runRefresh(
 				});
 				await writer.flush(true);
 
-				const { listings, complete } = await adapter.search(profile, signal);
+				const { listings, complete, failureReasons } = await adapter.search(
+					profile,
+					signal,
+					writer.retry('scrape', adapter.id, adapter.label)
+				);
+				const phase = writer.progress.phases.scrape;
+				writer.phase('scrape', {
+					failed: phase.failed + failureReasons.reduce((sum, reason) => sum + reason.count, 0),
+					failureReasons: [...(phase.failureReasons ?? []), ...failureReasons]
+				});
 				if (complete) completeSources.add(adapter.id);
 				for (const raw of listings) {
 					throwIfAborted(signal);
@@ -397,7 +505,7 @@ export async function runRefresh(
 		}
 		if (canScrape) {
 			writer.phase('scrape', {
-				state: 'done',
+				state: writer.progress.phases.scrape.failed > 0 ? 'warning' : 'done',
 				current: adapters.length,
 				total: adapters.length,
 				detail: `${adapters.length} Quellen abgefragt`
@@ -411,6 +519,8 @@ export async function runRefresh(
 		);
 		await writer.flush(true);
 		let reconcileCandidates = 0;
+		let reconcileFailed = 0;
+		let reconcileReasons: RunPhaseFailureReason[] = [];
 		if (profile && completeSources.size > 0) {
 			const scopes = listingSearchScopes([...completeSources], profile.locations);
 			const where = listingReconcileWhere(personId, runId, scopes);
@@ -418,12 +528,16 @@ export async function runRefresh(
 				const result = await closeVanishedListings(where, writer, signal);
 				counts.closed = result.closed;
 				reconcileCandidates = result.candidates;
+				reconcileFailed = result.failed;
+				reconcileReasons = result.failureReasons;
 			}
 		}
 		const stillOpen = reconcileCandidates - counts.closed;
 		const incompleteSources = profile ? adapters.length - completeSources.size : 0;
 		writer.phase('reconcile', {
-			state: 'done',
+			state: reconcileFailed > 0 ? 'warning' : 'done',
+			failed: reconcileFailed,
+			failureReasons: reconcileReasons,
 			current: reconcileCandidates,
 			total: reconcileCandidates,
 			detail:
@@ -453,12 +567,22 @@ export async function runRefresh(
 			});
 		} else if (hasVerifiedHomeLocation(settings)) {
 			try {
-				const leadResult = await syncLeads(settings, runId, signal);
+				const reasons = new Map<string, RunPhaseFailureReason>();
+				let failed = 0;
+				const leadResult = await syncLeads(settings, runId, signal, {
+					onRetry: (key, label) => writer.retry('leads', key, label),
+					onFailure: (error) => {
+						failed++;
+						bumpFailure(reasons, error);
+					}
+				});
 				counts.leads = leadResult.total;
 				await markLeadsWithPostings(personId);
 				const removedLeads = await reconcileLeads(personId, runId);
 				writer.phase('leads', {
-					state: 'done',
+					state: failed > 0 ? 'warning' : 'done',
+					failed,
+					failureReasons: toFailureReasons(reasons),
 					current: 1,
 					total: 1,
 					detail:
@@ -471,11 +595,12 @@ export async function runRefresh(
 				console.warn('[runner] nearby business sync skipped:', err.message);
 				finalDetail = `Betriebe übersprungen (${err.message})`;
 				writer.phase('leads', {
-					state: 'skipped',
+					state: 'warning',
 					current: 1,
 					total: 1,
 					detail: finalDetail,
-					skipped: 1
+					failed: 1,
+					failureReasons: [{ code: 'business-search', label: err.message, count: 1 }]
 				});
 			}
 		} else {
@@ -499,6 +624,7 @@ export async function runRefresh(
 		writer.progress.detail = finalDetail || 'Fertig';
 		await writer.flush(true);
 
+		await writer.stopHeartbeat();
 		await db
 			.update(scrapeRun)
 			.set({
@@ -510,6 +636,7 @@ export async function runRefresh(
 			})
 			.where(eq(scrapeRun.id, runId));
 	} catch (err) {
+		await writer.stopHeartbeat();
 		if (isAbortLike(err) || signal.aborted) {
 			writer.cancelRunning();
 			await writer.flush(true);
@@ -540,6 +667,7 @@ export async function runRefresh(
 			}
 		}
 		await writer.flush(true);
+		await writer.stopHeartbeat();
 		await db
 			.update(scrapeRun)
 			.set({
@@ -552,6 +680,7 @@ export async function runRefresh(
 			})
 			.where(eq(scrapeRun.id, runId));
 	} finally {
+		await writer.stopHeartbeat();
 		if (usesBrowser) await closeBrowser();
 	}
 }
@@ -561,8 +690,8 @@ export async function runRefresh(
  * via each source's `fetchDescription`. Fills `description` and recomputes the
  * content hash so the rank-listings phase re-evaluates the listing with real
  * requirement text. Sources without a detail fetcher (e.g. AMS, which carries
- * the body in its search response) are skipped. Each detail page is fetched at
- * most once across runs because already-filled descriptions are not re-selected.
+ * the body in its search response) are skipped. A detail page is fetched again
+ * only while its description is missing; successful enrichment is not re-selected.
  */
 async function enrichDescriptions(
 	personId: number,
@@ -576,9 +705,11 @@ async function enrichDescriptions(
 			and(eq(listing.personId, personId), eq(listing.status, 'active'), isNull(listing.description))
 		);
 	const work = rows.filter((row) => typeof ADAPTERS[row.source]?.fetchDescription === 'function');
-	const skipped = rows.length - work.length;
+	let skipped = rows.length - work.length;
 	let completed = 0;
 	let failed = 0;
+	const reasons = new Map<string, RunPhaseFailureReason>();
+	let processed = 0;
 
 	writer.phase(
 		'enrich',
@@ -588,7 +719,8 @@ async function enrichDescriptions(
 			total: work.length,
 			detail: `Beschreibungen geladen: 0 / ${work.length}`,
 			skipped,
-			failed
+			failed,
+			failureReasons: toFailureReasons(reasons)
 		},
 		'Stellenbeschreibungen werden geladen'
 	);
@@ -600,25 +732,32 @@ async function enrichDescriptions(
 		async (row) => {
 			throwIfAborted(signal);
 			try {
-				const description = await ADAPTERS[row.source]!.fetchDescription!(row.url, signal);
+				const description = await ADAPTERS[row.source]!.fetchDescription!(
+					row.url,
+					signal,
+					writer.retry('enrich', String(row.id), row.title)
+				);
 				if (description) {
 					await db
 						.update(listing)
 						.set({ description, contentHash: listingContentHash({ ...row, description }) })
 						.where(eq(listing.id, row.id));
 					completed++;
-				}
+				} else skipped++;
 			} catch (err) {
 				if (isAbortLike(err)) throw err;
 				failed++;
+				bumpFailure(reasons, err);
 				console.error(`[runner] Anreicherung der Stelle ${row.id} fehlgeschlagen:`, err);
 			} finally {
+				processed++;
 				writer.phase('enrich', {
-					current: completed + failed,
+					current: processed,
 					total: work.length,
 					detail: `Beschreibungen geladen: ${completed} / ${work.length}, fehlgeschlagen: ${failed}`,
 					skipped,
-					failed
+					failed,
+					failureReasons: toFailureReasons(reasons)
 				});
 				await writer.flush();
 			}
@@ -633,7 +772,8 @@ async function enrichDescriptions(
 			total: work.length,
 			detail: `Beschreibungen geladen: ${completed} / ${work.length}, fehlgeschlagen: ${failed}`,
 			skipped,
-			failed
+			failed,
+			failureReasons: toFailureReasons(reasons)
 		});
 		await writer.flush(true);
 	}
@@ -803,7 +943,8 @@ async function reviewAutomaticLeadEmails(
 				failureReasons: progress.failureReasons
 			});
 			await writer.flush();
-		}
+		},
+		{ deferRateLimits: true, onRetry: writer.retry('email-quality', 'batch', 'E-Mail-Prüfung') }
 	);
 	for (const result of results) {
 		const row = rowsById.get(result.id);
@@ -878,7 +1019,10 @@ async function rankListings(
 		async ({ row, contentHash }) => {
 			throwIfAborted(signal);
 			try {
-				const result = await rankListing(cfg, settings, row, limiter, signal);
+				const result = await rankListing(cfg, settings, row, limiter, signal, {
+					deferRateLimits: true,
+					onRetry: writer.retry('rank-listings', String(row.id), row.title)
+				});
 				await db
 					.update(listing)
 					.set({
@@ -969,7 +1113,10 @@ async function rankLeads(
 					contentHash
 				};
 				if (rank) {
-					const result = await rankLead(cfg, settings, row, limiter, signal);
+					const result = await rankLead(cfg, settings, row, limiter, signal, {
+						deferRateLimits: true,
+						onRetry: writer.retry('rank-leads', String(row.id), row.name)
+					});
 					update.rankScore = result.score;
 					update.rankReason = result.reason;
 					update.rankFactors = result.factors;
@@ -977,7 +1124,10 @@ async function rankLeads(
 					update.rankContextHash = rankContext;
 				}
 				if (draft) {
-					const result = await draftColdEmail(cfg, settings, row, limiter, signal);
+					const result = await draftColdEmail(cfg, settings, row, limiter, signal, {
+						deferRateLimits: true,
+						onRetry: writer.retry('rank-leads', String(row.id), row.name)
+					});
 					update.draftSubject = result.subject;
 					update.draftBody = result.body;
 					update.draftContentHash = contentHash;

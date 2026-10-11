@@ -1,5 +1,6 @@
+import { HttpError } from './util/retry';
 import type { RunPhaseFailureReason } from './db/schema';
-import { LlmHttpError } from './llm/client';
+import { LlmHttpError, LlmResponseError } from './llm/client';
 
 /**
  * Surface the real failure reason. Drizzle wraps DB errors so `err.message` is
@@ -22,6 +23,8 @@ export function errorCauseMessage(err: unknown): string {
  */
 export function describeFailure(err: unknown): { code: string; label: string } {
 	if (err instanceof LlmHttpError) {
+		if (err.accessBlocked)
+			return { code: 'quota', label: 'KI-Zugang gesperrt – Guthaben oder Kontingent prüfen' };
 		if (err.status === 402)
 			return { code: 'payment', label: 'Zahlung erforderlich – LLM-Guthaben aufladen' };
 		if (err.status === 401 || err.status === 403)
@@ -30,6 +33,10 @@ export function describeFailure(err: unknown): { code: string; label: string } {
 		if (err.status >= 500) return { code: 'server', label: 'LLM-Serverfehler' };
 		return { code: `http-${err.status}`, label: `LLM-Fehler (${err.status})` };
 	}
+	if (err instanceof HttpError)
+		return { code: `http-${err.status}`, label: `Abruf-Fehler (${err.status})` };
+	if (err instanceof LlmResponseError && err.retryable && err.name !== 'DraftFormatError')
+		return { code: 'invalid-response', label: 'Ungültige KI-Antwort' };
 	if ((err instanceof DOMException || err instanceof Error) && err.name === 'TimeoutError')
 		return { code: 'timeout', label: 'Zeitlimit überschritten' };
 	if (err instanceof Error) {

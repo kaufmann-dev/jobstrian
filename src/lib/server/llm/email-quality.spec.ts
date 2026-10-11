@@ -1,3 +1,4 @@
+import { withRetry } from '../util/retry';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { LlmLimiter } from './limiter';
 
@@ -5,9 +6,23 @@ const { chatJson } = vi.hoisted(() => ({
 	chatJson: vi.fn()
 }));
 
-vi.mock('./client', () => ({
-	chatJson
-}));
+vi.mock('./client', async (importOriginal) => {
+	const actual = await importOriginal<typeof import('./client')>();
+	return {
+		...actual,
+		chatJson: async (...args: Parameters<typeof actual.chatJson>) =>
+			withRetry(
+				async () => {
+					const value = await chatJson(...args);
+					return args[2].parse ? args[2].parse(value) : value;
+				},
+				{
+					sleep: async () => {},
+					classify: (error) => (actual.isRetryableLlmError(error) ? 'retry' : 'stop')
+				}
+			)
+	};
+});
 
 import {
 	EMAIL_QUALITY_BATCH_SIZE,
@@ -60,7 +75,7 @@ describe('deterministicLeadEmailReview', () => {
 
 describe('reviewLeadEmailCandidates', () => {
 	beforeEach(() => {
-		vi.clearAllMocks();
+		chatJson.mockReset();
 	});
 
 	it('does not call the LLM for deterministic rejections', async () => {
@@ -75,7 +90,13 @@ describe('reviewLeadEmailCandidates', () => {
 	});
 
 	it('batches LLM reviews at the configured batch size', async () => {
-		chatJson.mockResolvedValue({ decisions: [] });
+		chatJson.mockImplementation(async (_cfg, messages) => ({
+			decisions: JSON.parse(messages[1].content).candidates.map((item: { id: string }) => ({
+				id: item.id,
+				status: 'accepted',
+				reason: 'ok'
+			}))
+		}));
 		const candidates = Array.from({ length: EMAIL_QUALITY_BATCH_SIZE + 1 }, (_, index) =>
 			candidate(index + 1)
 		);
@@ -88,7 +109,13 @@ describe('reviewLeadEmailCandidates', () => {
 	});
 
 	it('tells cheap models that zero rejections are valid and safer than false rejection', async () => {
-		chatJson.mockResolvedValue({ decisions: [] });
+		chatJson.mockImplementation(async (_cfg, messages) => ({
+			decisions: JSON.parse(messages[1].content).candidates.map((item: { id: string }) => ({
+				id: item.id,
+				status: 'accepted',
+				reason: 'ok'
+			}))
+		}));
 
 		await reviewLeadEmailCandidates(cfg, [candidate(1, 'office@betrieb.example')], limiter());
 

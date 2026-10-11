@@ -14,7 +14,8 @@ function response(input: { status: number; url: string; redirected?: boolean }):
 		ok: input.status >= 200 && input.status < 300,
 		redirected: input.redirected ?? false,
 		url: input.url,
-		body: null
+		body: null,
+		headers: new Headers()
 	} as Response;
 }
 

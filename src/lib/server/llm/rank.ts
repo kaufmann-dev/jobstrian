@@ -1,3 +1,4 @@
+import type { RetryContext } from '../util/retry';
 import { rankingResponse } from './response-schemas';
 import type { Person, Listing, Lead } from '../db/schema';
 import { chatJson, type LlmEndpoint } from './client';
@@ -7,8 +8,7 @@ import {
 	parseCriterionScores,
 	weightedRankingScore,
 	type RankFactor,
-	type RankingCriteria,
-	type RankingCriterionScore
+	type RankingCriteria
 } from '#lib/ranking-criteria.js';
 
 export const RANK_PROMPT_VERSION = 'rank-v5-weighted-criteria-de';
@@ -148,19 +148,26 @@ export async function rankListing(
 	settings: Person,
 	listing: Listing,
 	limiter: LlmLimiter,
-	signal?: AbortSignal
+	signal?: AbortSignal,
+	retry: RetryContext = {}
 ): Promise<RankResult> {
 	const context = buildRankingContext(settings, 'listing');
 	const user = buildListingRankingPrompt(settings, listing).slice(context.length).trimStart();
-	const raw = await chatJson<{ criteria: RankingCriterionScore[] }>(
+	return chatJson<RankResult>(
 		cfg,
 		[
 			{ role: 'system', content: LISTING_SYSTEM },
 			{ role: 'user', content: user }
 		],
-		{ limiter, signal, context, response: rankingResponse }
+		{
+			...retry,
+			limiter,
+			signal,
+			context,
+			response: rankingResponse,
+			parse: (raw) => rankedResult(raw, settings.listingRankingCriteria)
+		}
 	);
-	return rankedResult(raw, settings.listingRankingCriteria);
 }
 
 export async function rankLead(
@@ -168,17 +175,24 @@ export async function rankLead(
 	settings: Person,
 	lead: Lead,
 	limiter: LlmLimiter,
-	signal?: AbortSignal
+	signal?: AbortSignal,
+	retry: RetryContext = {}
 ): Promise<RankResult> {
 	const context = buildRankingContext(settings, 'lead');
 	const user = buildLeadRankingPrompt(settings, lead).slice(context.length).trimStart();
-	const raw = await chatJson<{ criteria: RankingCriterionScore[] }>(
+	return chatJson<RankResult>(
 		cfg,
 		[
 			{ role: 'system', content: LEAD_SYSTEM },
 			{ role: 'user', content: user }
 		],
-		{ limiter, signal, context, response: rankingResponse }
+		{
+			...retry,
+			limiter,
+			signal,
+			context,
+			response: rankingResponse,
+			parse: (raw) => rankedResult(raw, settings.leadRankingCriteria)
+		}
 	);
-	return rankedResult(raw, settings.leadRankingCriteria);
 }

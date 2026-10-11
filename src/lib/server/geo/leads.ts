@@ -1,3 +1,4 @@
+import { HttpError, type RetryObserver } from '../util/retry';
 import * as cheerio from 'cheerio';
 import { and, eq, isNull, ne, or, sql } from 'drizzle-orm';
 import { db } from '../db';
@@ -233,9 +234,11 @@ function throwIfAborted(signal?: AbortSignal): void {
 	if (signal?.aborted) throw signal.reason;
 }
 
-interface ExtractEmailOptions {
+export interface ExtractEmailOptions {
 	blockedEmails?: Set<string>;
 	signal?: AbortSignal;
+	onRetry?: (url: string) => RetryObserver;
+	onFailure?: (error: unknown) => void;
 }
 
 /** Try to find a contact email by scanning the homepage + imprint/contact pages. */
@@ -248,12 +251,18 @@ export async function extractEmailFromWebsite(
 	if (!startUrl) return undefined;
 	const candidates: ScoredEmailCandidate[] = [];
 	const seenPages = new Set<string>();
+	const failures: unknown[] = [];
 	const fetchPage = async (pageUrl: string): Promise<string | undefined> => {
 		try {
 			throwIfAborted(signal);
-			return await fetchText(pageUrl, { timeoutMs: 7000, signal });
+			return await fetchText(pageUrl, {
+				timeoutMs: 7000,
+				signal,
+				onRetry: options.onRetry?.(pageUrl)
+			});
 		} catch (err) {
 			if (signal?.aborted) throw err;
+			if (!(err instanceof HttpError && [404, 410].includes(err.status))) failures.push(err);
 			return undefined;
 		}
 	};
@@ -264,19 +273,27 @@ export async function extractEmailFromWebsite(
 
 	const homeUrl = startUrl.toString();
 	const homeHtml = await fetchPage(homeUrl);
-	if (!homeHtml) return undefined;
+	if (!homeHtml) {
+		if (failures.length) options.onFailure?.(failures[0]);
+		return undefined;
+	}
 	collect(homeHtml, homeUrl);
 
 	const discovered = discoverContactUrls(homeHtml, startUrl)
 		.filter((url) => !seenPages.has(url))
 		.slice(0, MAX_FETCHED_EMAIL_PAGES - 1);
-	const rest = await Promise.all(
-		discovered.map((url) => fetchPage(url).then((html) => ({ url, html })))
+	const rest = await mapLimit(
+		discovered,
+		MAX_FETCHED_EMAIL_PAGES - 1,
+		async (url) => ({ url, html: await fetchPage(url) }),
+		signal
 	);
 	for (const page of rest) {
 		if (page.html) collect(page.html, page.url);
 	}
-	return pickEmail(candidates, blockedEmails);
+	const email = pickEmail(candidates, blockedEmails);
+	if (!email && failures.length) options.onFailure?.(failures[0]);
+	return email;
 }
 
 export interface LeadSyncResult {
@@ -291,7 +308,11 @@ export interface LeadSyncResult {
 export async function syncLeads(
 	settings: Person,
 	runId: number,
-	signal?: AbortSignal
+	signal?: AbortSignal,
+	hooks: {
+		onRetry?: (key: string, label: string) => RetryObserver;
+		onFailure?: (error: unknown) => void;
+	} = {}
 ): Promise<LeadSyncResult> {
 	if (settings.homeLat == null || settings.homeLon == null) {
 		throw new Error(
@@ -303,7 +324,8 @@ export async function syncLeads(
 		settings.homeLon,
 		settings.businessRadiusMeters,
 		settings.businessOsmTags,
-		signal
+		signal,
+		hooks.onRetry?.('overpass', 'Betriebssuche')
 	);
 
 	const homeLat = settings.homeLat;
@@ -319,7 +341,12 @@ export async function syncLeads(
 			let email = pickEmail(place.email ? [place.email] : [], blockedEmails);
 			let emailSource: 'osm' | 'website' | null = email ? 'osm' : null;
 			if (!email && place.website) {
-				const found = await extractEmailFromWebsite(place.website, { blockedEmails, signal });
+				const found = await extractEmailFromWebsite(place.website, {
+					blockedEmails,
+					signal,
+					onRetry: (url) => hooks.onRetry?.(`${place.osmId}:${url}`, place.name) ?? (() => {}),
+					onFailure: hooks.onFailure
+				});
 				if (found) {
 					email = found;
 					emailSource = 'website';

@@ -1,5 +1,6 @@
+import { parseRetryAfter } from '../util/retry';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { chatJson, normalizeUsage, parseRetryAfter } from './client';
+import { chatJson, normalizeUsage } from './client';
 import { verificationResponse } from './response-schemas';
 import { LlmLimiter } from './limiter';
 
@@ -14,6 +15,7 @@ const messages = [{ role: 'user' as const, content: 'test' }];
 afterEach(() => {
 	vi.unstubAllGlobals();
 	vi.restoreAllMocks();
+	vi.useRealTimers();
 });
 
 function success(content = '{"ok":true}'): Response {
@@ -58,14 +60,16 @@ describe('chatJson retries', () => {
 		expect(fetchMock).toHaveBeenCalledTimes(1);
 	});
 
-	it('honors Retry-After and exhausts three total attempts', async () => {
+	it('honors Retry-After and exhausts three total attempts for interactive work', async () => {
+		vi.useFakeTimers();
+		vi.setSystemTime(0);
 		const sleeps: number[] = [];
 		const fetchMock = vi
 			.fn()
 			.mockResolvedValue(new Response('busy', { status: 429, headers: { 'retry-after': '2' } }));
 		vi.stubGlobal('fetch', fetchMock);
 
-		await expect(
+		const rejected = expect(
 			chatJson(cfg, messages, {
 				response: verificationResponse,
 				limiter: limiter(),
@@ -74,6 +78,8 @@ describe('chatJson retries', () => {
 				}
 			})
 		).rejects.toThrow('429');
+		await vi.advanceTimersByTimeAsync(180_000);
+		await rejected;
 		expect(fetchMock).toHaveBeenCalledTimes(3);
 		expect(sleeps).toEqual([2000, 2000]);
 	});
@@ -202,7 +208,7 @@ describe('native providers', () => {
 				sleep: async () => undefined
 			})
 		).rejects.toThrow('Schema');
-		expect(fetchMock).toHaveBeenCalledTimes(1);
+		expect(fetchMock).toHaveBeenCalledTimes(3);
 	});
 
 	it('logs provider usage before rejecting malformed output without logging the content or key', async () => {
@@ -296,5 +302,77 @@ describe('normalized usage', () => {
 				prompt_tokens_details: { cached_tokens: 5 }
 			})
 		).toEqual({ inputTokens: 20, outputTokens: 4, cachedInputTokens: 5, cacheWriteTokens: null });
+	});
+});
+
+describe('refresh capacity recovery', () => {
+	it('survives more than three throttled requests and completes the same task', async () => {
+		vi.useFakeTimers();
+		vi.setSystemTime(0);
+		let calls = 0;
+		vi.stubGlobal(
+			'fetch',
+			vi.fn(async () =>
+				++calls <= 5
+					? Response.json(
+							{ error: { type: 'rate_limit_error' } },
+							{ status: 429, headers: { 'retry-after': '1' } }
+						)
+					: success()
+			)
+		);
+		const shared = new LlmLimiter({ requestsPerMinute: 1000, maxConcurrent: 8, random: () => 0 });
+		const pending = chatJson(cfg, messages, {
+			limiter: shared,
+			response: verificationResponse,
+			deferRateLimits: true
+		});
+		await vi.advanceTimersByTimeAsync(60_000);
+		await expect(pending).resolves.toEqual({ ok: true });
+		expect(calls).toBe(6);
+		expect(shared.metrics()).toMatchObject({
+			rateLimitEvents: 5,
+			recovering: false,
+			cooldownUntil: null,
+			queued: 0,
+			inFlight: 0
+		});
+	});
+	it('does not defer quota errors or poison connection limits', async () => {
+		const fetchMock = vi.fn(async () =>
+			Response.json({ error: { code: 'insufficient_quota' } }, { status: 429 })
+		);
+		vi.stubGlobal('fetch', fetchMock);
+		const shared = limiter();
+		await expect(
+			chatJson(cfg, messages, {
+				limiter: shared,
+				response: verificationResponse,
+				deferRateLimits: true
+			})
+		).rejects.toThrow('Kontingent');
+		expect(fetchMock).toHaveBeenCalledTimes(1);
+		expect(shared.metrics()).toMatchObject({
+			rateLimitEvents: 0,
+			cooldownUntil: null,
+			effectiveRequestsPerMinute: 100
+		});
+	});
+	it('includes semantic validation in the same three-attempt budget', async () => {
+		const fetchMock = vi.fn(async () => success());
+		vi.stubGlobal('fetch', fetchMock);
+		let parsed = 0;
+		await expect(
+			chatJson(cfg, messages, {
+				limiter: limiter(),
+				response: verificationResponse,
+				sleep: async () => {},
+				parse: () => {
+					if (++parsed < 3) throw new SyntaxError('fehlende Kriterien');
+					return 'valid';
+				}
+			})
+		).resolves.toBe('valid');
+		expect(fetchMock).toHaveBeenCalledTimes(3);
 	});
 });

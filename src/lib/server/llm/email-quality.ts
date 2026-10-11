@@ -1,3 +1,4 @@
+import type { RetryContext } from '../util/retry';
 import { emailQualityResponse } from './response-schemas';
 import { chatJson, type LlmEndpoint } from './client';
 import type { LlmLimiter } from './limiter';
@@ -208,6 +209,12 @@ function parseLlmResults(
 		byId.set(String(decision.id), decision);
 	}
 
+	if (
+		(raw.decisions?.length ?? 0) !== candidates.length ||
+		byId.size !== candidates.length ||
+		candidates.some((candidate) => !byId.has(String(candidate.id)))
+	)
+		throw new SyntaxError('Die KI hat nicht jede E-Mail-Adresse genau einmal geprüft.');
 	return candidates.map((candidate) => {
 		const decision = byId.get(String(candidate.id));
 		const llmStatus = decision?.status === 'rejected' ? 'rejected' : 'accepted';
@@ -231,7 +238,8 @@ export async function reviewLeadEmailCandidates(
 	candidates: LeadEmailQualityCandidate[],
 	limiter: LlmLimiter,
 	signal?: AbortSignal,
-	onProgress?: LeadEmailQualityProgressCallback
+	onProgress?: LeadEmailQualityProgressCallback,
+	retry: RetryContext = {}
 ): Promise<LeadEmailQualityResult[]> {
 	const results = new Map<number, LeadEmailQualityResult>();
 	const llmWork: LeadEmailQualityCandidate[] = [];
@@ -265,15 +273,22 @@ export async function reviewLeadEmailCandidates(
 
 	for (const batch of chunks(llmWork, EMAIL_QUALITY_BATCH_SIZE)) {
 		try {
-			const raw = await chatJson<LlmEmailQualityResponse>(
+			const reviewed = await chatJson<LeadEmailQualityResult[]>(
 				cfg,
 				[
 					{ role: 'system', content: EMAIL_QUALITY_SYSTEM_PROMPT },
 					{ role: 'user', content: userPrompt(batch) }
 				],
-				{ temperature: 0, limiter, signal, response: emailQualityResponse }
+				{
+					...retry,
+					temperature: 0,
+					limiter,
+					signal,
+					response: emailQualityResponse,
+					parse: (raw) => parseLlmResults(batch, raw as LlmEmailQualityResponse)
+				}
 			);
-			for (const result of parseLlmResults(batch, raw)) {
+			for (const result of reviewed) {
 				results.set(result.id, result);
 			}
 		} catch (err) {

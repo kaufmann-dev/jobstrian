@@ -74,3 +74,58 @@ it('shows the status badge and summary when not active', async () => {
 	await expect.element(page.getByText('fertig')).toBeVisible();
 	await expect.element(page.getByText('3 Bewertungen fehlgeschlagen.')).toBeVisible();
 });
+
+it('clears a previous warning when the operation is retried successfully', async () => {
+	const phase: RunStatusCardPhase = {
+		id: 'enrich',
+		label: 'Beschreibungen',
+		state: 'warning',
+		current: 2,
+		total: 2,
+		detail: '',
+		skipped: 0,
+		failed: 2,
+		failureReasons: [{ code: 'network', label: 'Verbindung unterbrochen', count: 2 }]
+	};
+	const screen = await render(RunStatusCard, {
+		title: 'Beschreibungen werden geladen',
+		statusLabel: 'fertig',
+		defaultExpanded: true,
+		phases: [phase]
+	});
+
+	await expect.element(page.getByText('2 fehlgeschlagen')).toBeVisible();
+	await expect.element(page.getByText('2× Verbindung unterbrochen')).toBeVisible();
+	await expect.element(page.getByText('mit Warnung fertig', { exact: true })).toBeInTheDocument();
+
+	await screen.rerender({
+		active: true,
+		phases: [
+			{
+				...phase,
+				state: 'running',
+				current: 0,
+				failed: 0,
+				failureReasons: [],
+				detail: 'Erneuter Versuch 2/3'
+			}
+		]
+	});
+	await expect.element(page.getByText('Erneuter Versuch 2/3')).toBeVisible();
+	await expect.element(page.getByText('2 fehlgeschlagen')).not.toBeInTheDocument();
+	await expect.element(page.getByText('2× Verbindung unterbrochen')).not.toBeInTheDocument();
+	await expect
+		.element(page.getByText('mit Warnung fertig', { exact: true }))
+		.not.toBeInTheDocument();
+
+	await screen.rerender({
+		active: false,
+		phases: [{ ...phase, state: 'done', failed: 0, failureReasons: [], detail: '' }]
+	});
+	await expect.element(page.getByText('2 / 2')).toBeVisible();
+	await expect.element(page.getByText('Erneuter Versuch 2/3')).not.toBeInTheDocument();
+	await expect.element(page.getByText('2 fehlgeschlagen')).not.toBeInTheDocument();
+	await expect
+		.element(page.getByText('mit Warnung fertig', { exact: true }))
+		.not.toBeInTheDocument();
+});

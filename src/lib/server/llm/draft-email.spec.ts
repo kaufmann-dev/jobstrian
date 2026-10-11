@@ -1,3 +1,4 @@
+import { withRetry } from '../util/retry';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Lead, Person } from '../db/schema';
 import {
@@ -26,7 +27,23 @@ describe('draft cache context', () => {
 });
 
 const chatJson = vi.hoisted(() => vi.fn());
-vi.mock('./client', () => ({ chatJson }));
+vi.mock('./client', async (importOriginal) => {
+	const actual = await importOriginal<typeof import('./client')>();
+	return {
+		...actual,
+		chatJson: async (...args: Parameters<typeof actual.chatJson>) =>
+			withRetry(
+				async () => {
+					const value = await chatJson(...args);
+					return args[2].parse ? args[2].parse(value) : value;
+				},
+				{
+					sleep: async () => {},
+					classify: (error) => (actual.isRetryableLlmError(error) ? 'retry' : 'stop')
+				}
+			)
+	};
+});
 
 function validBody(sender = 'Anna Beispiel'): string {
 	return `Guten Tag,
@@ -253,7 +270,7 @@ Anna Beispiel`
 		await expect(draftColdEmail(cfg, settings(), lead(), limiter)).rejects.toThrow(
 			/korrekt formatierten E-Mail-Entwurf/
 		);
-		expect(chatJson).toHaveBeenCalledTimes(2);
+		expect(chatJson).toHaveBeenCalledTimes(3);
 	});
 
 	it('throws when the model returns a blank body', async () => {
@@ -262,21 +279,22 @@ Anna Beispiel`
 		await expect(draftColdEmail(cfg, settings(), lead(), limiter)).rejects.toThrow(
 			/korrekt formatierten E-Mail-Entwurf/
 		);
-		expect(chatJson).toHaveBeenCalledTimes(2);
+		expect(chatJson).toHaveBeenCalledTimes(3);
 	});
 
-	it('throws when both draft attempts are unrepairable', async () => {
+	it('throws when all three draft attempts are unrepairable', async () => {
 		chatJson
 			.mockResolvedValueOnce({ subject: 'Erster Versuch', body: 'Guten Tag, ich bewerbe mich.' })
 			.mockResolvedValueOnce({
 				subject: 'Zweiter Versuch',
 				body: `${validBody()}\nDanke für Ihre Zeit.`
-			});
+			})
+			.mockResolvedValue({ subject: 'Dritter Versuch', body: 'Unbrauchbar' });
 
 		await expect(draftColdEmail(cfg, settings(), lead(), limiter)).rejects.toThrow(
 			/korrekt formatierten E-Mail-Entwurf/
 		);
-		expect(chatJson).toHaveBeenCalledTimes(2);
+		expect(chatJson).toHaveBeenCalledTimes(3);
 	});
 
 	it('falls back to a default subject when the model omits it', async () => {

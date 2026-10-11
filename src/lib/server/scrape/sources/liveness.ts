@@ -1,3 +1,4 @@
+import { HttpError, parseRetryAfter, withRetry, type RetryObserver } from '../../util/retry';
 import { politeFetch } from '../../util/http';
 
 const GONE_STATUSES = new Set([404, 410, 422]);
@@ -16,15 +17,25 @@ const GONE_STATUSES = new Set([404, 410, 422]);
 export async function detailPageGone(
 	url: string,
 	isDetailUrl: (finalUrl: URL) => boolean,
-	signal?: AbortSignal
+	signal?: AbortSignal,
+	onRetry?: RetryObserver
 ): Promise<boolean> {
-	const res = await politeFetch(url, {
-		timeoutMs: 20_000,
-		headers: { 'accept-language': 'de-AT,de;q=0.9' },
-		signal
-	});
-	await res.body?.cancel().catch(() => {});
-	if (GONE_STATUSES.has(res.status)) return true;
-	if (res.ok) return res.redirected && !isDetailUrl(new URL(res.url));
-	throw new Error(`Verfügbarkeitsprüfung fehlgeschlagen: ${url} -> ${res.status}`);
+	return withRetry(
+		async () => {
+			const res = await politeFetch(url, {
+				timeoutMs: 20_000,
+				headers: { 'accept-language': 'de-AT,de;q=0.9' },
+				signal
+			});
+			await res.body?.cancel().catch(() => {});
+			if (GONE_STATUSES.has(res.status)) return true;
+			if (res.ok) return res.redirected && !isDetailUrl(new URL(res.url));
+			throw new HttpError(
+				res.status,
+				`Verfügbarkeitsprüfung fehlgeschlagen: ${url} -> ${res.status}`,
+				parseRetryAfter(res.headers.get('retry-after'))
+			);
+		},
+		{ signal, onRetry }
+	);
 }

@@ -1,6 +1,7 @@
+import type { RetryContext } from '../util/retry';
 import { draftResponse } from './response-schemas';
 import type { Person, Lead } from '../db/schema';
-import { chatJson, type LlmEndpoint } from './client';
+import { chatJson, LlmResponseError, type LlmEndpoint } from './client';
 import { profileBlock } from './rank';
 import type { LlmLimiter } from './limiter';
 
@@ -30,12 +31,11 @@ Antworte ausschließlich als JSON: {"subject": "<Betreff>", "body": "<E-Mail-Tex
 Keine Platzhalter in eckigen Klammern. Variiere Satzlänge und Satzbau.`;
 
 const SIGNOFF = 'Mit freundlichen Grüßen';
-const MAX_DRAFT_ATTEMPTS = 2;
 
 /** Raised when the model never returns a body matching the required structure. */
-export class DraftFormatError extends Error {
+export class DraftFormatError extends LlmResponseError {
 	constructor(message: string) {
-		super(message);
+		super(message, true);
 		this.name = 'DraftFormatError';
 	}
 }
@@ -148,32 +148,37 @@ export async function draftColdEmail(
 	settings: Person,
 	lead: Lead,
 	limiter: LlmLimiter,
-	signal?: AbortSignal
+	signal?: AbortSignal,
+	retry: RetryContext = {}
 ): Promise<EmailDraft> {
 	const context = buildDraftContext(settings);
 	const user = buildColdEmailPrompt(settings, lead).slice(context.length).trimStart();
 	const sender = senderName(settings);
-	let lastSubject = 'Initiativbewerbung';
-	for (let attempt = 1; attempt <= MAX_DRAFT_ATTEMPTS; attempt++) {
-		const raw = await chatJson<Partial<EmailDraft>>(
-			cfg,
-			[
-				{ role: 'system', content: SYSTEM },
-				{ role: 'user', content: user }
-			],
-			{ temperature: 0.6, limiter, signal, context, response: draftResponse }
-		);
-		lastSubject =
-			(raw.subject ?? 'Initiativbewerbung').toString().trim().slice(0, 200) || 'Initiativbewerbung';
-		const body = guardDraftBody(raw.body, sender);
-		if (body) {
-			return {
-				subject: lastSubject,
-				body
-			};
+	return chatJson<EmailDraft>(
+		cfg,
+		[
+			{ role: 'system', content: SYSTEM },
+			{ role: 'user', content: user }
+		],
+		{
+			...retry,
+			temperature: 0.6,
+			limiter,
+			signal,
+			context,
+			response: draftResponse,
+			parse: (value) => {
+				const raw = value as Partial<EmailDraft>;
+				const subject =
+					(raw.subject ?? 'Initiativbewerbung').toString().trim().slice(0, 200) ||
+					'Initiativbewerbung';
+				const body = guardDraftBody(raw.body, sender);
+				if (!body)
+					throw new DraftFormatError(
+						`LLM lieferte keinen korrekt formatierten E-Mail-Entwurf für "${subject}".`
+					);
+				return { subject, body };
+			}
 		}
-	}
-	throw new DraftFormatError(
-		`LLM lieferte keinen korrekt formatierten E-Mail-Entwurf für "${lastSubject}".`
 	);
 }

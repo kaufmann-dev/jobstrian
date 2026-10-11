@@ -1,3 +1,6 @@
+import { bumpFailure, toFailureReasons } from '../../run-failures';
+import type { RunPhaseFailureReason } from '../../db/schema';
+import { type RetryObserver } from '../../util/retry';
 import { fetchText } from '../../util/http';
 import { htmlToText } from '../../util/html';
 import { rethrowIfAbort } from '../abort';
@@ -59,8 +62,12 @@ function toListing(e: WhEntry, keyword: string, cities: readonly string[]): RawL
 export const willhaben: SourceAdapter = {
 	id: 'willhaben',
 	label: 'willhaben Jobs',
-	async fetchDescription(url: string, signal?: AbortSignal): Promise<string | null> {
-		const html = await fetchText(url, { timeoutMs: 20_000, signal });
+	async fetchDescription(
+		url: string,
+		signal?: AbortSignal,
+		onRetry?: RetryObserver
+	): Promise<string | null> {
+		const html = await fetchText(url, { timeoutMs: 20_000, signal, onRetry });
 		const json = extractNextData(html) as {
 			props?: { pageProps?: { jobAdvertDetailsRoot?: { data?: { description?: string } } } };
 		} | null;
@@ -69,17 +76,31 @@ export const willhaben: SourceAdapter = {
 	},
 	// Expired willhaben ads redirect from /jobs/job/<slug>/<id> to the job
 	// search with an "advert expired" hint.
-	async isListingGone(url: string, signal?: AbortSignal): Promise<boolean> {
-		return detailPageGone(url, (finalUrl) => finalUrl.pathname.startsWith('/jobs/job/'), signal);
+	async isListingGone(
+		url: string,
+		signal?: AbortSignal,
+		onRetry?: RetryObserver
+	): Promise<boolean> {
+		return detailPageGone(
+			url,
+			(finalUrl) => finalUrl.pathname.startsWith('/jobs/job/'),
+			signal,
+			onRetry
+		);
 	},
-	async search(profile: ProfileQuery, signal?: AbortSignal): Promise<ScrapeResult> {
+	async search(
+		profile: ProfileQuery,
+		signal?: AbortSignal,
+		onRetry?: RetryObserver
+	): Promise<ScrapeResult> {
 		const byId = new Map<string, RawListing>();
 		let complete = true;
+		const reasons = new Map<string, RunPhaseFailureReason>();
 		for (const keyword of profile.keywords) {
 			if (signal?.aborted) throw signal.reason;
 			try {
 				const url = 'https://www.willhaben.at/jobs/suche?keyword=' + encodeURIComponent(keyword);
-				const html = await fetchText(url, { timeoutMs: 20_000, signal });
+				const html = await fetchText(url, { timeoutMs: 20_000, signal, onRetry });
 				for (const entry of parseNextData(html)) {
 					const listing = toListing(entry, keyword, profile.locations);
 					if (listing) byId.set(listing.externalId, listing);
@@ -87,9 +108,10 @@ export const willhaben: SourceAdapter = {
 			} catch (err) {
 				rethrowIfAbort(err, signal);
 				complete = false;
+				bumpFailure(reasons, err);
 				console.error(`[willhaben] "${keyword}" fehlgeschlagen:`, err);
 			}
 		}
-		return { listings: [...byId.values()], complete };
+		return { listings: [...byId.values()], complete, failureReasons: toFailureReasons(reasons) };
 	}
 };

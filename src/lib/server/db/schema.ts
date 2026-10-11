@@ -938,6 +938,11 @@ export interface RunPhaseProgress {
 export interface RunLlmProgress {
 	requestsPerMinute: number;
 	maxConcurrent: number;
+	effectiveRequestsPerMinute: number;
+	effectiveMaxConcurrent: number;
+	cooldownUntil: number | null;
+	recovering: boolean;
+	rateLimitEvents: number;
 	queued: number;
 	inFlight: number;
 	completed: number;

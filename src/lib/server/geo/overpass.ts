@@ -1,3 +1,10 @@
+import {
+	HttpError,
+	parseRetryAfter,
+	withRetry,
+	isTransientError,
+	type RetryObserver
+} from '../util/retry';
 import { USER_AGENT } from '../util/http';
 import {
 	isValidOsmBusinessTag,
@@ -33,8 +40,6 @@ interface OverpassElement {
 const OVERPASS_ENDPOINT = 'https://overpass-api.de/api/interpreter';
 const OVERPASS_ATTEMPTS = 3;
 const OVERPASS_ATTEMPT_TIMEOUT_MS = 70_000;
-const OVERPASS_RETRY_BASE_MS = 250;
-const RETRYABLE_STATUSES = new Set([429, 502, 503, 504]);
 
 const OSM_QUERY_CHUNK_SIZE = 12;
 
@@ -97,29 +102,6 @@ function combineWithTimeout(
 	};
 }
 
-async function sleepWithAbort(ms: number, signal?: AbortSignal): Promise<void> {
-	throwIfAborted(signal);
-	let onAbort: (() => void) | undefined;
-	await new Promise<void>((resolve, reject) => {
-		const timeout = setTimeout(resolve, ms);
-		if (signal) {
-			onAbort = () => {
-				clearTimeout(timeout);
-				reject(abortReason(signal));
-			};
-			signal.addEventListener('abort', onAbort, { once: true });
-		}
-	}).finally(() => {
-		if (onAbort) signal?.removeEventListener('abort', onAbort);
-	});
-	throwIfAborted(signal);
-}
-
-function overpassFetchFailureMessage(err: unknown): string {
-	if (err instanceof Error && err.message) return `Overpass-Anfrage fehlgeschlagen: ${err.message}`;
-	return 'Overpass-Anfrage fehlgeschlagen';
-}
-
 interface OverpassResponse {
 	elements?: OverpassElement[];
 	remark?: string;
@@ -138,53 +120,60 @@ function isCompleteOverpassBody(data: OverpassResponse): data is { elements: Ove
 	return !(data.remark != null && OVERPASS_ERROR_REMARK.test(data.remark));
 }
 
+class OverpassIncompleteError extends SyntaxError {}
+
 async function fetchOverpass(
 	query: string,
-	signal?: AbortSignal
+	signal?: AbortSignal,
+	onRetry?: RetryObserver
 ): Promise<{ elements: OverpassElement[] }> {
-	let lastRetryable: { message: string; cause?: unknown } | undefined;
-
-	for (let attempt = 1; attempt <= OVERPASS_ATTEMPTS; attempt++) {
-		throwIfAborted(signal);
-		const attemptSignal = combineWithTimeout(signal, OVERPASS_ATTEMPT_TIMEOUT_MS);
-		try {
-			const response = await fetch(OVERPASS_ENDPOINT, {
-				method: 'POST',
-				headers: {
-					'content-type': 'application/x-www-form-urlencoded',
-					'user-agent': USER_AGENT
-				},
-				body: 'data=' + encodeURIComponent(query),
-				signal: attemptSignal.signal
-			});
-
-			if (response.ok) {
-				const data = (await response.json()) as OverpassResponse;
-				if (isCompleteOverpassBody(data)) return data;
-				lastRetryable = { message: 'Overpass meldet eine unvollständige Antwort.' };
-			} else if (!RETRYABLE_STATUSES.has(response.status)) {
-				throw new Error(`Overpass-Status ${response.status}`);
-			} else {
-				lastRetryable = { message: `Overpass-Status ${response.status}` };
-			}
-		} catch (err) {
-			if (signal?.aborted) throw abortReason(signal);
-			if (err instanceof Error && err.message.startsWith('Overpass-Status ')) throw err;
-			lastRetryable = { message: overpassFetchFailureMessage(err), cause: err };
-		} finally {
-			attemptSignal.cleanup();
-		}
-
-		if (attempt < OVERPASS_ATTEMPTS) {
-			await sleepWithAbort(OVERPASS_RETRY_BASE_MS * 2 ** (attempt - 1), signal);
-		}
+	let attempts = 0;
+	try {
+		return await withRetry(
+			async (attempt) => {
+				attempts = attempt;
+				throwIfAborted(signal);
+				const request = combineWithTimeout(signal, OVERPASS_ATTEMPT_TIMEOUT_MS);
+				try {
+					const response = await fetch(OVERPASS_ENDPOINT, {
+						method: 'POST',
+						headers: {
+							'content-type': 'application/x-www-form-urlencoded',
+							'user-agent': USER_AGENT
+						},
+						body: 'data=' + encodeURIComponent(query),
+						signal: request.signal
+					});
+					if (!response.ok) {
+						await response.body?.cancel();
+						throw new HttpError(
+							response.status,
+							`Overpass-Status ${response.status}`,
+							parseRetryAfter(response.headers.get('retry-after'))
+						);
+					}
+					const data = (await response.json()) as OverpassResponse;
+					if (!isCompleteOverpassBody(data))
+						throw new OverpassIncompleteError('Overpass meldet eine unvollständige Antwort.');
+					return data;
+				} catch (error) {
+					if (request.signal.aborted) throw request.signal.reason;
+					throw error;
+				} finally {
+					request.cleanup();
+				}
+			},
+			{ signal, onRetry, maxAttempts: OVERPASS_ATTEMPTS }
+		);
+	} catch (error) {
+		if (signal?.aborted) throw abortReason(signal);
+		if (!isTransientError(error)) throw error;
+		throw new OverpassUnavailableError(
+			error instanceof Error ? error.message : 'Overpass ist nicht verfügbar',
+			attempts,
+			{ cause: error }
+		);
 	}
-
-	throw new OverpassUnavailableError(
-		lastRetryable?.message ?? 'Overpass ist nicht verfügbar',
-		OVERPASS_ATTEMPTS,
-		{ cause: lastRetryable?.cause }
-	);
 }
 
 function escapeOverpassRegex(value: string): string {
@@ -264,13 +253,14 @@ export async function findNearbyBusinesses(
 	lon: number,
 	radius: number,
 	tags: readonly OsmBusinessTag[],
-	signal?: AbortSignal
+	signal?: AbortSignal,
+	onRetry?: RetryObserver
 ): Promise<OverpassPlace[]> {
 	const queries = compileBusinessOverpassQueries(lat, lon, radius, tags);
 	const byOsmId = new Map<string, OverpassPlace>();
 
 	for (const query of queries) {
-		const { elements } = await fetchOverpass(query, signal);
+		const { elements } = await fetchOverpass(query, signal, onRetry);
 		for (const el of elements) {
 			const elementTags = el.tags ?? {};
 			const name = elementTags.name;

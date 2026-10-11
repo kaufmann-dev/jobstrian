@@ -257,14 +257,14 @@ export async function llmStatusFor(person: Pick<Person, 'llmModelId'>): Promise<
 	};
 }
 
-const limiters = new Map<string, LlmLimiter>();
+const limiters = new Map<number, LlmLimiter>();
 
 /**
- * One limiter per connection (and limit setting), shared by every person and run so
+ * One limiter per connection, shared by every person and run so
  * concurrent work respects the provider's rate limit together.
  */
 export function getLlmLimiter(config: LlmConfig): LlmLimiter {
-	const key = `${config.connectionId}:${config.requestsPerMinute}:${config.maxConcurrent}`;
+	const key = config.connectionId;
 	let limiter = limiters.get(key);
 	if (!limiter) {
 		limiter = new LlmLimiter({
@@ -272,6 +272,8 @@ export function getLlmLimiter(config: LlmConfig): LlmLimiter {
 			maxConcurrent: config.maxConcurrent
 		});
 		limiters.set(key, limiter);
+	} else {
+		limiter.configure(config);
 	}
 	return limiter;
 }

@@ -83,8 +83,8 @@ reply, then call `set_application_status`.
   recruiting pages. Automatic e-mail candidates are filtered for clearly
   unusable technical / no-reply addresses and reviewed in batches by the
   configured LLM before they become eligible for application sending. If
-  Overpass is temporarily overloaded, the update skips this business sync and
-  still completes the job scraping / ranking run.
+  Overpass remains overloaded after retries, the update warns and skips this
+  business sync and still completes the job scraping / ranking run.
   Websites, phone numbers and e-mail addresses can be manually added, edited,
   or deleted; manual changes remain authoritative during later updates.
 - **LLM ranking**: jobs and businesses are scored through configurable weighted
@@ -199,6 +199,18 @@ Server logs tagged `[llm-usage]` record provider, connection/model/person IDs, p
 duration, input/output tokens, cached input and cache writes. Missing usage is `null`; prompts,
 responses and API keys are excluded. Token rates depend on the model; switching endpoints does
 not itself lower token prices.
+
+Refresh operations use up to three attempts in total for temporary failures, including malformed AI results.
+Only failures remaining after retries produce warnings; recovered requests count as successes.
+Temporary AI rate limits keep the work pending until capacity returns or the run is canceled.
+Each AI connection shares one adaptive queue across people and models. Configured requests per
+minute and concurrency are ceilings: starts are evenly paced, throttling pauses the whole queue
+and lowers both effective limits, and a single recovery request precedes gradual increases after
+stable successes. Provider request/token reset hints and `Retry-After` are respected. The overview
+shows pauses and effective limits; saved settings are never changed. Learned limits survive later
+refreshes within the server process and reset on restart. Credit, spend and quota errors require
+action and are reported separately rather than retried as temporary rate limits. E-mail delivery
+retains its separate scheduling and retry rules.
 
 For automatic applications, also configure Resend per person in their **Einstellungen**
 (every person sends from their own address, so each has their own Resend key, domain, sender,

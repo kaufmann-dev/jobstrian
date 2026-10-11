@@ -189,9 +189,10 @@ describe('getLlmLimiter', () => {
 		expect(getLlmLimiter(config())).toBe(getLlmLimiter(config({ modelRowId: 2, model: 'other' })));
 	});
 
-	it('uses separate limiters for separate connections and changed limits', () => {
+	it('keeps the same limiter for changed settings and isolates separate connections', () => {
 		const base = getLlmLimiter(config());
 		expect(getLlmLimiter(config({ connectionId: 2 }))).not.toBe(base);
-		expect(getLlmLimiter(config({ requestsPerMinute: 120 }))).not.toBe(base);
+		expect(getLlmLimiter(config({ requestsPerMinute: 120 }))).toBe(base);
+		expect(base.metrics().requestsPerMinute).toBe(120);
 	});
 });
