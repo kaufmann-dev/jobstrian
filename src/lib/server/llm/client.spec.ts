@@ -1,9 +1,20 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { chatJson, parseRetryAfter } from './client';
+import { chatJson, normalizeUsage, parseRetryAfter } from './client';
+import { verificationResponse } from './response-schemas';
 import { LlmLimiter } from './limiter';
 
-const cfg = { baseUrl: 'https://llm.example.test/v1', apiKey: '', model: 'test' };
+const cfg = {
+	apiType: 'openai-compatible' as const,
+	baseUrl: 'https://llm.example.test/v1',
+	apiKey: '',
+	model: 'test'
+};
 const messages = [{ role: 'user' as const, content: 'test' }];
+
+afterEach(() => {
+	vi.unstubAllGlobals();
+	vi.restoreAllMocks();
+});
 
 function success(content = '{"ok":true}'): Response {
 	return Response.json({ choices: [{ message: { content } }] });
@@ -24,7 +35,11 @@ describe('chatJson retries', () => {
 		vi.stubGlobal('fetch', fetchMock);
 
 		await expect(
-			chatJson<{ ok: boolean }>(cfg, messages, { limiter: limiter(), sleep: async () => undefined })
+			chatJson<{ ok: boolean }>(cfg, messages, {
+				response: verificationResponse,
+				limiter: limiter(),
+				sleep: async () => undefined
+			})
 		).resolves.toEqual({ ok: true });
 		expect(fetchMock).toHaveBeenCalledTimes(2);
 	});
@@ -34,7 +49,11 @@ describe('chatJson retries', () => {
 		vi.stubGlobal('fetch', fetchMock);
 
 		await expect(
-			chatJson(cfg, messages, { limiter: limiter(), sleep: async () => undefined })
+			chatJson(cfg, messages, {
+				response: verificationResponse,
+				limiter: limiter(),
+				sleep: async () => undefined
+			})
 		).rejects.toThrow('400');
 		expect(fetchMock).toHaveBeenCalledTimes(1);
 	});
@@ -48,6 +67,7 @@ describe('chatJson retries', () => {
 
 		await expect(
 			chatJson(cfg, messages, {
+				response: verificationResponse,
 				limiter: limiter(),
 				sleep: async (ms) => {
 					sleeps.push(ms);
@@ -65,6 +85,7 @@ describe('chatJson retries', () => {
 
 		await expect(
 			chatJson(cfg, messages, {
+				response: verificationResponse,
 				limiter: limiter(),
 				signal: controller.signal,
 				sleep: async () => {
@@ -80,5 +101,200 @@ describe('parseRetryAfter', () => {
 	it('parses seconds and HTTP dates', () => {
 		expect(parseRetryAfter('3', 0)).toBe(3000);
 		expect(parseRetryAfter('Thu, 01 Jan 1970 00:00:05 GMT', 1000)).toBe(4000);
+	});
+});
+
+describe('native providers', () => {
+	function nativeSuccess(apiType: 'openai' | 'anthropic', text = '{"ok":true}') {
+		return apiType === 'openai'
+			? {
+					status: 'completed',
+					output: [{ type: 'message', content: [{ type: 'output_text', text }] }]
+				}
+			: { stop_reason: 'end_turn', content: [{ type: 'text', text }] };
+	}
+
+	it.each(['openai', 'anthropic'] as const)(
+		'uses %s authentication, native schema and output parsing',
+		async (apiType) => {
+			const fetchMock = vi.fn().mockResolvedValue(Response.json(nativeSuccess(apiType)));
+			vi.stubGlobal('fetch', fetchMock);
+			await expect(
+				chatJson({ ...cfg, apiType, apiKey: 'test-key' }, messages, {
+					limiter: limiter(),
+					response: verificationResponse,
+					context: 'Applicant profile',
+					temperature: 0,
+					maxOutputTokens: 1024
+				})
+			).resolves.toEqual({ ok: true });
+			const [url, init] = fetchMock.mock.calls[0];
+			const body = JSON.parse(init.body);
+			expect(url).toBe(cfg.baseUrl + (apiType === 'openai' ? '/responses' : '/messages'));
+			expect(body.temperature).toBeUndefined();
+			if (apiType === 'openai') {
+				expect(init.headers.authorization).toBe('Bearer test-key');
+				expect(body.store).toBe(false);
+				expect(body.max_output_tokens).toBe(1024);
+				expect(body.text.format).toMatchObject({ type: 'json_schema', strict: true });
+				expect(body.input[1].content.map((b: { text: string }) => b.text)).toEqual([
+					'Applicant profile',
+					'test'
+				]);
+			} else {
+				expect(init.headers).toMatchObject({
+					'x-api-key': 'test-key',
+					'anthropic-version': '2023-06-01'
+				});
+				expect(init.headers.authorization).toBeUndefined();
+				expect(body.max_tokens).toBe(1024);
+				expect(body.output_config.format.type).toBe('json_schema');
+				expect(body.messages[0].content[0].cache_control).toEqual({ type: 'ephemeral', ttl: '5m' });
+				expect(body.messages[0].content[1].cache_control).toBeUndefined();
+			}
+		}
+	);
+
+	it('does not request Claude caching for one-off requests', async () => {
+		const fetchMock = vi.fn().mockResolvedValue(Response.json(nativeSuccess('anthropic')));
+		vi.stubGlobal('fetch', fetchMock);
+		await chatJson({ ...cfg, apiType: 'anthropic' }, messages, {
+			limiter: limiter(),
+			response: verificationResponse
+		});
+		expect(JSON.parse(fetchMock.mock.calls[0][1].body).messages[0].content).toEqual([
+			{ type: 'text', text: 'test' }
+		]);
+	});
+
+	it.each([
+		[
+			'openai',
+			{ status: 'completed', output: [{ type: 'message', content: [{ type: 'refusal' }] }] }
+		],
+		['openai', { status: 'incomplete', output: [] }],
+		['anthropic', { stop_reason: 'refusal', content: [] }],
+		['anthropic', { stop_reason: 'max_tokens', content: [] }]
+	] as const)('does not retry %s refusal/incomplete output', async (apiType, data) => {
+		const fetchMock = vi.fn().mockImplementation(() => Promise.resolve(Response.json(data)));
+		vi.stubGlobal('fetch', fetchMock);
+		await expect(
+			chatJson({ ...cfg, apiType }, messages, {
+				limiter: limiter(),
+				response: verificationResponse,
+				sleep: async () => undefined
+			})
+		).rejects.toThrow();
+		expect(fetchMock).toHaveBeenCalledTimes(1);
+	});
+
+	it('validates the schema rather than trusting the requested TypeScript type', async () => {
+		const fetchMock = vi
+			.fn()
+			.mockImplementation(() =>
+				Promise.resolve(Response.json(nativeSuccess('openai', '{"ok":false}')))
+			);
+		vi.stubGlobal('fetch', fetchMock);
+		await expect(
+			chatJson({ ...cfg, apiType: 'openai' }, messages, {
+				limiter: limiter(),
+				response: verificationResponse,
+				sleep: async () => undefined
+			})
+		).rejects.toThrow('Schema');
+		expect(fetchMock).toHaveBeenCalledTimes(1);
+	});
+
+	it('logs provider usage before rejecting malformed output without logging the content or key', async () => {
+		const log = vi.spyOn(console, 'info').mockImplementation(() => undefined);
+		vi.stubGlobal(
+			'fetch',
+			vi.fn().mockResolvedValue(
+				Response.json({
+					...nativeSuccess('anthropic', 'private-invalid-output'),
+					usage: {
+						input_tokens: 10,
+						cache_read_input_tokens: 100,
+						cache_creation_input_tokens: 20,
+						output_tokens: 5
+					}
+				})
+			)
+		);
+		await expect(
+			chatJson(
+				{ ...cfg, apiType: 'anthropic', apiKey: 'private-key', personId: 7, connectionId: 2 },
+				messages,
+				{
+					limiter: limiter(),
+					response: verificationResponse,
+					maxAttempts: 1
+				}
+			)
+		).rejects.toThrow();
+		const entry = JSON.parse(log.mock.calls[0][1]);
+		expect(entry).toMatchObject({
+			personId: 7,
+			connectionId: 2,
+			inputTokens: 130,
+			cachedInputTokens: 100,
+			cacheWriteTokens: 20,
+			outputTokens: 5
+		});
+		expect(JSON.stringify(log.mock.calls)).not.toMatch(/private-key|private-invalid-output/);
+	});
+
+	it('times out an in-flight request and releases the limiter slot', async () => {
+		const shared = limiter();
+		vi.stubGlobal(
+			'fetch',
+			vi.fn().mockImplementation(
+				(_url, init) =>
+					new Promise((_resolve, reject) => {
+						init.signal.addEventListener('abort', () => reject(init.signal.reason), { once: true });
+					})
+			)
+		);
+		await expect(
+			chatJson(cfg, messages, {
+				limiter: shared,
+				response: verificationResponse,
+				timeoutMs: 5,
+				maxAttempts: 1
+			})
+		).rejects.toThrow('Zeitlimit');
+		expect(shared.metrics().inFlight).toBe(0);
+	});
+});
+
+describe('normalized usage', () => {
+	it('uses OpenAI total input without adding cached/write tokens again', () => {
+		expect(
+			normalizeUsage('openai', {
+				input_tokens: 100,
+				output_tokens: 8,
+				input_tokens_details: { cached_tokens: 60, cache_write_tokens: 20 }
+			})
+		).toEqual({
+			inputTokens: 100,
+			outputTokens: 8,
+			cachedInputTokens: 60,
+			cacheWriteTokens: 20
+		});
+	});
+	it('records absent usage as unknown and reads compatible usage', () => {
+		expect(normalizeUsage('anthropic')).toEqual({
+			inputTokens: null,
+			outputTokens: null,
+			cachedInputTokens: null,
+			cacheWriteTokens: null
+		});
+		expect(
+			normalizeUsage('openai-compatible', {
+				prompt_tokens: 20,
+				completion_tokens: 4,
+				prompt_tokens_details: { cached_tokens: 5 }
+			})
+		).toEqual({ inputTokens: 20, outputTokens: 4, cachedInputTokens: 5, cacheWriteTokens: null });
 	});
 });

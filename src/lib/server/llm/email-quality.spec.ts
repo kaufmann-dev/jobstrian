@@ -17,7 +17,12 @@ import {
 	type LeadEmailQualityCandidate
 } from './email-quality';
 
-const cfg = { baseUrl: 'https://llm.example.test/v1', apiKey: '', model: 'test' };
+const cfg = {
+	apiType: 'openai-compatible' as const,
+	baseUrl: 'https://llm.example.test/v1',
+	apiKey: '',
+	model: 'test'
+};
 
 function limiter(): LlmLimiter {
 	return new LlmLimiter({ requestsPerMinute: 100, maxConcurrent: 5 });

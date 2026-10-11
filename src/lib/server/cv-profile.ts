@@ -1,3 +1,4 @@
+import { profileResponse } from './llm/response-schemas';
 import {
 	FormatError,
 	InvalidPDFException,
@@ -178,8 +179,8 @@ fullName, phone, email, profileText, languages, germanLevel, experienceYears,
 educationStatus, availability, homeAddress, skills, workExperience, educationHistory, certifications.
 
 Regeln:
-- Gib nur Felder zurück, die im Lebenslauf ausdrücklich genannt oder direkt daraus ableitbar sind.
-- Erfinde und rate nichts. Lasse nicht belegte Felder vollständig weg.
+- Gib alle erlaubten Felder zurück. Nutze null für nicht belegte Felder.
+- Erfinde und rate nichts. Befülle nur ausdrücklich genannte oder direkt ableitbare Angaben.
 - fullName, phone und email sind Name, Telefonnummer und E-Mail-Adresse des Bewerbers.
 - Fasse profileText knapp und sachlich zusammen.
 - Normalisiere Listen, entferne Dubletten und lasse leere Einträge weg.
@@ -210,7 +211,7 @@ export async function createProfilePreview(personId: number): Promise<ProfilePre
 				{ role: 'system', content: EXTRACTION_SYSTEM },
 				{ role: 'user', content: `LEBENSLAUF:\n${text}` }
 			],
-			{ limiter, temperature: 0 }
+			{ limiter, temperature: 0, response: profileResponse }
 		);
 	} catch (error) {
 		if (error instanceof LlmHttpError && (error.status === 401 || error.status === 403)) {

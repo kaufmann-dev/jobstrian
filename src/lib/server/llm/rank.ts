@@ -1,3 +1,4 @@
+import { rankingResponse } from './response-schemas';
 import type { Person, Listing, Lead } from '../db/schema';
 import { chatJson, type LlmEndpoint } from './client';
 import type { LlmLimiter } from './limiter';
@@ -103,9 +104,15 @@ function rankedResult(raw: unknown, criteria: RankingCriteria): RankResult {
 	return weightedRankingScore(criteria, scores);
 }
 
+export function buildRankingContext(settings: Person, kind: 'listing' | 'lead'): string {
+	const heading = kind === 'listing' ? 'KRITERIEN FÜR STELLEN' : 'KRITERIEN FÜR BETRIEBE';
+	const criteria =
+		kind === 'listing' ? settings.listingRankingCriteria : settings.leadRankingCriteria;
+	return `BEWERBER:\n${profileBlock(settings)}\n\n${heading}:\n${criteriaBlock(criteria)}`;
+}
+
 export function buildListingRankingPrompt(settings: Person, listing: Listing): string {
-	return `BEWERBER:\n${profileBlock(settings)}\n\nKRITERIEN FÜR STELLEN:
-${criteriaBlock(settings.listingRankingCriteria)}
+	return `${buildRankingContext(settings, 'listing')}
 
 STELLE:
 Titel: ${listing.title}
@@ -124,8 +131,7 @@ export function buildLeadRankingPrompt(settings: Person, lead: Lead): string {
 	const matchedTags = lead.matchedOsmTags.length
 		? lead.matchedOsmTags.map((tag) => tag.label).join(', ')
 		: 'keine gespeicherten OSM-Kategorien';
-	return `BEWERBER:\n${profileBlock(settings)}\n\nKRITERIEN FÜR BETRIEBE:
-${criteriaBlock(settings.leadRankingCriteria)}
+	return `${buildRankingContext(settings, 'lead')}
 
 BETRIEB (potenzielle Initiativbewerbung):
 Name: ${lead.name}
@@ -144,14 +150,15 @@ export async function rankListing(
 	limiter: LlmLimiter,
 	signal?: AbortSignal
 ): Promise<RankResult> {
-	const user = buildListingRankingPrompt(settings, listing);
+	const context = buildRankingContext(settings, 'listing');
+	const user = buildListingRankingPrompt(settings, listing).slice(context.length).trimStart();
 	const raw = await chatJson<{ criteria: RankingCriterionScore[] }>(
 		cfg,
 		[
 			{ role: 'system', content: LISTING_SYSTEM },
 			{ role: 'user', content: user }
 		],
-		{ limiter, signal }
+		{ limiter, signal, context, response: rankingResponse }
 	);
 	return rankedResult(raw, settings.listingRankingCriteria);
 }
@@ -163,14 +170,15 @@ export async function rankLead(
 	limiter: LlmLimiter,
 	signal?: AbortSignal
 ): Promise<RankResult> {
-	const user = buildLeadRankingPrompt(settings, lead);
+	const context = buildRankingContext(settings, 'lead');
+	const user = buildLeadRankingPrompt(settings, lead).slice(context.length).trimStart();
 	const raw = await chatJson<{ criteria: RankingCriterionScore[] }>(
 		cfg,
 		[
 			{ role: 'system', content: LEAD_SYSTEM },
 			{ role: 'user', content: user }
 		],
-		{ limiter, signal }
+		{ limiter, signal, context, response: rankingResponse }
 	);
 	return rankedResult(raw, settings.leadRankingCriteria);
 }

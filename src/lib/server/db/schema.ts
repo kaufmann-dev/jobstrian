@@ -12,6 +12,7 @@ import {
 	primaryKey,
 	uniqueIndex,
 	index,
+	check,
 	type AnyPgColumn
 } from 'drizzle-orm/pg-core';
 import { relations, sql } from 'drizzle-orm';
@@ -509,20 +510,30 @@ export const appSettings = pgTable('app_settings', {
 		.notNull()
 });
 
-/** A saved OpenAI-compatible endpoint (shared by all people). */
-export const llmConnection = pgTable('llm_connection', {
-	id: serial('id').primaryKey(),
-	name: text('name').notNull().unique(),
-	baseUrl: text('base_url').notNull(),
-	apiKey: text('api_key').notNull().default(''),
-	requestsPerMinute: integer('requests_per_minute').notNull().default(300),
-	maxConcurrent: integer('max_concurrent').notNull().default(50),
-	createdAt: timestamp('created_at').defaultNow().notNull(),
-	updatedAt: timestamp('updated_at')
-		.defaultNow()
-		.$onUpdate(() => new Date())
-		.notNull()
-});
+/** A saved AI API connection (shared by all people). */
+export const llmConnection = pgTable(
+	'llm_connection',
+	{
+		id: serial('id').primaryKey(),
+		name: text('name').notNull().unique(),
+		apiType: text('api_type', { enum: ['openai', 'anthropic', 'openai-compatible'] }).notNull(),
+		baseUrl: text('base_url').notNull(),
+		apiKey: text('api_key').notNull().default(''),
+		requestsPerMinute: integer('requests_per_minute').notNull().default(300),
+		maxConcurrent: integer('max_concurrent').notNull().default(50),
+		createdAt: timestamp('created_at').defaultNow().notNull(),
+		updatedAt: timestamp('updated_at')
+			.defaultNow()
+			.$onUpdate(() => new Date())
+			.notNull()
+	},
+	(table) => [
+		check(
+			'llm_connection_api_type_check',
+			sql`${table.apiType} in ('openai', 'anthropic', 'openai-compatible')`
+		)
+	]
+);
 
 /** A model saved for a connection. `verified` is set only by a successful live request. */
 export const llmModel = pgTable(

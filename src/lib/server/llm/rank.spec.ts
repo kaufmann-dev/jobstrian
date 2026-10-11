@@ -7,10 +7,25 @@ import {
 import {
 	buildLeadRankingPrompt,
 	buildListingRankingPrompt,
+	buildRankingContext,
 	LEAD_SYSTEM,
 	LISTING_SYSTEM,
 	profileBlock
 } from './rank';
+
+describe('ranking cache context', () => {
+	it('shares context across jobs while profile and person changes alter it', () => {
+		const person = settings();
+		const context = buildRankingContext(person, 'lead');
+		expect(buildLeadRankingPrompt(person, lead({ name: 'One' })).startsWith(context)).toBe(true);
+		expect(buildLeadRankingPrompt(person, lead({ name: 'Two' })).startsWith(context)).toBe(true);
+		expect(context).not.toContain('Name: One');
+		expect(
+			buildRankingContext(settings({ profileText: 'Different profile', id: 2 }), 'lead')
+		).not.toBe(context);
+		expect(buildRankingContext(person, 'listing')).not.toBe(context);
+	});
+});
 
 function settings(patch: Partial<Person> = {}): Person {
 	return {

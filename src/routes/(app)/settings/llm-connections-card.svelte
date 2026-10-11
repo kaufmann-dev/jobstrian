@@ -1,5 +1,6 @@
 <script lang="ts">
 	import ConfirmDialog from '#lib/components/confirm-dialog.svelte';
+	import { LLM_API_LABELS } from '#lib/llm.js';
 	import * as Card from '#lib/components/ui/card/index.js';
 	import { Badge } from '#lib/components/ui/badge/index.js';
 	import { Button } from '#lib/components/ui/button/index.js';
@@ -51,8 +52,8 @@
 			<div class="space-y-1.5">
 				<Card.Title>KI-Verbindungen</Card.Title>
 				<Card.Description>
-					OpenAI-kompatible Endpoints und ihre Modelle. Alle Personen können sie für das Bewerten
-					und für Bewerbungsentwürfe nutzen.
+					KI-Anbieter und ihre Modelle. Alle Personen können sie für das Bewerten und für
+					Bewerbungsentwürfe nutzen.
 				</Card.Description>
 			</div>
 			<Button size="sm" class="w-full sm:w-auto" onclick={() => connectionDialog?.show(null)}>
@@ -79,6 +80,13 @@
 					<div class="min-w-0 space-y-1">
 						<div class="flex flex-wrap items-center gap-2">
 							<h3 class="font-medium">{connection.name}</h3>
+							<Badge
+								variant="outline"
+								class="max-w-full"
+								title={LLM_API_LABELS[connection.apiType]}
+							>
+								<span class="truncate">{LLM_API_LABELS[connection.apiType]}</span>
+							</Badge>
 							<Badge variant={connection.hasApiKey ? 'secondary' : 'outline'}>
 								{connection.hasApiKey ? 'API-Key gespeichert' : 'Kein API-Key'}
 							</Badge>

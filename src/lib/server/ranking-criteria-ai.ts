@@ -1,3 +1,4 @@
+import { rankingCriteriaResponse } from './llm/response-schemas';
 import {
 	DEFAULT_LEAD_RANKING_CRITERIA,
 	DEFAULT_LISTING_RANKING_CRITERIA,
@@ -92,7 +93,7 @@ export async function createRankingCriteriaPreview(
 					content: `NUTZERWUNSCH:\n${trimmedIntent}\n\nKONTEXT:\n${currentContext(settings)}`
 				}
 			],
-			{ limiter, temperature: 0.1 }
+			{ limiter, temperature: 0.1, response: rankingCriteriaResponse }
 		);
 	} catch (error) {
 		if (error instanceof LlmHttpError && (error.status === 401 || error.status === 403)) {

@@ -1,3 +1,4 @@
+import { emailQualityResponse } from './response-schemas';
 import { chatJson, type LlmEndpoint } from './client';
 import type { LlmLimiter } from './limiter';
 import type { RunPhaseFailureReason } from '../db/schema';
@@ -270,7 +271,7 @@ export async function reviewLeadEmailCandidates(
 					{ role: 'system', content: EMAIL_QUALITY_SYSTEM_PROMPT },
 					{ role: 'user', content: userPrompt(batch) }
 				],
-				{ temperature: 0, limiter, signal }
+				{ temperature: 0, limiter, signal, response: emailQualityResponse }
 			);
 			for (const result of parseLlmResults(batch, raw)) {
 				results.set(result.id, result);

@@ -1,3 +1,4 @@
+import { draftResponse } from './response-schemas';
 import type { Person, Lead } from '../db/schema';
 import { chatJson, type LlmEndpoint } from './client';
 import { profileBlock } from './rank';
@@ -62,14 +63,18 @@ export function targetRoleLine(settings: Person): string {
 		: 'Zielrolle: nicht eindeutig; neutral als passende Mitarbeit formulieren';
 }
 
+export function buildDraftContext(settings: Person): string {
+	return `BEWERBERPROFIL:
+${draftProfileBlock(settings) || 'Bewerber sucht eine passende Stelle in Österreich.'}
+${targetRoleLine(settings)}
+Absender (mit diesem Namen unterschreiben): ${senderName(settings)}`;
+}
+
 export function buildColdEmailPrompt(settings: Person, lead: Lead): string {
 	const matchedTags = lead.matchedOsmTags.length
 		? lead.matchedOsmTags.map((tag) => tag.label).join(', ')
 		: 'keine gespeicherten OSM-Kategorien';
-	return `BEWERBERPROFIL:
-${draftProfileBlock(settings) || 'Bewerber sucht eine passende Stelle in Österreich.'}
-${targetRoleLine(settings)}
-Absender (mit diesem Namen unterschreiben): ${senderName(settings)}
+	return `${buildDraftContext(settings)}
 
 BETRIEB:
 Name: ${lead.name}
@@ -145,7 +150,8 @@ export async function draftColdEmail(
 	limiter: LlmLimiter,
 	signal?: AbortSignal
 ): Promise<EmailDraft> {
-	const user = buildColdEmailPrompt(settings, lead);
+	const context = buildDraftContext(settings);
+	const user = buildColdEmailPrompt(settings, lead).slice(context.length).trimStart();
 	const sender = senderName(settings);
 	let lastSubject = 'Initiativbewerbung';
 	for (let attempt = 1; attempt <= MAX_DRAFT_ATTEMPTS; attempt++) {
@@ -155,7 +161,7 @@ export async function draftColdEmail(
 				{ role: 'system', content: SYSTEM },
 				{ role: 'user', content: user }
 			],
-			{ temperature: 0.6, limiter, signal }
+			{ temperature: 0.6, limiter, signal, context, response: draftResponse }
 		);
 		lastSubject =
 			(raw.subject ?? 'Initiativbewerbung').toString().trim().slice(0, 200) || 'Initiativbewerbung';

@@ -5,7 +5,25 @@ import {
 	DEFAULT_LISTING_RANKING_CRITERIA
 } from '#lib/ranking-criteria.js';
 import type { LlmLimiter } from './limiter';
-import { DRAFT_PROMPT_VERSION, buildColdEmailPrompt, draftColdEmail } from './draft-email';
+import {
+	DRAFT_PROMPT_VERSION,
+	buildColdEmailPrompt,
+	buildDraftContext,
+	draftColdEmail
+} from './draft-email';
+
+describe('draft cache context', () => {
+	it('keeps business data after shared profile context and changes with the applicant', () => {
+		const person = settings();
+		const context = buildDraftContext(person);
+		expect(buildColdEmailPrompt(person, lead({ name: 'One' })).startsWith(context)).toBe(true);
+		expect(buildColdEmailPrompt(person, lead({ name: 'Two' })).startsWith(context)).toBe(true);
+		expect(context).not.toContain('Name: One');
+		expect(buildDraftContext(settings({ profileText: 'Different applicant', id: 2 }))).not.toBe(
+			context
+		);
+	});
+});
 
 const chatJson = vi.hoisted(() => vi.fn());
 vi.mock('./client', () => ({ chatJson }));
@@ -148,7 +166,12 @@ describe('cold email prompt', () => {
 });
 
 describe('draftColdEmail', () => {
-	const cfg = { baseUrl: 'http://llm', apiKey: '', model: 'm' };
+	const cfg = {
+		apiType: 'openai-compatible' as const,
+		baseUrl: 'http://llm',
+		apiKey: '',
+		model: 'm'
+	};
 	const limiter = {} as LlmLimiter;
 
 	beforeEach(() => {

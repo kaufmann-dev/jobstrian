@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 import type { Lead, Listing, Person } from '../db/schema';
 import type { RawListing } from '../scrape/types';
 import type { LlmEndpoint } from './client';
-import { DRAFT_PROMPT_VERSION } from './draft-email';
+import { buildDraftContext, DRAFT_PROMPT_VERSION } from './draft-email';
 import { profileBlock, RANK_PROMPT_VERSION } from './rank';
 
 type ListingFingerprintInput = Pick<
@@ -91,6 +91,7 @@ export function leadContentHash(input: LeadFingerprintInput): string {
 export function rankingContextHash(settings: Person, cfg: LlmEndpoint): string {
 	return hash({
 		promptVersion: RANK_PROMPT_VERSION,
+		apiType: cfg.apiType,
 		profile: profileBlock(settings),
 		listingRankingCriteria: settings.listingRankingCriteria,
 		leadRankingCriteria: settings.leadRankingCriteria,
@@ -102,7 +103,8 @@ export function rankingContextHash(settings: Person, cfg: LlmEndpoint): string {
 export function draftContextHash(settings: Person, cfg: LlmEndpoint): string {
 	return hash({
 		promptVersion: DRAFT_PROMPT_VERSION,
-		profile: profileBlock(settings),
+		apiType: cfg.apiType,
+		profile: buildDraftContext(settings),
 		baseUrl: cfg.baseUrl,
 		model: cfg.model
 	});

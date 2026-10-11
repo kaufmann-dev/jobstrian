@@ -176,6 +176,7 @@ describe('createSearchConfigPreview', () => {
 		updatePerson.mockReset();
 		getLlmConfig.mockReset();
 		getLlmConfig.mockResolvedValue({
+			apiType: 'openai-compatible',
 			baseUrl: 'https://llm.test/v1',
 			apiKey: 'secret',
 			model: 'm'

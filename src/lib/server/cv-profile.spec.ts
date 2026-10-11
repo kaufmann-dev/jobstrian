@@ -154,7 +154,12 @@ describe('createProfilePreview', () => {
 	it('rejects a missing stored CV', async () => {
 		getCvData.mockResolvedValue(null);
 		getPerson.mockResolvedValue(settings());
-		getLlmConfig.mockResolvedValue({ baseUrl: 'https://llm.test/v1', apiKey: '', model: 'test' });
+		getLlmConfig.mockResolvedValue({
+			apiType: 'openai-compatible' as const,
+			baseUrl: 'https://llm.test/v1',
+			apiKey: '',
+			model: 'test'
+		});
 
 		await expect(createProfilePreview(1)).rejects.toThrow('Kein Lebenslauf hinterlegt.');
 	});

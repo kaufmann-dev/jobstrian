@@ -8,7 +8,9 @@ import {
 	type LlmModel,
 	type Person
 } from '../db/schema';
-import { chatJson, LlmNotConfiguredError, type LlmConfig } from './client';
+import type { LlmApiType } from '#lib/llm.js';
+import { verificationResponse } from './response-schemas';
+import { chatJson, llmHeaders, LlmNotConfiguredError, type LlmConfig } from './client';
 import { LlmLimiter } from './limiter';
 
 /** A connection as shown in the UI: the API key itself is never sent to the client. */
@@ -40,6 +42,7 @@ export async function listConnections(): Promise<LlmConnectionView[]> {
 }
 
 export interface ConnectionInput {
+	apiType: LlmApiType;
 	name: string;
 	baseUrl: string;
 	/** Empty keeps the stored key on update. */
@@ -53,6 +56,7 @@ export async function createConnection(input: ConnectionInput): Promise<LlmConne
 		.insert(llmConnection)
 		.values({
 			name: input.name.trim(),
+			apiType: input.apiType,
 			baseUrl: input.baseUrl.trim(),
 			apiKey: input.apiKey ?? '',
 			requestsPerMinute: input.requestsPerMinute,
@@ -72,6 +76,7 @@ export async function updateConnection(id: number, input: ConnectionInput): Prom
 		.update(llmConnection)
 		.set({
 			name: input.name.trim(),
+			apiType: input.apiType,
 			baseUrl,
 			apiKey,
 			requestsPerMinute: input.requestsPerMinute,
@@ -79,7 +84,11 @@ export async function updateConnection(id: number, input: ConnectionInput): Prom
 		})
 		.where(eq(llmConnection.id, id))
 		.returning();
-	if (baseUrl !== current.baseUrl || apiKey !== current.apiKey) {
+	if (
+		input.apiType !== current.apiType ||
+		baseUrl !== current.baseUrl ||
+		apiKey !== current.apiKey
+	) {
 		await db
 			.update(llmModel)
 			.set({ verified: false, verifiedAt: null })
@@ -137,25 +146,53 @@ export async function fetchAvailableModels(connectionId: number): Promise<string
 		.where(eq(llmConnection.id, connectionId))
 		.limit(1);
 	if (!connection) throw new Error('KI-Verbindung nicht gefunden.');
-	let res: Response;
-	try {
-		res = await fetch(connection.baseUrl.replace(/\/+$/, '') + '/models', {
-			headers: connection.apiKey ? { authorization: `Bearer ${connection.apiKey}` } : {},
-			signal: AbortSignal.timeout(15_000)
-		});
-	} catch {
-		throw new Error('Die Modellliste konnte nicht abgerufen werden. Trage das Modell manuell ein.');
-	}
-	if (!res.ok) {
-		throw new Error(
-			`Die Modellliste konnte nicht abgerufen werden (${res.status}). Trage das Modell manuell ein.`
-		);
-	}
-	const ids = parseModelList(await res.json().catch(() => null));
-	if (ids.length === 0) {
+	return discoverModels(connection);
+}
+
+/** Fetch all native Claude pages; other providers return their model list in one response. */
+export async function discoverModels(
+	connection: Pick<LlmConnection, 'apiType' | 'baseUrl' | 'apiKey'>
+): Promise<string[]> {
+	const ids = new Set<string>();
+	const seenCursors = new Set<string>();
+	let cursor: string | null = null;
+	const signal = AbortSignal.timeout(15_000);
+	do {
+		const url = new URL(connection.baseUrl.replace(/\/+$/, '') + '/models');
+		if (connection.apiType === 'anthropic') {
+			url.searchParams.set('limit', '1000');
+			if (cursor) url.searchParams.set('after_id', cursor);
+		}
+		let res: Response;
+		try {
+			res = await fetch(url, { headers: llmHeaders(connection), signal });
+		} catch {
+			throw new Error(
+				'Die Modellliste konnte nicht abgerufen werden. Trage das Modell manuell ein.'
+			);
+		}
+		if (!res.ok)
+			throw new Error(
+				`Die Modellliste konnte nicht abgerufen werden (${res.status}). Trage das Modell manuell ein.`
+			);
+		const body: unknown = await res.json().catch(() => null);
+		for (const id of parseModelList(body)) ids.add(id);
+		const page = body as { has_more?: boolean; last_id?: string } | null;
+		cursor = connection.apiType === 'anthropic' && page?.has_more ? (page.last_id ?? null) : null;
+		if (
+			connection.apiType === 'anthropic' &&
+			page?.has_more &&
+			(!cursor || seenCursors.has(cursor))
+		) {
+			throw new Error(
+				'Die Modellliste enthält eine ungültige nächste Seite. Trage das Modell manuell ein.'
+			);
+		}
+		if (cursor) seenCursors.add(cursor);
+	} while (cursor);
+	if (!ids.size)
 		throw new Error('Der Endpunkt hat keine Modelle geliefert. Trage das Modell manuell ein.');
-	}
-	return ids;
+	return [...ids].sort((a, b) => a.localeCompare(b));
 }
 
 async function modelConfig(modelRowId: number): Promise<LlmConfig | null> {
@@ -169,6 +206,7 @@ async function modelConfig(modelRowId: number): Promise<LlmConfig | null> {
 	if (!row) return null;
 	return {
 		connectionId: row.connection.id,
+		apiType: row.connection.apiType,
 		modelRowId: row.model.id,
 		baseUrl: row.connection.baseUrl,
 		apiKey: row.connection.apiKey,
@@ -188,11 +226,11 @@ export async function effectiveModelId(
 }
 
 /** Resolve the model a person's LLM work runs on. Throws `LlmNotConfiguredError` when none. */
-export async function getLlmConfig(person: Pick<Person, 'llmModelId'>): Promise<LlmConfig> {
+export async function getLlmConfig(person: Pick<Person, 'llmModelId' | 'id'>): Promise<LlmConfig> {
 	const { id } = await effectiveModelId(person);
 	const config = id == null ? null : await modelConfig(id);
 	if (!config) throw new LlmNotConfiguredError();
-	return config;
+	return { ...config, personId: person.id };
 }
 
 export async function llmStatusFor(person: Pick<Person, 'llmModelId'>): Promise<LlmStatus> {
@@ -252,7 +290,13 @@ export async function verifyLlmModel(modelRowId: number): Promise<LlmModel> {
 				{ role: 'system', content: 'Antworte ausschließlich mit einem JSON-Objekt.' },
 				{ role: 'user', content: 'Gib {"ok":true} als JSON zurück.' }
 			],
-			{ limiter: getLlmLimiter(config), maxAttempts: 1, temperature: 0 }
+			{
+				limiter: getLlmLimiter(config),
+				maxAttempts: 1,
+				temperature: 0,
+				response: verificationResponse,
+				maxOutputTokens: 1024
+			}
 		);
 	} catch (err) {
 		await db

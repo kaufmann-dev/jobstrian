@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { personColorSchema, personNameSchema } from '#lib/people.js';
+import { LLM_API_TYPES } from '#lib/llm.js';
 
 const id = z.number().int().positive();
 
@@ -19,6 +20,7 @@ export const clientIdFormSchema = z.object({ clientId: z.string().min(1).max(500
 export const connectionFormSchema = z.object({
 	id: id.optional(),
 	name: z.string().trim().min(1, 'Name fehlt.').max(80),
+	apiType: z.enum(LLM_API_TYPES).default('openai'),
 	baseUrl: z
 		.string()
 		.trim()

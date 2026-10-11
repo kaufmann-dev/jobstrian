@@ -5,8 +5,10 @@
 	import { fromAction } from 'svelte/attachments';
 	import { toast } from 'svelte-sonner';
 	import { connectionFormSchema } from '#lib/app-settings-schema.js';
+	import { LLM_API_TYPES, LLM_API_LABELS, LLM_BASE_URLS } from '#lib/llm.js';
 	import * as Dialog from '#lib/components/ui/dialog/index.js';
 	import * as Form from '#lib/components/ui/form/index.js';
+	import * as Select from '#lib/components/ui/select/index.js';
 	import { Button } from '#lib/components/ui/button/index.js';
 	import { Input } from '#lib/components/ui/input/index.js';
 	import { Spinner } from '#lib/components/ui/spinner/index.js';
@@ -35,6 +37,15 @@
 	);
 	const { form: formData, enhance, submitting } = form;
 
+	function selectApiType(value: string) {
+		const apiType = LLM_API_TYPES.find((candidate) => candidate === value);
+		if (!apiType) return;
+		const currentUrl = $formData.baseUrl.trim().replace(/\/+$/, '');
+		const useDefaultUrl = !currentUrl || currentUrl === LLM_BASE_URLS[$formData.apiType];
+		$formData.apiType = apiType;
+		if (useDefaultUrl) $formData.baseUrl = LLM_BASE_URLS[apiType];
+	}
+
 	/** Opens the dialog empty (`null`) or to edit the given connection. */
 	export function show(connection: Connection | null) {
 		editing = connection !== null;
@@ -44,6 +55,7 @@
 				? {
 						id: connection.id,
 						name: connection.name,
+						apiType: connection.apiType,
 						baseUrl: connection.baseUrl,
 						apiKey: '',
 						requestsPerMinute: connection.requestsPerMinute,
@@ -52,7 +64,8 @@
 				: {
 						id: undefined,
 						name: '',
-						baseUrl: '',
+						apiType: 'openai',
+						baseUrl: LLM_BASE_URLS.openai,
 						apiKey: '',
 						requestsPerMinute: 300,
 						maxConcurrent: 50
@@ -66,9 +79,7 @@
 	<Dialog.Content class="max-h-[calc(100dvh-2rem)] overflow-y-auto sm:max-w-lg">
 		<Dialog.Header>
 			<Dialog.Title>{editing ? 'Verbindung bearbeiten' : 'Verbindung hinzufügen'}</Dialog.Title>
-			<Dialog.Description>
-				Ein OpenAI-kompatibler Endpoint, den alle Personen nutzen können.
-			</Dialog.Description>
+			<Dialog.Description>Ein KI-Anbieter, den alle Personen nutzen können.</Dialog.Description>
 		</Dialog.Header>
 		<form method="POST" action="?/saveConnection" class="space-y-4" {@attach fromAction(enhance)}>
 			{#if $formData.id}
@@ -88,6 +99,29 @@
 				</Form.Control>
 				<Form.FieldErrors />
 			</Form.Field>
+			<Form.Field {form} name="apiType">
+				<Form.Control>
+					{#snippet children({ props })}
+						<Form.Label>API-Typ</Form.Label>
+						<Select.Root
+							type="single"
+							name={props.name}
+							value={$formData.apiType}
+							onValueChange={selectApiType}
+						>
+							<Select.Trigger {...props} class="w-full">
+								<span class="truncate">{LLM_API_LABELS[$formData.apiType]}</span>
+							</Select.Trigger>
+							<Select.Content>
+								{#each LLM_API_TYPES as apiType (apiType)}
+									<Select.Item value={apiType} label={LLM_API_LABELS[apiType]} />
+								{/each}
+							</Select.Content>
+						</Select.Root>
+					{/snippet}
+				</Form.Control>
+				<Form.FieldErrors />
+			</Form.Field>
 			<Form.Field {form} name="baseUrl">
 				<Form.Control>
 					{#snippet children({ props })}
@@ -96,7 +130,7 @@
 							{...props}
 							inputmode="url"
 							bind:value={$formData.baseUrl}
-							placeholder="https://api.openai.com/v1"
+							placeholder={LLM_BASE_URLS[$formData.apiType] || 'https://api.example.com/v1'}
 							autocomplete="off"
 						/>
 					{/snippet}

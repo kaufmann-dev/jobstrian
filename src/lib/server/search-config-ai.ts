@@ -1,3 +1,4 @@
+import { searchConfigResponse } from './llm/response-schemas';
 import {
 	OSM_TAG_CATALOG,
 	isValidOsmBusinessTag,
@@ -121,6 +122,7 @@ function catalogPrompt(): string {
 const SEARCH_CONFIG_SYSTEM = `Du erstellst eine Suchkonfiguration für Jobsuche in Österreich.
 Antworte ausschließlich mit einem JSON-Objekt. Erlaubte Felder:
 jobSearchKeywords, businessOsmTags, jobSearchLocations.
+Gib alle drei Felder zurück; nutze null, wenn zu einem Feld kein Vorschlag möglich ist.
 
 Regeln:
 - Erzeuge praktische Portal-Suchbegriffe auf Deutsch und Englisch, wenn das die Treffer verbessert.
@@ -163,7 +165,7 @@ export async function createSearchConfigPreview(
 					content: `NUTZERWUNSCH:\n${trimmedIntent}\n\nERLAUBTER OSM-KATALOG:\n${catalogPrompt()}`
 				}
 			],
-			{ limiter, temperature: 0.1 }
+			{ limiter, temperature: 0.1, response: searchConfigResponse }
 		);
 	} catch (error) {
 		if (error instanceof LlmHttpError && (error.status === 401 || error.status === 403)) {

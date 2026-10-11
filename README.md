@@ -6,7 +6,7 @@ Jobstrian searches Austrian job portals for configured role keywords and Austria
 derives a portal city from your validated home address when no explicit cities are configured,
 finds configured business categories near the applicant's home for speculative
 applications, rates each job / business using a user-configured
-OpenAI-compatible LLM and tracks which companies actually answered.
+AI model and tracks which companies actually answered.
 
 One login manages several **people** (for example yourself, your partner, your mom). Each
 person has their own profile, CV, search configuration, ranking criteria, jobs, businesses,
@@ -20,7 +20,8 @@ applications and e-mail sender; the LLM connections are shared.
   The slug is derived from the name once and never changes, so links and the Resend webhook URL
   stay valid after a rename.
 - **App-Einstellungen** (`/settings`) manage people, shared **KI-Verbindungen** (several
-  OpenAI-compatible endpoints, each with saved and individually verified models), the default
+  OpenAI Responses, Anthropic Messages or OpenAI-compatible Chat Completions connections,
+  each with saved and individually verified models), the default
   model, the "Keine Antwort nach … Tagen" threshold and the connected MCP apps.
 - Each person can pick a saved model of their own or use the app default. Deleting a person
   deletes everything that belongs to them.
@@ -177,13 +178,28 @@ Open `http://localhost:5173/login` and sign in through the configured OIDC provi
 Provider access policy determines which administrators may use Jobstrian; the app does not maintain
 an identity or claim allowlist. After signing in, enter your address, role keywords, business
 categories in the person's **Einstellungen**. Create the first person on the start page, then add
-the OpenAI-compatible LLM under **App-Einstellungen → KI-Verbindungen** (base URL including `/v1`,
-API key), save one or more models (loaded from the endpoint's model list or typed manually) and
+an AI connection under **App-Einstellungen → KI-Verbindungen** (API type, base URL including `/v1`,
+API key). OpenAI defaults to `https://api.openai.com/v1`; Anthropic defaults to
+`https://api.anthropic.com/v1`. Base URLs remain editable for proxies and local providers.
+Then, save one or more models (loaded from the endpoint's model list or typed manually) and
 click **Prüfen** on a model: Jobstrian sends one live request and only marks the model
 **Geprüft** if it succeeds. AI-powered features (profile import, search and criteria generation)
 and the **Aktualisieren** run on a person's overview stay disabled until their model (their own
-choice or the app default) is verified; the status resets whenever the connection's base URL or
-API key changes.
+choice or the app default) is verified; the status resets whenever the connection's API type, base URL or
+API key changes. Native OpenAI and Claude models must support structured outputs; verification checks
+that the selected API can return the required schema. Existing official OpenAI and Anthropic
+connections migrate to their native APIs and must be verified again; other connections use
+OpenAI-compatible Chat Completions.
+
+Ranking and draft requests reuse instructions and applicant context before the job/business input.
+Claude caches this stable prefix for five minutes when it meets the selected model's minimum
+length. One-off previews and verification do not request Claude caching. OpenAI uses its default
+prompt caching behavior. Unchanged rankings and drafts are still skipped using fingerprints.
+Server logs tagged `[llm-usage]` record provider, connection/model/person IDs, purpose, attempt,
+duration, input/output tokens, cached input and cache writes. Missing usage is `null`; prompts,
+responses and API keys are excluded. Token rates depend on the model; switching endpoints does
+not itself lower token prices.
+
 For automatic applications, also configure Resend per person in their **Einstellungen**
 (every person sends from their own address, so each has their own Resend key, domain, sender,
 reply-to and webhook; the same key or domain may be reused):

@@ -76,10 +76,24 @@ function settings(patch: Partial<Person> = {}): Person {
 }
 
 const cfg: LlmEndpoint = {
+	apiType: 'openai-compatible',
 	baseUrl: 'https://llm.example.test/v1',
 	apiKey: 'secret',
 	model: 'model-a'
 };
+
+it('invalidates ranking and draft fingerprints when the API type changes', () => {
+	const person = settings();
+	const native = { ...cfg, apiType: 'openai' as const };
+	expect(rankingContextHash(person, native)).not.toBe(rankingContextHash(person, cfg));
+	expect(draftContextHash(person, native)).not.toBe(draftContextHash(person, cfg));
+});
+
+it('invalidates email drafts when the sender name changes', () => {
+	expect(draftContextHash(settings({ fullName: 'Anna' }), cfg)).not.toBe(
+		draftContextHash(settings({ fullName: 'Maria' }), cfg)
+	);
+});
 
 function listingRow(patch: Partial<Listing> = {}): Listing {
 	return {
