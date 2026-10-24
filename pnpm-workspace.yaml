@@ -7,6 +7,7 @@ allowBuilds:
 minimumReleaseAgeExclude:
   - '@sveltejs/adapter-node@6.0.0'
   - '@sveltejs/kit@3.0.0'
+  - 'chromium-bidi@158.0.8121-0'
 
 overrides:
   '@esbuild-kit/core-utils>esbuild': ^0.28.1

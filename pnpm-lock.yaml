@@ -37,8 +37,8 @@ importers:
         specifier: ^1.2.0
         version: 1.2.0
       chromium-bidi:
-        specifier: 157.0.8080-0
-        version: 157.0.8080-0(devtools-protocol@0.0.1643702)
+        specifier: 158.0.8121-0
+        version: 158.0.8121-0(devtools-protocol@0.0.1643702)
       drizzle-orm:
         specifier: ^0.45.3
         version: 0.45.3(kysely@0.29.6)(postgres@3.4.9)
@@ -1806,8 +1806,8 @@ packages:
     resolution: {integrity: sha512-Qgzu8kfBvo+cA4962jnP1KkS6Dop5NS6g7R5LFYJr4b8Ub94PPQXUksCw9PvXoeXPRRddRNC5C1JQUR2SMGtnA==}
     engines: {node: '>= 14.16.0'}
 
-  chromium-bidi@157.0.8080-0:
-    resolution: {integrity: sha512-B7HDEHLKZcPEoF67ZTFeMlHLBsgubwDp40qiyeClRTf1EjBahHI3fVeQPR3a3qrRgxJfH9atzhMDEYAkMBdHhw==}
+  chromium-bidi@158.0.8121-0:
+    resolution: {integrity: sha512-ugzYZNO6FXdUYY2YWfYs3n8J3mLvc3gcjJZANizVfFbi5cBpXHiRv/C0zLMTO9qfYM8CavBfiXHTi+Q9hxlvbQ==}
     engines: {node: '>=20.19.0 <22.0.0 || >=22.12.0'}
     peerDependencies:
       devtools-protocol: '*'
@@ -3393,9 +3393,6 @@ packages:
     peerDependencies:
       zod: ^3.25 || ^4.0.14
 
-  zod@3.25.76:
-    resolution: {integrity: sha512-gzUt/qt81nXsFGKIFcC3YnfEAx5NkunCfnDlvuBSSFS02bcXu4Lmea0AFIUwbLWxWPx3d9p8S5QoaujKcNQxcQ==}
-
   zod@4.6.7:
     resolution: {integrity: sha512-g8W2D2kU6a8untc053fX1uVBKzM7yqAxW/3zwk83+6RyF2+SKOuV+c0wBDhUwzV1PaGapmZH+rmcUzPf+3CGwg==}
 
@@ -4713,11 +4710,11 @@ snapshots:
     dependencies:
       readdirp: 4.1.2
 
-  chromium-bidi@157.0.8080-0(devtools-protocol@0.0.1643702):
+  chromium-bidi@158.0.8121-0(devtools-protocol@0.0.1643702):
     dependencies:
       devtools-protocol: 0.0.1643702
       mitt: 3.0.1
-      zod: 3.25.76
+      zod: 4.6.7
 
   class-validator@0.14.4:
     dependencies:
@@ -6090,7 +6087,5 @@ snapshots:
     dependencies:
       zod: 4.6.7
     optional: true
-
-  zod@3.25.76: {}
 
   zod@4.6.7: {}

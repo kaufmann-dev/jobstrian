@@ -75,7 +75,7 @@
 		"better-auth": "^1.7.7",
 		"better-svelte-email": "^2.3.0",
 		"cheerio": "^1.2.0",
-		"chromium-bidi": "157.0.8080-0",
+		"chromium-bidi": "158.0.8121-0",
 		"drizzle-orm": "^0.45.3",
 		"mode-watcher": "^1.1.0",
 		"pdf-parse": "^2.4.5",
