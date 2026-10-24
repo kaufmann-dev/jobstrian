@@ -184,7 +184,7 @@
 
 		<Tabs.Root value={tab} onValueChange={(value) => (tab = value as ApplicationBucket)}>
 			<div class="flex flex-wrap items-center justify-between gap-3">
-				<div class="max-w-full overflow-x-auto">
+				<div class="max-w-full overflow-x-auto overflow-y-hidden">
 					<Tabs.List>
 						{#each APPLICATION_BUCKETS as bucket (bucket)}
 							<Tabs.Trigger
