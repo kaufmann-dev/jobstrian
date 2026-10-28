@@ -96,7 +96,8 @@ export function rankingContextHash(settings: Person, cfg: LlmEndpoint): string {
 		listingRankingCriteria: settings.listingRankingCriteria,
 		leadRankingCriteria: settings.leadRankingCriteria,
 		baseUrl: cfg.baseUrl,
-		model: cfg.model
+		model: cfg.model,
+		reasoningEffort: cfg.reasoningEffort ?? null
 	});
 }
 
@@ -106,7 +107,8 @@ export function draftContextHash(settings: Person, cfg: LlmEndpoint): string {
 		apiType: cfg.apiType,
 		profile: buildDraftContext(settings),
 		baseUrl: cfg.baseUrl,
-		model: cfg.model
+		model: cfg.model,
+		reasoningEffort: cfg.reasoningEffort ?? null
 	});
 }
 

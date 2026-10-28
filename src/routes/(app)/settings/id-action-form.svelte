@@ -5,8 +5,14 @@
 	import { toast } from 'svelte-sonner';
 
 	type Props = {
-		/** A form action in `+page.server.ts` that only needs the identifier of one row. */
-		action: 'deletePerson' | 'deleteConnection' | 'removeModel' | 'verifyModel' | 'revokeApp';
+		/** A form action in `+page.server.ts` keyed by one row; children may add further fields. */
+		action:
+			| 'deletePerson'
+			| 'deleteConnection'
+			| 'removeModel'
+			| 'setModelReasoning'
+			| 'verifyModel'
+			| 'revokeApp';
 		id: number | string;
 		/** Name of the hidden form field that carries `id`. */
 		field?: 'id' | 'clientId';

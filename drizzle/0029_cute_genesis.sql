@@ -1,0 +1,2 @@
+ALTER TABLE "llm_model" ADD COLUMN "reasoning_effort" text;--> statement-breakpoint
+ALTER TABLE "llm_model" ADD CONSTRAINT "llm_model_reasoning_effort_check" CHECK ("llm_model"."reasoning_effort" is null or "llm_model"."reasoning_effort" in ('low', 'medium', 'high'));

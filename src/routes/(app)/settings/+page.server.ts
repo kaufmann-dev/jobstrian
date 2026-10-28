@@ -8,6 +8,7 @@ import {
 	connectionFormSchema,
 	idFormSchema,
 	loadModelsFormSchema,
+	modelReasoningFormSchema,
 	personFormSchema
 } from '#lib/app-settings-schema.js';
 import { authBaseURL } from '#lib/server/auth.js';
@@ -23,6 +24,7 @@ import {
 	fetchAvailableModels,
 	listConnections,
 	removeModel,
+	setModelReasoningEffort,
 	updateConnection,
 	verifyLlmModel
 } from '#lib/server/llm/connections.js';
@@ -157,6 +159,12 @@ export const actions: Actions = {
 		if (!form.valid) return fail(400, { form });
 		await removeModel(form.data.id);
 		return message(form, 'Modell entfernt.');
+	},
+	setModelReasoning: async ({ request }) => {
+		const form = await superValidate(request, zod4(modelReasoningFormSchema));
+		if (!form.valid) return fail(400, { form });
+		await setModelReasoningEffort(form.data.id, form.data.reasoningEffort);
+		return message(form, 'Reasoning-Stufe gespeichert. Prüfe das Modell erneut.');
 	},
 	verifyModel: async ({ request }) => {
 		const form = await superValidate(request, zod4(idFormSchema));

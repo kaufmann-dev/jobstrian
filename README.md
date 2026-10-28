@@ -186,7 +186,12 @@ click **Prüfen** on a model: Jobstrian sends one live request and only marks th
 **Geprüft** if it succeeds. AI-powered features (profile import, search and criteria generation)
 and the **Aktualisieren** run on a person's overview stay disabled until their model (their own
 choice or the app default) is verified; the status resets whenever the connection's API type, base URL or
-API key changes. Native OpenAI and Claude models must support structured outputs; verification checks
+API key changes. Each saved model has a **Reasoning** level: **Standard** sends no reasoning parameter,
+while **Niedrig/Mittel/Hoch** send OpenAI `reasoning.effort`, Claude adaptive thinking with
+`output_config.effort` or Chat Completions `reasoning_effort` (without `temperature`), raise the output
+budget to at least 16 384 tokens and the request timeout to 180 s. A level needs a reasoning-capable
+model; changing it resets the model's verification and marks existing rankings and drafts as stale.
+Native OpenAI and Claude models must support structured outputs; verification checks
 that the selected API can return the required schema. Existing official OpenAI and Anthropic
 connections migrate to their native APIs and must be verified again; other connections use
 OpenAI-compatible Chat Completions.

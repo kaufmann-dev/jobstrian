@@ -161,6 +161,85 @@ describe('native providers', () => {
 		}
 	);
 
+	it.each(['openai', 'anthropic', 'openai-compatible'] as const)(
+		'sends the %s reasoning level with a raised output budget',
+		async (apiType) => {
+			const fetchMock = vi.fn<typeof fetch>(async () =>
+				apiType === 'openai-compatible' ? success() : Response.json(nativeSuccess(apiType))
+			);
+			vi.stubGlobal('fetch', fetchMock);
+			await chatJson({ ...cfg, apiType, reasoningEffort: 'high' }, messages, {
+				limiter: limiter(),
+				response: verificationResponse,
+				temperature: 0,
+				maxOutputTokens: 1024
+			});
+			const body = JSON.parse(fetchMock.mock.calls[0][1]?.body as string);
+			if (apiType === 'openai') {
+				expect(body.reasoning).toEqual({ effort: 'high' });
+				expect(body.max_output_tokens).toBe(16_384);
+			} else if (apiType === 'anthropic') {
+				expect(body.thinking).toEqual({ type: 'adaptive' });
+				expect(body.output_config).toMatchObject({
+					effort: 'high',
+					format: { type: 'json_schema' }
+				});
+				expect(body.max_tokens).toBe(16_384);
+			} else {
+				expect(body.reasoning_effort).toBe('high');
+				expect(body.temperature).toBeUndefined();
+				expect(body.max_tokens).toBe(16_384);
+			}
+		}
+	);
+
+	it.each(['openai', 'anthropic', 'openai-compatible'] as const)(
+		'sends no %s reasoning fields without a level',
+		async (apiType) => {
+			const fetchMock = vi.fn<typeof fetch>(async () =>
+				apiType === 'openai-compatible' ? success() : Response.json(nativeSuccess(apiType))
+			);
+			vi.stubGlobal('fetch', fetchMock);
+			await chatJson({ ...cfg, apiType, reasoningEffort: null }, messages, {
+				limiter: limiter(),
+				response: verificationResponse
+			});
+			const body = JSON.parse(fetchMock.mock.calls[0][1]?.body as string);
+			expect(body.reasoning).toBeUndefined();
+			expect(body.thinking).toBeUndefined();
+			expect(body.reasoning_effort).toBeUndefined();
+			expect(body.output_config?.effort).toBeUndefined();
+		}
+	);
+
+	it('waits longer before timing out a reasoning request', async () => {
+		vi.useFakeTimers();
+		vi.stubGlobal(
+			'fetch',
+			vi.fn(
+				(_url: string, init: RequestInit) =>
+					new Promise((_resolve, reject) => {
+						init.signal?.addEventListener('abort', () => reject(init.signal?.reason), {
+							once: true
+						});
+					})
+			)
+		);
+		let settled = false;
+		const pending = chatJson({ ...cfg, reasoningEffort: 'low' }, messages, {
+			limiter: limiter(),
+			response: verificationResponse,
+			maxAttempts: 1
+		}).finally(() => {
+			settled = true;
+		});
+		const outcome = expect(pending).rejects.toThrow('Zeitlimit');
+		await vi.advanceTimersByTimeAsync(60_001);
+		expect(settled).toBe(false);
+		await vi.advanceTimersByTimeAsync(120_000);
+		await outcome;
+	});
+
 	it('does not request Claude caching for one-off requests', async () => {
 		const fetchMock = vi.fn().mockResolvedValue(Response.json(nativeSuccess('anthropic')));
 		vi.stubGlobal('fetch', fetchMock);

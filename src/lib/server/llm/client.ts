@@ -1,4 +1,4 @@
-import type { LlmApiType } from '#lib/llm.js';
+import type { LlmApiType, LlmReasoningEffort } from '#lib/llm.js';
 import { responseJsonSchema, type LlmResponseSchema } from './response-schemas';
 import { type LlmLimiter } from './limiter';
 import { HttpError, withRetry, isTransientError, type RetryContext } from '../util/retry';
@@ -13,6 +13,8 @@ export interface LlmEndpoint {
 	baseUrl: string;
 	apiKey: string;
 	model: string;
+	/** Requested reasoning level; null or absent sends nothing. */
+	reasoningEffort?: LlmReasoningEffort | null;
 }
 
 /** A resolved saved model: endpoint plus the limits of its connection. */
@@ -193,7 +195,12 @@ export async function chatJson<T>(
 		.filter((m) => m.role === 'user')
 		.map((m) => m.content)
 		.join('\n');
-	const maxTokens = opts.maxOutputTokens ?? 8192;
+	const effort = cfg.reasoningEffort ?? null;
+	// Reasoning tokens count against the output budget and take longer to produce.
+	const maxTokens = effort
+		? Math.max(opts.maxOutputTokens ?? 8192, 16_384)
+		: (opts.maxOutputTokens ?? 8192);
+	const timeoutMs = opts.timeoutMs ?? (effort ? 180_000 : 60_000);
 	const schema = responseJsonSchema(opts.response);
 	const userBlocks = [
 		...(opts.context
@@ -213,6 +220,7 @@ export async function chatJson<T>(
 					model: cfg.model,
 					store: false,
 					max_output_tokens: maxTokens,
+					...(effort ? { reasoning: { effort } } : {}),
 					input: [
 						{ role: 'developer', content: system },
 						{
@@ -230,12 +238,17 @@ export async function chatJson<T>(
 						model: cfg.model,
 						system,
 						max_tokens: maxTokens,
+						...(effort ? { thinking: { type: 'adaptive' } } : {}),
 						messages: [{ role: 'user', content: userBlocks }],
-						output_config: { format: { type: 'json_schema', schema } }
+						output_config: {
+							format: { type: 'json_schema', schema },
+							...(effort ? { effort } : {})
+						}
 					}
 				: {
 						model: cfg.model,
-						temperature: opts.temperature ?? 0.2,
+						// Reasoning models reject a custom temperature.
+						...(effort ? { reasoning_effort: effort } : { temperature: opts.temperature ?? 0.2 }),
 						max_tokens: maxTokens,
 						response_format: { type: 'json_object' },
 						messages: [
@@ -246,7 +259,7 @@ export async function chatJson<T>(
 	return withRetry(
 		async (attempt) => {
 			return opts.limiter.run(async (limiterSignal, feedback) => {
-				const request = attemptSignal(limiterSignal, opts.timeoutMs);
+				const request = attemptSignal(limiterSignal, timeoutMs);
 				try {
 					const started = Date.now();
 					const res = await fetch(cfg.baseUrl.replace(/\/+$/, '') + path, {
@@ -266,6 +279,7 @@ export async function chatJson<T>(
 							connectionId: cfg.connectionId ?? null,
 							modelId: cfg.modelRowId ?? null,
 							model: cfg.model,
+							reasoningEffort: effort,
 							personId: cfg.personId ?? null,
 							purpose: opts.response.name,
 							attempt,

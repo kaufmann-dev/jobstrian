@@ -8,7 +8,7 @@ import {
 	type LlmModel,
 	type Person
 } from '../db/schema';
-import type { LlmApiType } from '#lib/llm.js';
+import { LLM_REASONING_LABELS, type LlmApiType, type LlmReasoningEffort } from '#lib/llm.js';
 import { verificationResponse } from './response-schemas';
 import { chatJson, llmHeaders, LlmNotConfiguredError, type LlmConfig } from './client';
 import { LlmLimiter } from './limiter';
@@ -23,7 +23,7 @@ export type LlmStatus = {
 	configured: boolean;
 	verified: boolean;
 	verifiedAt: Date | null;
-	/** "<model> · <connection>" of the resolved model, if any. */
+	/** "<model> · <connection>[ · Reasoning: <level>]" of the resolved model, if any. */
 	label: string | null;
 	/** True when the person has no model of their own and the app default applies. */
 	usesDefault: boolean;
@@ -108,6 +108,17 @@ export async function addModels(connectionId: number, modelIds: string[]): Promi
 		.insert(llmModel)
 		.values(unique.map((modelId) => ({ connectionId, modelId })))
 		.onConflictDoNothing();
+}
+
+/** Changing the reasoning level changes every request, so the model must be verified again. */
+export async function setModelReasoningEffort(
+	id: number,
+	reasoningEffort: LlmReasoningEffort | null
+): Promise<void> {
+	await db
+		.update(llmModel)
+		.set({ reasoningEffort, verified: false, verifiedAt: null })
+		.where(eq(llmModel.id, id));
 }
 
 export async function removeModel(id: number): Promise<void> {
@@ -211,6 +222,7 @@ async function modelConfig(modelRowId: number): Promise<LlmConfig | null> {
 		baseUrl: row.connection.baseUrl,
 		apiKey: row.connection.apiKey,
 		model: row.model.modelId,
+		reasoningEffort: row.model.reasoningEffort,
 		requestsPerMinute: row.connection.requestsPerMinute,
 		maxConcurrent: row.connection.maxConcurrent,
 		verified: row.model.verified
@@ -252,7 +264,13 @@ export async function llmStatusFor(person: Pick<Person, 'llmModelId'>): Promise<
 		configured: true,
 		verified: row.model.verified,
 		verifiedAt: row.model.verifiedAt,
-		label: `${row.model.modelId} · ${row.connection.name}`,
+		label: [
+			row.model.modelId,
+			row.connection.name,
+			row.model.reasoningEffort && `Reasoning: ${LLM_REASONING_LABELS[row.model.reasoningEffort]}`
+		]
+			.filter(Boolean)
+			.join(' · '),
 		usesDefault
 	};
 }

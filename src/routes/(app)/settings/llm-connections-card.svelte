@@ -1,9 +1,10 @@
 <script lang="ts">
 	import ConfirmDialog from '#lib/components/confirm-dialog.svelte';
-	import { LLM_API_LABELS } from '#lib/llm.js';
+	import { LLM_API_LABELS, LLM_REASONING_EFFORTS, LLM_REASONING_LABELS } from '#lib/llm.js';
 	import * as Card from '#lib/components/ui/card/index.js';
 	import { Badge } from '#lib/components/ui/badge/index.js';
 	import { Button } from '#lib/components/ui/button/index.js';
+	import * as NativeSelect from '#lib/components/ui/native-select/index.js';
 	import { Spinner } from '#lib/components/ui/spinner/index.js';
 	import Check from '@lucide/svelte/icons/check';
 	import Pencil from '@lucide/svelte/icons/pencil';
@@ -149,6 +150,26 @@
 										<Badge variant="secondary">Nicht geprüft</Badge>
 									{/if}
 									<div class="flex items-center gap-1">
+										<IdActionForm action="setModelReasoning" id={model.id}>
+											{#snippet children({ pending })}
+												<NativeSelect.Root
+													name="reasoningEffort"
+													size="sm"
+													value={model.reasoningEffort ?? ''}
+													disabled={pending}
+													aria-label={`Reasoning-Stufe für ${model.modelId}`}
+													title="Reasoning-Stufe"
+													onchange={(event) => event.currentTarget.form?.requestSubmit()}
+												>
+													<NativeSelect.Option value="">Reasoning: Standard</NativeSelect.Option>
+													{#each LLM_REASONING_EFFORTS as effort (effort)}
+														<NativeSelect.Option value={effort}>
+															Reasoning: {LLM_REASONING_LABELS[effort]}
+														</NativeSelect.Option>
+													{/each}
+												</NativeSelect.Root>
+											{/snippet}
+										</IdActionForm>
 										<IdActionForm action="verifyModel" id={model.id}>
 											{#snippet children({ pending })}
 												<Button type="submit" variant="outline" size="xs" disabled={pending}>

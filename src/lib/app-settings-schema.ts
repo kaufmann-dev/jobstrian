@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { personColorSchema, personNameSchema } from '#lib/people.js';
-import { LLM_API_TYPES } from '#lib/llm.js';
+import { LLM_API_TYPES, LLM_REASONING_EFFORTS } from '#lib/llm.js';
 
 const id = z.number().int().positive();
 
@@ -12,6 +12,12 @@ export const personFormSchema = z.object({
 });
 
 export const idFormSchema = z.object({ id });
+
+/** Set a saved model's reasoning level; an empty value means the provider default. */
+export const modelReasoningFormSchema = z.object({
+	id,
+	reasoningEffort: z.enum(LLM_REASONING_EFFORTS).nullable()
+});
 
 /** Revoke a connected MCP/OAuth client. */
 export const clientIdFormSchema = z.object({ clientId: z.string().min(1).max(500) });

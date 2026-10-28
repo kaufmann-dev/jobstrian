@@ -204,6 +204,13 @@
       "when": 1791727604492,
       "tag": "0028_optimal_runaways",
       "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "7",
+      "when": 1793173919285,
+      "tag": "0029_cute_genesis",
+      "breakpoints": true
     }
   ]
 }

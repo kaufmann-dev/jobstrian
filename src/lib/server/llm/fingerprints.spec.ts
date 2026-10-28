@@ -89,6 +89,13 @@ it('invalidates ranking and draft fingerprints when the API type changes', () =>
 	expect(draftContextHash(person, native)).not.toBe(draftContextHash(person, cfg));
 });
 
+it('invalidates ranking and draft fingerprints when the reasoning level changes', () => {
+	const person = settings();
+	const reasoning = { ...cfg, reasoningEffort: 'high' as const };
+	expect(rankingContextHash(person, reasoning)).not.toBe(rankingContextHash(person, cfg));
+	expect(draftContextHash(person, reasoning)).not.toBe(draftContextHash(person, cfg));
+});
+
 it('invalidates email drafts when the sender name changes', () => {
 	expect(draftContextHash(settings({ fullName: 'Anna' }), cfg)).not.toBe(
 		draftContextHash(settings({ fullName: 'Maria' }), cfg)

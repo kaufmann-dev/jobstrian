@@ -544,11 +544,19 @@ export const llmModel = pgTable(
 			.notNull()
 			.references(() => llmConnection.id, { onDelete: 'cascade' }),
 		modelId: text('model_id').notNull(),
+		// Requested reasoning level; null sends nothing so the provider default applies.
+		reasoningEffort: text('reasoning_effort', { enum: ['low', 'medium', 'high'] }),
 		verified: boolean('verified').notNull().default(false),
 		verifiedAt: timestamp('verified_at'),
 		createdAt: timestamp('created_at').defaultNow().notNull()
 	},
-	(table) => [uniqueIndex('llm_model_connection_model_idx').on(table.connectionId, table.modelId)]
+	(table) => [
+		uniqueIndex('llm_model_connection_model_idx').on(table.connectionId, table.modelId),
+		check(
+			'llm_model_reasoning_effort_check',
+			sql`${table.reasoningEffort} is null or ${table.reasoningEffort} in ('low', 'medium', 'high')`
+		)
+	]
 );
 
 /** The uploaded CV of a person, stored as a blob for download/attachment. */
