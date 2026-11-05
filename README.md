@@ -277,12 +277,13 @@ and production); `pnpm drizzle-kit migrate` remains available to apply them manu
 
 | Setting        | Value    |
 | -------------- | -------- |
-| Build Pack     | Nixpacks |
+| Build Pack     | Railpack |
 | Base Directory | `/`      |
 
-`nixpacks.toml` runs the pinned pnpm 11.18.0 (`packageManager`) for install and
-build, and installs Chromium with `playwright install --with-deps chromium` so
-browser-backed portal adapters work in production.
+Railpack installs and builds with the pnpm version from `packageManager`.
+`railpack.json` installs the Playwright Chromium headless shell and its runtime
+libraries so browser-backed portal adapters work in production, and starts the
+server with a `10M` default `BODY_SIZE_LIMIT`.
 
 Pending migrations are applied automatically at server startup, so no
 post-deployment migration command is needed.
