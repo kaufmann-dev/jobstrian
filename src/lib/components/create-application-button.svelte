@@ -35,6 +35,8 @@
 			}
 			const target = `${resolve('/(app)/p/[person]/applications', { person })}?search=${body.application.searchId}`;
 			toast.success(body.existed ? 'Bewerbung ist bereits erfasst' : 'Bewerbung angelegt', {
+				// `target` is resolve()-built; the rule cannot follow the appended query string.
+				// eslint-disable-next-line svelte/no-navigation-without-resolve
 				action: { label: 'Öffnen', onClick: () => void goto(target) }
 			});
 		} catch (error) {
