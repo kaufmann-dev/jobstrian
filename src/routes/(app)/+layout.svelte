@@ -9,6 +9,7 @@
 	import { resolveHref } from '#lib/paths.js';
 	import { toggleMode } from 'mode-watcher';
 	import Briefcase from '@lucide/svelte/icons/briefcase';
+	import logo from '#lib/assets/favicon.svg';
 	import MapPin from '@lucide/svelte/icons/map-pin';
 	import LayoutDashboard from '@lucide/svelte/icons/layout-dashboard';
 	import ClipboardList from '@lucide/svelte/icons/clipboard-list';
@@ -102,11 +103,7 @@
 			class="mx-auto flex min-h-14 w-full max-w-[90rem] items-center gap-x-2 px-4 py-2 sm:gap-x-4 xl:py-0"
 		>
 			<a href={resolve('')} class="flex shrink-0 items-center gap-2.5 font-semibold tracking-tight">
-				<span
-					class="flex size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground"
-				>
-					<Briefcase class="size-4.5" />
-				</span>
+				<img src={logo} alt="" class="size-8" />
 				<span class="hidden sm:inline">Jobstrian</span>
 			</a>
 
